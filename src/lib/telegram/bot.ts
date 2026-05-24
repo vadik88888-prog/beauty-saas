@@ -17,23 +17,19 @@ export function getPlatformBot(): Bot {
 
 function registerHandlers(bot: Bot) {
   bot.command('start', async ctx => {
-    const payload = ctx.match  // e.g. /start <tenant_slug>
-    const tenantSlug = payload || null
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL
-
-    if (!appUrl || !tenantSlug) {
-      await ctx.reply('Привет! Используйте ссылку от вашего салона для записи.')
-      return
-    }
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://beauty-saas-vert.vercel.app'
+    const firstName = ctx.from?.first_name ?? 'Привет'
 
     await ctx.reply(
-      `Добро пожаловать! 🌸\n\nОткройте приложение для записи:`,
+      `Привет, ${firstName}! 👋\n\n` +
+      `Я помогу вам записаться на услуги, узнать расписание и цены.\n\n` +
+      `Нажмите кнопку ниже, чтобы открыть приложение:`,
       {
         reply_markup: {
           inline_keyboard: [[
             {
-              text: '📅 Открыть приложение',
-              web_app: { url: `${appUrl}/t/${tenantSlug}` },
+              text: '💅 Открыть приложение',
+              web_app: { url: appUrl },
             },
           ]],
         },
@@ -42,9 +38,21 @@ function registerHandlers(bot: Bot) {
   })
 
   bot.command('help', async ctx => {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://beauty-saas-vert.vercel.app'
     await ctx.reply(
-      'Я помогу вам записаться на услуги.\n\n' +
-      'Используйте ссылку от вашего салона или кнопку ниже для открытия приложения.'
+      'Что я умею:\n\n' +
+      '📅 Записать вас на услугу\n' +
+      '🕐 Показать свободное время\n' +
+      '💬 Ответить на вопросы о ценах и мастерах\n' +
+      '📋 Показать ваши записи\n\n' +
+      'Просто напишите мне или откройте приложение:',
+      {
+        reply_markup: {
+          inline_keyboard: [[
+            { text: '💅 Открыть приложение', web_app: { url: appUrl } },
+          ]],
+        },
+      }
     )
   })
 

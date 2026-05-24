@@ -81,6 +81,45 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Telegram Mini App theme fallbacks (overridden by JS in TMA context) */
+  --tg-bg: #ffffff;
+  --tg-secondary-bg: #f4f4f5;
+  --tg-text: #09090b;
+  --tg-hint: #71717a;
+  --tg-link: #6366f1;
+  --tg-button: #6366f1;
+  --tg-button-text: #ffffff;
+}
+
+/* TMA utility classes */
+.bg-tg-bg { background-color: var(--tg-bg); }
+.bg-tg-secondary { background-color: var(--tg-secondary-bg); }
+.text-tg-text { color: var(--tg-text); }
+.text-tg-hint { color: var(--tg-hint); }
+.text-tg-link { color: var(--tg-link); }
+
+.btn-tma {
+  width: 100%;
+  min-height: 52px;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 20px;
+  transition: opacity 0.15s, transform 0.1s;
+  border: none;
+  cursor: pointer;
+}
+.btn-tma:active {
+  opacity: 0.85;
+  transform: scale(0.98);
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 16px);
 }
 
 .dark {
