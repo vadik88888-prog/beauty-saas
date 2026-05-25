@@ -24,14 +24,17 @@ export function useTmaAuth(): TmaAuthState {
     try {
       const tg = window.Telegram?.WebApp
       if (!tg?.initData) {
-        // Dev mode: no Telegram context
+        // Dev mode: no Telegram context — skip auth but still load
         setState(s => ({ ...s, isLoading: false }))
         return
       }
 
-      // Get tenant slug from URL: /t/<slug>/* or stored in session
+      // Get tenant slug from URL: ?slug=X or /t/<slug>/* or stored in session
       const slug = getTenantSlug()
-      if (!slug) throw new Error('No tenant slug found')
+      if (!slug) throw new Error('No tenant slug in URL. Add ?slug=your-salon-slug to the bot URL.')
+
+      // Persist slug for subsequent page loads within same session
+      sessionStorage.setItem('tenant_slug', slug)
 
       const res = await fetch('/api/auth/telegram', {
         method: 'POST',

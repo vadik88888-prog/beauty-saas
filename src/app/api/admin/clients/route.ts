@@ -6,7 +6,8 @@ async function getStaffTenantId(): Promise<string | null> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
-  const { data } = await supabase
+  const adminClient = createAdminClient()
+  const { data } = await adminClient
     .from('tenant_users')
     .select('tenant_id')
     .eq('user_id', user.id)

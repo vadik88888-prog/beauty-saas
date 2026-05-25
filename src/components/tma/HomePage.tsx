@@ -20,9 +20,14 @@ export function TmaHomePage() {
   useEffect(() => {
     async function load() {
       try {
+        const token = sessionStorage.getItem('tma_token')
+        const slug = new URLSearchParams(window.location.search).get('slug') ?? sessionStorage.getItem('tenant_slug') ?? ''
+        const tenantUrl = token ? '/api/tenant' : `/api/tenant?slug=${encodeURIComponent(slug)}`
+        const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
+
         const [tenantRes, apptRes] = await Promise.all([
-          fetch('/api/tenant'),
-          client ? fetch('/api/appointments?upcoming=1&limit=1') : Promise.resolve(null),
+          fetch(tenantUrl, { headers }),
+          client ? fetch('/api/appointments?upcoming=1&limit=1', { headers: { Authorization: `Bearer ${token}` } }) : Promise.resolve(null),
         ])
 
         if (tenantRes.ok) {

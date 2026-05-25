@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import {
   LayoutDashboard, Calendar, Users, Scissors,
-  UserCheck, BarChart2, Settings, Bot, LogOut, Menu, X,
+  UserCheck, BarChart2, Settings, Bot, LogOut, Menu, X, MessageSquare,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { href: '/services', icon: Scissors, label: 'Услуги' },
   { href: '/masters', icon: UserCheck, label: 'Мастера' },
   { href: '/analytics', icon: BarChart2, label: 'Аналитика' },
+  { href: '/chats', icon: MessageSquare, label: 'Чаты' },
   { href: '/ai-settings', icon: Bot, label: 'AI настройки' },
   { href: '/settings', icon: Settings, label: 'Настройки' },
 ]

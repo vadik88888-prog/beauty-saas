@@ -17,7 +17,9 @@ export function getPlatformBot(): Bot {
 
 function registerHandlers(bot: Bot) {
   bot.command('start', async ctx => {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://beauty-saas-vert.vercel.app'
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://beauty-saas-vert.vercel.app'
+    const tenantSlug = process.env.TELEGRAM_DEFAULT_TENANT_SLUG ?? ''
+    const appUrl = tenantSlug ? `${baseUrl}?slug=${tenantSlug}` : baseUrl
     const firstName = ctx.from?.first_name ?? 'Привет'
 
     await ctx.reply(
@@ -38,7 +40,9 @@ function registerHandlers(bot: Bot) {
   })
 
   bot.command('help', async ctx => {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://beauty-saas-vert.vercel.app'
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://beauty-saas-vert.vercel.app'
+    const tenantSlug = process.env.TELEGRAM_DEFAULT_TENANT_SLUG ?? ''
+    const appUrl = tenantSlug ? `${baseUrl}?slug=${tenantSlug}` : baseUrl
     await ctx.reply(
       'Что я умею:\n\n' +
       '📅 Записать вас на услугу\n' +

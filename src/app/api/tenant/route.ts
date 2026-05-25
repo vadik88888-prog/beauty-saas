@@ -5,16 +5,34 @@ import type { TenantPublicData } from '@/types/api'
 
 export async function GET(req: NextRequest) {
   try {
+    const supabase = createAdminClient()
+    let tenantId: string | null = null
+
+    // Try JWT auth first
     const authHeader = req.headers.get('authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (authHeader?.startsWith('Bearer ')) {
+      try {
+        const jwtSecret = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET!)
+        const { payload } = await jwtVerify(authHeader.slice(7), jwtSecret)
+        tenantId = payload.tenant_id as string
+      } catch {
+        // Invalid token — fall through to slug lookup
+      }
     }
 
-    const jwtSecret = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET!)
-    const { payload } = await jwtVerify(authHeader.slice(7), jwtSecret)
-    const tenantId = payload.tenant_id as string
+    // Fallback: public access by slug (for dev mode / direct URL share)
+    if (!tenantId) {
+      const { searchParams } = new URL(req.url)
+      const slug = searchParams.get('slug')
+      if (slug) {
+        const { data } = await supabase.from('tenants').select('id').eq('slug', slug).single()
+        tenantId = data?.id ?? null
+      }
+    }
 
-    const supabase = createAdminClient()
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
     const [tenantRes, brandingRes] = await Promise.all([
       supabase

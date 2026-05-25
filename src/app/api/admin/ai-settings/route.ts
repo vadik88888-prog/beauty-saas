@@ -7,9 +7,11 @@ async function getOwnerContext(): Promise<{ tenantId: string; role: string } | n
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
-  const { data } = await supabase.from('tenant_users').select('tenant_id, role').eq('user_id', user.id).eq('is_active', true).single()
+  const adminClient = createAdminClient()
+  const { data } = await adminClient.from('tenant_users').select('tenant_id, role').eq('user_id', user.id).eq('is_active', true).single()
   if (!data) return null
-  return data as { tenantId: string; role: string }
+  const d = data as { tenant_id: string; role: string }
+  return { tenantId: d.tenant_id, role: d.role }
 }
 
 const AiSettingsSchema = z.object({
