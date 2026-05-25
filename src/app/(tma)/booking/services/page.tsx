@@ -10,7 +10,6 @@ import type { ServiceWithCategory } from '@/types/database'
 import { formatDuration } from '@/lib/utils/date'
 import { useBookingStore } from '@/stores/bookingStore'
 import { formatPrice } from '@/lib/utils/format'
-import { RegistrationModal } from '@/components/tma/RegistrationModal'
 
 export default function ServicesPage() {
   const router = useRouter()
@@ -18,18 +17,6 @@ export default function ServicesPage() {
   const [services, setServices] = useState<ServiceWithCategory[]>([])
   const [search, setSearch] = useState('')
   const [isLoading, setIsLoading] = useState(true)
-  const [showRegModal, setShowRegModal] = useState(false)
-
-  useEffect(() => {
-    // Show registration modal if phone is missing
-    try {
-      const raw = sessionStorage.getItem('tma_client')
-      if (raw) {
-        const client = JSON.parse(raw)
-        if (!client.phone) setShowRegModal(true)
-      }
-    } catch { /* ignore */ }
-  }, [])
 
   useEffect(() => {
     async function loadServices() {
@@ -76,7 +63,6 @@ export default function ServicesPage() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      {showRegModal && <RegistrationModal onClose={() => setShowRegModal(false)} />}
       {/* Header */}
       <div className="sticky top-0 z-10 bg-tg-bg px-4 pt-4 pb-3 border-b border-border">
         <div className="flex items-center gap-3 mb-3">

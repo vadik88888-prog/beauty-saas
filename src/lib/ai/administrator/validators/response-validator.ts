@@ -1,4 +1,5 @@
 import type { ValidationResult, ToolResult } from '@/lib/ai/administrator/types'
+import type { HallucinationGuard } from './hallucination-guard'
 
 const SYSTEM_PROMPT_LEAKS = [
   'system prompt', 'these instructions', 'эти инструкции', 'системный промпт',
@@ -10,15 +11,23 @@ const MEDICAL_PATTERNS = [
   'рекомендую препарат', 'принимайте', 'это симптомы', 'медицинский совет',
 ]
 
-const COMPETITOR_WORDS: string[] = [
-  // Extend this list with known local competitor names if needed
-]
+const COMPETITOR_WORDS: string[] = []
+
+// Common Russian/English words that shouldn't be treated as master names
+const COMMON_NAME_WHITELIST = new Set([
+  'вы', 'я', 'мы', 'он', 'она', 'оно', 'они',
+  'привет', 'здравствуйте', 'спасибо', 'пожалуйста',
+])
+
+export interface ValidationContext {
+  toolResults?: ToolResult[]
+  hallucinationGuard?: HallucinationGuard
+  allMasterNames?: string[]   // all masters of the tenant (full DB list)
+  allServiceNames?: string[]  // all services of the tenant (full DB list)
+}
 
 export class ResponseValidator {
-  validate(
-    response: string,
-    context: { toolResults?: ToolResult[] }
-  ): ValidationResult {
+  validate(response: string, context: ValidationContext): ValidationResult {
     const violations: string[] = []
 
     if (!response || response.trim().length < 3) {
@@ -37,8 +46,17 @@ export class ResponseValidator {
       violations.push('COMPETITOR_MENTION')
     }
 
-    if (context.toolResults && this.containsInventedData(response, context.toolResults)) {
+    if (context.toolResults && this.containsInventedPrice(response, context.toolResults)) {
       violations.push('POTENTIAL_HALLUCINATION')
+    }
+
+    // Hard check: master names, slot times, service names mentioned in response
+    // must be present in tool results of this conversation
+    if (context.hallucinationGuard) {
+      const factCheck = this.validateFactsAgainstTools(response, context)
+      if (factCheck.length > 0) {
+        violations.push(...factCheck)
+      }
     }
 
     return {
@@ -63,26 +81,78 @@ export class ResponseValidator {
     return COMPETITOR_WORDS.some(name => lower.includes(name.toLowerCase()))
   }
 
-  // Heuristic: if response contains a price-like number that wasn't in any tool result,
-  // flag it as potential hallucination (soft check — only violations POTENTIAL_HALLUCINATION)
-  private containsInventedData(text: string, toolResults: ToolResult[]): boolean {
+  private containsInventedPrice(text: string, toolResults: ToolResult[]): boolean {
     if (!toolResults.length) return false
-
-    // Extract prices from tool results (any number followed by currency symbols)
     const toolResultText = JSON.stringify(toolResults).toLowerCase()
-
-    // Find price patterns in the response (e.g. "3500 руб", "35$", "€50")
     const pricePattern = /\b(\d{2,6})\s*(руб|rub|byn|usd|\$|€|₽|бел)/gi
     const responsePrices = [...text.matchAll(pricePattern)].map(m => m[1])
-
-    // If any price in response isn't in tool results, flag it
     for (const price of responsePrices) {
-      if (!toolResultText.includes(price)) {
-        return true
+      if (!toolResultText.includes(price)) return true
+    }
+    return false
+  }
+
+  /**
+   * Hard hallucination check: any specific master name, service name, or
+   * time slot mentioned in the response must be backed by tool results.
+   */
+  private validateFactsAgainstTools(text: string, ctx: ValidationContext): string[] {
+    const violations: string[] = []
+    const guard = ctx.hallucinationGuard!
+    const allMasters = (ctx.allMasterNames ?? []).map(s => s.toLowerCase().trim())
+    const allServices = (ctx.allServiceNames ?? []).map(s => s.toLowerCase().trim())
+    const knownMasters = guard.getKnownMasterNames()
+    const knownServices = guard.getKnownServiceNames()
+    const knownTimes = guard.getKnownSlotTimes()
+
+    // Check 1: time slots mentioned in response (HH:MM)
+    const timePattern = /\b(\d{1,2}):(\d{2})\b/g
+    const mentionedTimes = [...text.matchAll(timePattern)].map(m => {
+      const hh = m[1].padStart(2, '0')
+      return `${hh}:${m[2]}`
+    })
+    if (mentionedTimes.length > 0 && knownTimes.size === 0) {
+      // Response has times but no slot tool was called
+      violations.push('HALLUCINATED_TIME_SLOTS')
+    } else {
+      for (const t of mentionedTimes) {
+        if (!knownTimes.has(t)) {
+          violations.push('HALLUCINATED_TIME_SLOTS')
+          break
+        }
       }
     }
 
-    return false
+    // Check 2: master names mentioned in response
+    // Find any DB master name appearing in text, check it's in knownMasters
+    const lower = text.toLowerCase()
+    for (const masterName of allMasters) {
+      if (COMMON_NAME_WHITELIST.has(masterName)) continue
+      // Match as whole word (Cyrillic/Latin)
+      const escaped = masterName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const pattern = new RegExp(`(?:^|[^\\p{L}])${escaped}(?:$|[^\\p{L}])`, 'iu')
+      if (pattern.test(lower)) {
+        if (!knownMasters.has(masterName)) {
+          violations.push('HALLUCINATED_MASTER_NAME')
+          break
+        }
+      }
+    }
+
+    // Check 3: service names mentioned in response
+    for (const serviceName of allServices) {
+      if (serviceName.length < 4) continue // skip very short to avoid false positives
+      const escaped = serviceName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const pattern = new RegExp(`(?:^|[^\\p{L}])${escaped}(?:$|[^\\p{L}])`, 'iu')
+      if (pattern.test(lower)) {
+        if (!knownServices.has(serviceName)) {
+          violations.push('HALLUCINATED_SERVICE_NAME')
+          break
+        }
+      }
+    }
+
+    return violations
   }
 
   private fallback(violations: string[]): string {
@@ -94,6 +164,13 @@ export class ResponseValidator {
     }
     if (violations.includes('EMPTY_RESPONSE')) {
       return 'Дайте секунду, уточню для вас.'
+    }
+    if (
+      violations.includes('HALLUCINATED_TIME_SLOTS') ||
+      violations.includes('HALLUCINATED_MASTER_NAME') ||
+      violations.includes('HALLUCINATED_SERVICE_NAME')
+    ) {
+      return 'Секундочку, уточню актуальное расписание и вернусь к вам с точными данными.'
     }
     return 'Дайте секунду, уточню для вас 😊'
   }

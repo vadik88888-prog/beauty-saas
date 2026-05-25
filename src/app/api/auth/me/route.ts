@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
     const supabase = createAdminClient()
     const { data: client, error } = await supabase
       .from('clients')
-      .select('id, first_name, last_name, telegram_id, loyalty_points, total_visits, is_blocked')
+      .select('id, first_name, last_name, telegram_id, telegram_username, phone, loyalty_points, total_visits, is_blocked')
       .eq('id', clientId)
       .single()
 

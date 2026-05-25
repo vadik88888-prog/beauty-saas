@@ -46,7 +46,7 @@ export async function POST(
   const [serviceRes, masterRes] = await Promise.all([
     supabase
       .from('services')
-      .select('id, name, duration_min, price, currency')
+      .select('id, name, duration_min, price, currency, buffer_after_min')
       .eq('id', serviceId)
       .eq('tenant_id', tenantId)
       .eq('is_active', true)
@@ -64,17 +64,19 @@ export async function POST(
     return NextResponse.json({ error: 'Service or master not found' }, { status: 404 })
   }
 
-  const service = serviceRes.data
+  const service = serviceRes.data as { id: string; name: string; duration_min: number; price: number | null; currency: string; buffer_after_min: number | null }
+  const buffer = service.buffer_after_min ?? 0
   const startsAtDate = new Date(startsAt)
   const endsAtDate = addMinutes(startsAtDate, service.duration_min)
+  const endsWithBuffer = addMinutes(startsAtDate, service.duration_min + buffer)
 
-  // Check for conflicting appointments (atomic via unique index, but double-check here)
+  // Check for conflicting appointments (including buffer time)
   const { data: conflicts } = await supabase
     .from('appointments')
     .select('id')
     .eq('master_id', masterId)
     .in('status', ['pending', 'confirmed'])
-    .lt('starts_at', endsAtDate.toISOString())
+    .lt('starts_at', endsWithBuffer.toISOString())
     .gt('ends_at', startsAt)
     .limit(1)
 

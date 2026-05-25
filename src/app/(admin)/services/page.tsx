@@ -21,6 +21,7 @@ type ServiceItem = {
   name: string
   description: string | null
   duration_min: number
+  buffer_after_min: number | null
   price: number
   price_from: number | null
   currency: string
@@ -33,6 +34,7 @@ const EMPTY_FORM = {
   name: '',
   description: '',
   duration_min: 60,
+  buffer_after_min: 0,
   price: 0,
   price_from: '',
   currency: 'BYN',
@@ -70,6 +72,7 @@ export default function ServicesAdminPage() {
       name: s.name,
       description: s.description ?? '',
       duration_min: s.duration_min,
+      buffer_after_min: s.buffer_after_min ?? 0,
       price: s.price,
       price_from: s.price_from != null ? String(s.price_from) : '',
       currency: s.currency,
@@ -238,6 +241,19 @@ export default function ServicesAdminPage() {
                   max={480}
                 />
               </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Пауза после (мин)</label>
+                <Input
+                  type="number"
+                  value={form.buffer_after_min}
+                  onChange={e => setForm(f => ({ ...f, buffer_after_min: parseInt(e.target.value) || 0 }))}
+                  min={0}
+                  max={120}
+                  placeholder="0"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-sm font-medium mb-1.5 block">Цена *</label>
                 <Input

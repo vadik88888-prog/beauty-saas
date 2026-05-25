@@ -28,6 +28,7 @@ interface SlotInput {
   date: Date
   slotStepMin?: number
   timezoneOffsetHours?: number
+  bufferAfterMin?: number
 }
 
 /**
@@ -43,6 +44,7 @@ export function calculateAvailableSlots({
   date,
   slotStepMin = 30,
   timezoneOffsetHours = 0,
+  bufferAfterMin = 0,
 }: SlotInput): TimeSlot[] {
   const dayOfWeek = getDayOfWeek(date)
 
@@ -90,8 +92,10 @@ export function calculateAvailableSlots({
 
   while (current < dayEnd) {
     const slotEnd = addMinutes(current, serviceDurationMin)
+    // For conflict check we also include buffer after the new appointment
+    const slotEndWithBuffer = addMinutes(current, serviceDurationMin + bufferAfterMin)
 
-    // Slot must fit within working hours
+    // Slot must fit within working hours (buffer can extend past working hours)
     if (slotEnd > dayEnd) break
 
     // Must be at least 1 hour in the future
@@ -100,11 +104,11 @@ export function calculateAvailableSlots({
       continue
     }
 
-    // Check overlap with existing appointments
+    // Check overlap with existing appointments (including buffer)
     const hasConflict = existingAppointments.some(appt => {
       const apptStart = new Date(appt.starts_at)
       const apptEnd = new Date(appt.ends_at)
-      return current < apptEnd && slotEnd > apptStart
+      return current < apptEnd && slotEndWithBuffer > apptStart
     })
 
     // Check partial time-off

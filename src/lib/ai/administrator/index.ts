@@ -152,9 +152,79 @@ export async function runAdministrator(
     totalTokens += llmResponse.total_tokens
   }
 
-  // 9. Validate response
+  // 9. Validate response (hard fact-check against tool results)
   const validator = new ResponseValidator()
-  const validation = validator.validate(llmResponse.content, { toolResults })
+
+  // Load full master/service name lists for the tenant to detect mentions
+  const [allMastersRes, allServicesRes] = await Promise.all([
+    supabase.from('masters').select('name').eq('tenant_id', tenantId).eq('is_active', true),
+    supabase.from('services').select('name').eq('tenant_id', tenantId).eq('is_active', true),
+  ])
+  const allMasterNames = ((allMastersRes.data ?? []) as { name: string }[]).map(m => m.name)
+  const allServiceNames = ((allServicesRes.data ?? []) as { name: string }[]).map(s => s.name)
+
+  let validation = validator.validate(llmResponse.content, {
+    toolResults,
+    hallucinationGuard,
+    allMasterNames,
+    allServiceNames,
+  })
+
+  const isHallucination = validation.violations.some(v =>
+    v === 'HALLUCINATED_TIME_SLOTS' ||
+    v === 'HALLUCINATED_MASTER_NAME' ||
+    v === 'HALLUCINATED_SERVICE_NAME' ||
+    v === 'POTENTIAL_HALLUCINATION'
+  )
+
+  // Retry once with explicit correction instruction if hallucination detected
+  if (isHallucination && rounds < MAX_TOOL_ROUNDS) {
+    messages.push({ role: 'assistant', content: llmResponse.content })
+    messages.push({
+      role: 'user',
+      content: '[SYSTEM CORRECTION] Your previous response mentioned a master, service, or time slot that was not returned by any tool call. NEVER fabricate data. Call get_services / get_masters / get_available_slots first to fetch real data, then answer using ONLY the data returned. If client has not chosen a service yet, ASK them — do not invent one. If no slots are available, say so honestly. Rewrite your response now.',
+    })
+
+    llmResponse = await callLLM({
+      system: systemPrompt,
+      messages,
+      tools: TOOL_REGISTRY,
+      model,
+    })
+    totalTokens += llmResponse.total_tokens
+
+    // Re-process if the model made new tool calls
+    while (llmResponse.tool_calls?.length && rounds < MAX_TOOL_ROUNDS) {
+      rounds++
+      messages.push(llmResponse.assistantMessage as ChatCompletionMessageParam)
+      for (const tc of llmResponse.tool_calls) {
+        const tcFn = tc as { id: string; function: { name: string; arguments: string } }
+        const args = JSON.parse(tcFn.function.arguments) as Record<string, unknown>
+        const result = await executeTool(tcFn.function.name, args, { tenantId, clientId })
+        toolResults.push(result)
+        hallucinationGuard.ingest([result])
+        if (tcFn.function.name === 'book_appointment' && result.success) {
+          actionType = 'booking_created'
+          actionData = result.data as Record<string, unknown>
+        }
+        messages.push({
+          role: 'tool',
+          tool_call_id: tcFn.id,
+          content: JSON.stringify(result),
+        })
+      }
+      llmResponse = await callLLM({ system: systemPrompt, messages, tools: TOOL_REGISTRY, model })
+      totalTokens += llmResponse.total_tokens
+    }
+
+    validation = validator.validate(llmResponse.content, {
+      toolResults,
+      hallucinationGuard,
+      allMasterNames,
+      allServiceNames,
+    })
+  }
+
   const finalReply = validation.isValid ? llmResponse.content : (validation.sanitizedContent ?? llmResponse.content)
 
   // 10. Detect intent and update conversation state

@@ -38,7 +38,7 @@ export async function executeGetAvailability(
     const [{ data: service }, { data: tenantData }] = await Promise.all([
       supabase
         .from('services')
-        .select('id, duration_min, name')
+        .select('id, duration_min, name, buffer_after_min')
         .eq('id', args.service_id)
         .eq('tenant_id', tenantId)
         .single(),
@@ -53,9 +53,10 @@ export async function executeGetAvailability(
       return { success: false, error: 'Service not found', fallbackMessage: 'Услуга не найдена.' }
     }
 
-    const svc = service as { id: string; duration_min: number; name: string }
+    const svc = service as { id: string; duration_min: number; name: string; buffer_after_min: number | null }
     const timezone = (tenantData as { timezone?: string } | null)?.timezone ?? 'Europe/Minsk'
     const timezoneOffsetHours = getUTCOffsetHours(timezone)
+    const bufferAfterMin = svc.buffer_after_min ?? 0
 
     type MasterRow = { id: string; name: string; photo_url: string | null; is_active: boolean; tenant_id: string }
 
@@ -86,10 +87,29 @@ export async function executeGetAvailability(
     const masters = (mastersData ?? []) as MasterRow[]
 
     if (!masters.length) {
+      // Diagnose root cause: are there any active masters at all?
+      const { count: totalActiveMasters } = await supabase
+        .from('masters')
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+
+      const reason = (totalActiveMasters ?? 0) === 0
+        ? 'no_masters_at_all'
+        : capableMasterIds.length === 0
+          ? 'service_not_linked_to_masters'
+          : 'no_masters'
+
+      const fallbackMessage = reason === 'no_masters_at_all'
+        ? 'В салоне пока нет активных мастеров. Свяжитесь с администратором.'
+        : reason === 'service_not_linked_to_masters'
+          ? `Услуга "${svc.name}" пока не привязана ни к одному мастеру. Администратору нужно привязать услугу в admin → мастера → выберите услуги.`
+          : 'Нет доступных мастеров для этой услуги. Уточните расписание у администратора.'
+
       return {
         success: true,
-        data: { slots: [], reason: 'no_masters' },
-        fallbackMessage: 'Нет доступных мастеров для этой услуги. Уточните расписание у администратора.',
+        data: { slots: [], reason },
+        fallbackMessage,
       }
     }
 
@@ -125,6 +145,7 @@ export async function executeGetAvailability(
           serviceDurationMin: svc.duration_min,
           date,
           timezoneOffsetHours,
+          bufferAfterMin,
         })
         for (const s of daySlots) {
           slots.push({

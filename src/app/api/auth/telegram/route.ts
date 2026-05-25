@@ -55,7 +55,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ApiResponse<T
           ignoreDuplicates: false,
         }
       )
-      .select('id, first_name, last_name, telegram_id, is_blocked')
+      .select('id, first_name, last_name, telegram_id, telegram_username, phone, is_blocked')
       .single()
 
     if (clientError || !client) {
@@ -63,7 +63,8 @@ export async function POST(req: NextRequest): Promise<NextResponse<ApiResponse<T
       return NextResponse.json({ error: 'Failed to create client' }, { status: 500 })
     }
 
-    if (client.is_blocked) {
+    const c = client as { id: string; first_name: string | null; last_name: string | null; telegram_id: number; telegram_username: string | null; phone: string | null; is_blocked: boolean }
+    if (c.is_blocked) {
       return NextResponse.json({ error: 'Client is blocked' }, { status: 403 })
     }
 
@@ -84,10 +85,12 @@ export async function POST(req: NextRequest): Promise<NextResponse<ApiResponse<T
       data: {
         token,
         client: {
-          id: client.id,
-          first_name: client.first_name,
-          last_name: client.last_name,
-          telegram_id: client.telegram_id,
+          id: c.id,
+          first_name: c.first_name,
+          last_name: c.last_name,
+          telegram_id: c.telegram_id,
+          telegram_username: c.telegram_username,
+          phone: c.phone,
         },
         isNewClient: false,
       },

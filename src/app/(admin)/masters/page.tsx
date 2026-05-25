@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Pencil, Trash2, User, ToggleLeft, ToggleRight, CalendarDays } from 'lucide-react'
+import { Plus, Pencil, Trash2, User, ToggleLeft, ToggleRight, CalendarDays, Upload, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -75,6 +75,37 @@ export default function MastersAdminPage() {
   const [scheduleMasterName, setScheduleMasterName] = useState('')
   const [schedule, setSchedule] = useState<DaySchedule[]>(defaultSchedule())
   const [savingSchedule, setSavingSchedule] = useState(false)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Файл слишком большой (макс 5 МБ)')
+      return
+    }
+
+    setUploadingPhoto(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/admin/upload', { method: 'POST', body: fd })
+      if (!res.ok) {
+        const { error } = await res.json()
+        toast.error(error ?? 'Ошибка загрузки')
+        return
+      }
+      const { url } = await res.json()
+      setForm(f => ({ ...f, photo_url: url }))
+      toast.success('Фото загружено')
+    } catch {
+      toast.error('Ошибка загрузки')
+    } finally {
+      setUploadingPhoto(false)
+      e.target.value = ''
+    }
+  }
 
   async function loadMasters() {
     const [mastersRes, servicesRes] = await Promise.all([
@@ -316,8 +347,34 @@ export default function MastersAdminPage() {
               <Input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="+375 29 000-00-00" />
             </div>
             <div>
-              <label className="text-sm font-medium mb-1.5 block">URL фото</label>
-              <Input value={form.photo_url} onChange={e => setForm(f => ({ ...f, photo_url: e.target.value }))} placeholder="https://..." />
+              <label className="text-sm font-medium mb-1.5 block">Фото мастера</label>
+              {form.photo_url ? (
+                <div className="flex items-center gap-3">
+                  <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-muted shrink-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={form.photo_url} alt="" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, photo_url: '' }))}
+                      className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 flex items-center justify-center"
+                    >
+                      <X className="w-3 h-3 text-white" />
+                    </button>
+                  </div>
+                  <label className="text-sm text-primary cursor-pointer hover:underline">
+                    <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoUpload} className="hidden" />
+                    {uploadingPhoto ? 'Загружаем...' : 'Заменить фото'}
+                  </label>
+                </div>
+              ) : (
+                <label className="flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-muted-foreground/30 cursor-pointer hover:bg-muted/50 transition-colors">
+                  <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoUpload} className="hidden" />
+                  <Upload className="w-5 h-5 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">
+                    {uploadingPhoto ? 'Загружаем...' : 'Загрузить фото (JPG/PNG/WebP, до 5 МБ)'}
+                  </span>
+                </label>
+              )}
             </div>
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={form.is_active} onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))} className="rounded" />

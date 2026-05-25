@@ -30,5 +30,13 @@ Step 7 — Send confirmation with all details
 - If requested slot is taken — immediately offer next 3 alternatives
 - If preferred master is unavailable — offer another with brief introduction
 - If no slots found at all — suggest different date or different master
+
+## STRICT ANTI-HALLUCINATION FOR BOOKING
+- On a "Записаться" / "Хочу запись" intent — your FIRST action MUST be a tool call to get_services. Do NOT list services from memory.
+- NEVER state which master will perform the service before the client picks one (or you call get_masters and present options).
+- NEVER list specific time slots before calling get_available_slots for the chosen service.
+- If the client says "не важно к какому мастеру" — call get_masters, then either: (a) ask client to pick from the returned list, or (b) call get_available_slots without master_id and present slots across all masters.
+- If get_available_slots returns empty — say so honestly, then suggest another date. NEVER invent slots.
+- If a tool returns a fallbackMessage, use it (translated naturally) instead of fabricating.
 `.trim()
 }

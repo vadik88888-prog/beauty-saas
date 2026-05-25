@@ -30,15 +30,37 @@ export async function executeCreateBooking(
 
     const { data: service } = await supabase
       .from('services')
-      .select('id, name, duration_min, price')
+      .select('id, name, duration_min, price, buffer_after_min')
       .eq('id', args.service_id)
       .eq('tenant_id', tenantId)
       .single()
 
     if (!service) return { success: false, error: 'Service not found', fallbackMessage: 'Услуга не найдена.' }
 
-    const s = service as { id: string; name: string; duration_min: number; price: number | null }
-    const endsAt = addMinutes(new Date(args.starts_at), s.duration_min).toISOString()
+    const s = service as { id: string; name: string; duration_min: number; price: number | null; buffer_after_min: number | null }
+    const buffer = s.buffer_after_min ?? 0
+    const startsAtDate = new Date(args.starts_at)
+    const endsAt = addMinutes(startsAtDate, s.duration_min).toISOString()
+    const endsWithBuffer = addMinutes(startsAtDate, s.duration_min + buffer).toISOString()
+
+    // Pre-check overlap (defense in depth before DB unique index)
+    const { data: conflicts } = await supabase
+      .from('appointments')
+      .select('id')
+      .eq('master_id', args.master_id)
+      .eq('tenant_id', tenantId)
+      .in('status', ['pending', 'confirmed'])
+      .lt('starts_at', endsWithBuffer)
+      .gt('ends_at', startsAtDate.toISOString())
+      .limit(1)
+
+    if (conflicts && conflicts.length > 0) {
+      return {
+        success: false,
+        error: 'Slot already taken',
+        fallbackMessage: 'Это время уже занято. Давайте выберем другое — вызовите get_available_slots для актуального списка.',
+      }
+    }
 
     const { data: appt, error } = await supabase
       .from('appointments')
