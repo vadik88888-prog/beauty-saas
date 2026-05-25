@@ -10,6 +10,7 @@ import { getClientHistoryTool, executeGetClientHistory } from './get-client-hist
 import { getFaqTool, executeGetFaq } from './get-faq'
 import { getPromotionsTool, executeGetPromotions } from './get-promotions'
 import { humanHandoffTool, executeHumanHandoff } from './human-handoff'
+import { searchKnowledgeTool, executeSearchKnowledge } from './search-knowledge'
 
 export const TOOL_REGISTRY: AiTool[] = [
   getServicesTool,
@@ -22,6 +23,7 @@ export const TOOL_REGISTRY: AiTool[] = [
   getFaqTool,
   getPromotionsTool,
   humanHandoffTool,
+  searchKnowledgeTool,
 ]
 
 export async function executeTool(
@@ -84,6 +86,9 @@ export async function executeTool(
         tenantId,
         clientId
       )
+
+    case 'search_knowledge':
+      return executeSearchKnowledge(args as { query: string }, tenantId)
 
     default:
       return { success: false, error: `Unknown tool: ${name}` }

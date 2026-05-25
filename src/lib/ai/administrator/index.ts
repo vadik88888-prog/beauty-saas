@@ -51,12 +51,14 @@ export async function runAdministrator(
 
   const aiSettings = await supabase
     .from('tenant_ai_settings')
-    .select('max_messages_day, model')
+    .select('max_messages_day, model, temperature')
     .eq('tenant_id', tenantId)
     .single()
 
-  const maxMessages = (aiSettings.data as { max_messages_day?: number } | null)?.max_messages_day ?? 100
-  const model = (aiSettings.data as { model?: string } | null)?.model ?? 'gpt-4o-mini'
+  const settingsData = aiSettings.data as { max_messages_day?: number; model?: string; temperature?: number } | null
+  const maxMessages = settingsData?.max_messages_day ?? 100
+  const model = settingsData?.model ?? 'gpt-4o-mini'
+  const temperature = settingsData?.temperature ?? 0.7
 
   if ((count ?? 0) >= maxMessages) {
     return {
@@ -110,6 +112,7 @@ export async function runAdministrator(
     messages,
     tools: TOOL_REGISTRY,
     model,
+    temperature,
   })
 
   totalTokens += llmResponse.total_tokens
@@ -148,6 +151,7 @@ export async function runAdministrator(
       messages,
       tools: TOOL_REGISTRY,
       model,
+      temperature,
     })
     totalTokens += llmResponse.total_tokens
   }
@@ -177,6 +181,10 @@ export async function runAdministrator(
     v === 'POTENTIAL_HALLUCINATION'
   )
 
+  if (isHallucination) {
+    console.warn('[AI] Hallucination detected. Violations:', validation.violations, '| Response:', llmResponse.content.slice(0, 300))
+  }
+
   // Retry once with explicit correction instruction if hallucination detected
   if (isHallucination && rounds < MAX_TOOL_ROUNDS) {
     messages.push({ role: 'assistant', content: llmResponse.content })
@@ -190,6 +198,7 @@ export async function runAdministrator(
       messages,
       tools: TOOL_REGISTRY,
       model,
+      temperature,
     })
     totalTokens += llmResponse.total_tokens
 
@@ -213,7 +222,7 @@ export async function runAdministrator(
           content: JSON.stringify(result),
         })
       }
-      llmResponse = await callLLM({ system: systemPrompt, messages, tools: TOOL_REGISTRY, model })
+      llmResponse = await callLLM({ system: systemPrompt, messages, tools: TOOL_REGISTRY, model, temperature })
       totalTokens += llmResponse.total_tokens
     }
 

@@ -115,7 +115,7 @@ export default function CalendarPage() {
     return { top, height }
   }
 
-  async function handleApptAction(apptId: string, status: 'confirmed' | 'cancelled') {
+  async function handleApptAction(apptId: string, status: 'confirmed' | 'cancelled' | 'completed') {
     const res = await fetch(`/api/admin/appointments/${apptId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -124,7 +124,11 @@ export default function CalendarPage() {
     if (res.ok) {
       setAppointments(prev => prev.map(a => a.id === apptId ? { ...a, status } : a))
       setSelectedAppt(prev => prev?.id === apptId ? { ...prev, status } : prev)
-      toast.success(status === 'confirmed' ? 'Запись подтверждена' : 'Запись отменена')
+      toast.success(
+        status === 'confirmed' ? 'Запись подтверждена' :
+        status === 'completed' ? 'Запись завершена' :
+        'Запись отменена'
+      )
     } else {
       toast.error('Ошибка обновления')
     }
@@ -348,14 +352,18 @@ export default function CalendarPage() {
             </div>
 
             {selectedAppt.status !== 'cancelled' && selectedAppt.status !== 'completed' && (
-              <div className="flex gap-2 mt-4">
+              <div className="flex flex-wrap gap-2 mt-4">
                 {selectedAppt.status === 'pending' && (
-                  <Button size="sm" className="flex-1" onClick={() => handleApptAction(selectedAppt.id, 'confirmed')}>
+                  <Button size="sm" className="flex-1 min-w-[120px]" onClick={() => handleApptAction(selectedAppt.id, 'confirmed')}>
                     <CheckCircle className="w-4 h-4 mr-1.5" />
                     Подтвердить
                   </Button>
                 )}
-                <Button size="sm" variant="outline" className="flex-1 text-destructive border-destructive/30" onClick={() => handleApptAction(selectedAppt.id, 'cancelled')}>
+                <Button size="sm" variant="default" className="flex-1 min-w-[120px] bg-green-600 hover:bg-green-700" onClick={() => handleApptAction(selectedAppt.id, 'completed')}>
+                  <CheckCircle className="w-4 h-4 mr-1.5" />
+                  Завершить
+                </Button>
+                <Button size="sm" variant="outline" className="flex-1 min-w-[120px] text-destructive border-destructive/30" onClick={() => handleApptAction(selectedAppt.id, 'cancelled')}>
                   <XCircle className="w-4 h-4 mr-1.5" />
                   Отменить
                 </Button>

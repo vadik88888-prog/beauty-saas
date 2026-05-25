@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { Home, Calendar, ClipboardList, MessageCircle, User } from 'lucide-react'
 
 const TABS = [
-  { href: '/', icon: Home, label: 'Главная' },
+  { href: '/home', icon: Home, label: 'Главная' },
   { href: '/booking/services', icon: Calendar, label: 'Запись' },
   { href: '/appointments', icon: ClipboardList, label: 'Записи' },
   { href: '/chat', icon: MessageCircle, label: 'Чат' },
@@ -25,8 +25,8 @@ export function BottomNav() {
     >
       <div className="flex items-stretch h-16">
         {TABS.map(tab => {
-          const isActive = tab.href === '/'
-            ? pathname === '/'
+          const isActive = tab.href === '/home'
+            ? (pathname === '/' || pathname === '/home')
             : pathname.startsWith(tab.href)
           return (
             <Link

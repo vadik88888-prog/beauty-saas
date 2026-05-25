@@ -46,19 +46,36 @@ export async function GET(req: NextRequest) {
 
     const { payload } = await jwtVerify(token, jwtSecret)
     const clientId = payload.sub as string
+    const tenantId = payload.tenant_id as string
 
     const supabase = createAdminClient()
-    const { data: client, error } = await supabase
-      .from('clients')
-      .select('id, first_name, last_name, telegram_id, telegram_username, phone, loyalty_points, total_visits, is_blocked')
-      .eq('id', clientId)
-      .single()
+    const [clientRes, aiSettingsRes] = await Promise.all([
+      supabase
+        .from('clients')
+        .select('id, first_name, last_name, telegram_id, telegram_username, phone, loyalty_points, total_visits, is_blocked')
+        .eq('id', clientId)
+        .single(),
+      supabase
+        .from('tenant_ai_settings')
+        .select('welcome_message, admin_name')
+        .eq('tenant_id', tenantId)
+        .single(),
+    ])
 
-    if (error || !client || client.is_blocked) {
+    const client = clientRes.data
+    if (clientRes.error || !client || (client as { is_blocked: boolean }).is_blocked) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 })
     }
 
-    return NextResponse.json({ client })
+    const aiSettings = aiSettingsRes.data as { welcome_message: string | null; admin_name: string | null } | null
+
+    return NextResponse.json({
+      client,
+      aiSettings: {
+        welcome_message: aiSettings?.welcome_message ?? null,
+        admin_name: aiSettings?.admin_name ?? 'Администратор',
+      },
+    })
   } catch {
     return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
   }

@@ -17,12 +17,21 @@ async function getOwnerContext(): Promise<{ tenantId: string; role: string } | n
 const AiSettingsSchema = z.object({
   admin_name: z.string().min(1).max(100),
   tone_of_voice: z.enum(['friendly', 'formal', 'playful']),
-  custom_instructions: z.string().max(2000).nullable().optional(),
+  custom_instructions: z.string().max(20000).nullable().optional(),
+  welcome_message: z.string().max(2000).nullable().optional(),
+  temperature: z.number().min(0).max(1).optional(),
   faq_enabled: z.boolean(),
   booking_enabled: z.boolean(),
-  max_messages_day: z.number().int().min(1).max(200),
+  max_messages_day: z.number().int().min(1).max(500),
   model: z.enum(['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo']),
   language: z.string().default('ru'),
+  // Knowledge base settings
+  knowledge_enabled: z.boolean().optional(),
+  knowledge_max_results: z.number().int().min(1).max(10).optional(),
+  knowledge_min_relevance: z.number().int().min(0).max(100).optional(),
+  knowledge_smart_search: z.boolean().optional(),
+  knowledge_context_messages: z.number().int().min(1).max(10).optional(),
+  knowledge_rerank: z.boolean().optional(),
 })
 
 export async function GET() {

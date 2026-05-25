@@ -34,6 +34,7 @@ export async function PATCH(
 
   const updates: Record<string, string> = { status }
   if (status === 'confirmed') updates.confirmed_at = new Date().toISOString()
+  if (status === 'completed') updates.completed_at = new Date().toISOString()
   if (status === 'cancelled') {
     updates.cancelled_at = new Date().toISOString()
     updates.cancel_reason = 'Отменено администратором'

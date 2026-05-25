@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, Send, Loader2, Paperclip, X, Image as ImageIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatTime } from '@/lib/utils/date'
+import { toast } from 'sonner'
 import type { AttachmentInput } from '@/lib/ai/administrator/types'
 
 interface Message {
@@ -29,7 +30,26 @@ export default function ChatPage() {
   ])
 
   useEffect(() => {
-    setHasToken(!!sessionStorage.getItem('tma_token'))
+    const token = sessionStorage.getItem('tma_token')
+    setHasToken(!!token)
+    if (!token) return
+
+    // Load tenant welcome_message and update first message
+    fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(json => {
+        const welcome = json?.aiSettings?.welcome_message
+        if (welcome) {
+          setMessages(prev => {
+            // Replace welcome message only if list hasn't been modified
+            if (prev.length === 1 && prev[0].id === 'welcome') {
+              return [{ ...prev[0], content: welcome }]
+            }
+            return prev
+          })
+        }
+      })
+      .catch(() => null)
   }, [])
 
   // Load chat history on mount if we have a saved conversationId
@@ -189,6 +209,12 @@ export default function ChatPage() {
 
       setMessages(prev => prev.filter(m => m.id !== 'loading').concat(aiMsg))
       window.Telegram?.WebApp.HapticFeedback?.notificationOccurred('success')
+
+      // Auto-redirect to appointments after successful booking via AI
+      if (data.action === 'booking_created') {
+        toast.success('Запись создана! Открываю мои записи...')
+        setTimeout(() => router.push('/appointments'), 2000)
+      }
     } catch (e) {
       const errMsg: Message = {
         id: Date.now().toString() + '_err',

@@ -23,6 +23,15 @@ export async function GET(req: NextRequest) {
   const from = new Date()
   from.setDate(from.getDate() - days)
   const fromStr = from.toISOString()
+  const nowIso = new Date().toISOString()
+
+  // Lazy update: mark past appointments as completed for this tenant
+  await supabase
+    .from('appointments')
+    .update({ status: 'completed', completed_at: nowIso })
+    .eq('tenant_id', tenantId)
+    .lt('ends_at', nowIso)
+    .in('status', ['confirmed', 'pending'])
 
   const [apptRes, aiUsageRes] = await Promise.all([
     supabase
