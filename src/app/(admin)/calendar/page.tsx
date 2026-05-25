@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar, X, Phone, MessageCircle, CheckCircle, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { toast } from 'sonner'
 
 type Appointment = {
   id: string
@@ -10,7 +11,14 @@ type Appointment = {
   ends_at: string
   status: string
   price: number | null
-  client: { first_name: string | null; last_name: string | null } | null
+  notes: string | null
+  client: {
+    first_name: string | null
+    last_name: string | null
+    phone: string | null
+    telegram_id: number | null
+    telegram_username: string | null
+  } | null
   master: { id: string; name: string } | null
   service: { name: string; duration_min: number } | null
 }
@@ -55,6 +63,7 @@ export default function CalendarPage() {
   const [selectedMasterId, setSelectedMasterId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isMobile, setIsMobile] = useState(false)
+  const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null)
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
@@ -106,6 +115,21 @@ export default function CalendarPage() {
     return { top, height }
   }
 
+  async function handleApptAction(apptId: string, status: 'confirmed' | 'cancelled') {
+    const res = await fetch(`/api/admin/appointments/${apptId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    })
+    if (res.ok) {
+      setAppointments(prev => prev.map(a => a.id === apptId ? { ...a, status } : a))
+      setSelectedAppt(prev => prev?.id === apptId ? { ...prev, status } : prev)
+      toast.success(status === 'confirmed' ? 'Запись подтверждена' : 'Запись отменена')
+    } else {
+      toast.error('Ошибка обновления')
+    }
+  }
+
   function DayColumn({ day }: { day: Date }) {
     const dateStr = isoDate(day)
     const dayAppts = apptsByDay[dateStr] ?? []
@@ -131,6 +155,7 @@ export default function CalendarPage() {
                 key={appt.id}
                 className={`absolute left-0.5 right-0.5 rounded border-l-4 px-1.5 py-0.5 overflow-hidden cursor-pointer hover:opacity-90 transition-opacity ${colorClass}`}
                 style={{ top, height }}
+                onClick={() => setSelectedAppt(appt)}
               >
                 <p className="text-xs font-bold leading-tight truncate">{startTime} {clientName}</p>
                 {height > 40 && appt.service && (
@@ -280,6 +305,74 @@ export default function CalendarPage() {
         ))}
         <span className="ml-auto">Всего: <b>{appointments.length}</b></span>
       </div>
+
+      {/* Appointment detail modal */}
+      {selectedAppt && (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setSelectedAppt(null)} />
+          <div className="relative bg-background rounded-t-2xl md:rounded-2xl shadow-xl w-full md:max-w-md p-5 z-10">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-base">Детали записи</h2>
+              <button onClick={() => setSelectedAppt(null)} className="p-1 rounded-lg hover:bg-muted">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-2.5 text-sm">
+              <Row label="Клиент" value={[selectedAppt.client?.first_name, selectedAppt.client?.last_name].filter(Boolean).join(' ') || 'Клиент'} />
+              {selectedAppt.client?.phone && (
+                <a href={`tel:${selectedAppt.client.phone}`} className="flex items-center gap-2 text-primary">
+                  <Phone className="w-4 h-4" />
+                  {selectedAppt.client.phone}
+                </a>
+              )}
+              {selectedAppt.client?.telegram_username && (
+                <a href={`https://t.me/${selectedAppt.client.telegram_username}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-primary">
+                  <MessageCircle className="w-4 h-4" />
+                  @{selectedAppt.client.telegram_username}
+                </a>
+              )}
+              <div className="border-t my-1" />
+              <Row label="Услуга" value={selectedAppt.service?.name ?? '—'} />
+              <Row label="Мастер" value={selectedAppt.master?.name ?? '—'} />
+              <Row label="Начало" value={new Date(selectedAppt.starts_at).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })} />
+              <Row label="Конец" value={new Date(selectedAppt.ends_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })} />
+              <Row label="Статус" value={
+                selectedAppt.status === 'pending' ? 'Ожидает' :
+                selectedAppt.status === 'confirmed' ? 'Подтверждена' :
+                selectedAppt.status === 'completed' ? 'Завершена' :
+                selectedAppt.status === 'cancelled' ? 'Отменена' : selectedAppt.status
+              } />
+              {selectedAppt.price != null && <Row label="Стоимость" value={`${selectedAppt.price} руб.`} />}
+              {selectedAppt.notes && <Row label="Заметки" value={selectedAppt.notes} />}
+            </div>
+
+            {selectedAppt.status !== 'cancelled' && selectedAppt.status !== 'completed' && (
+              <div className="flex gap-2 mt-4">
+                {selectedAppt.status === 'pending' && (
+                  <Button size="sm" className="flex-1" onClick={() => handleApptAction(selectedAppt.id, 'confirmed')}>
+                    <CheckCircle className="w-4 h-4 mr-1.5" />
+                    Подтвердить
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" className="flex-1 text-destructive border-destructive/30" onClick={() => handleApptAction(selectedAppt.id, 'cancelled')}>
+                  <XCircle className="w-4 h-4 mr-1.5" />
+                  Отменить
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start gap-2">
+      <span className="text-muted-foreground w-20 shrink-0">{label}</span>
+      <span className="font-medium">{value}</span>
     </div>
   )
 }

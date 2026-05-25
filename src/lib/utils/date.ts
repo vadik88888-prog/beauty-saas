@@ -52,6 +52,13 @@ export function toUTCString(date: Date): string {
   return date.toISOString()
 }
 
+export function getUTCOffsetHours(timezone: string): number {
+  const now = new Date()
+  const utc = now.toLocaleString('en-US', { timeZone: 'UTC' })
+  const local = now.toLocaleString('en-US', { timeZone: timezone })
+  return (new Date(local).getTime() - new Date(utc).getTime()) / 3_600_000
+}
+
 export function formatDuration(minutes: number): string {
   if (minutes < 60) return `${minutes} мин`
   const h = Math.floor(minutes / 60)

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Send, User, Bot, Shield, CheckCircle } from 'lucide-react'
+import { ArrowLeft, Send, User, Bot, Shield, CheckCircle, BotOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 
@@ -93,6 +93,21 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
     }
   }
 
+  async function handleHandoff() {
+    if (!id) return
+    const isHandedOff = conversation?.status === 'handed_off'
+    const res = await fetch(`/api/admin/chats/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: isHandedOff ? 'active' : 'handed_off' }),
+    })
+    if (res.ok) {
+      const { data } = await res.json()
+      setConversation(prev => prev ? { ...prev, status: data.status } : prev)
+      toast.success(isHandedOff ? 'Бот снова активен' : 'Бот остановлен, подключён оператор')
+    }
+  }
+
   const clientName = conversation?.client
     ? [conversation.client.first_name, conversation.client.last_name].filter(Boolean).join(' ') || `@${conversation.client.telegram_username}` || `TG ${conversation.client.telegram_id}`
     : 'Клиент'
@@ -113,6 +128,16 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
             <p className="text-xs text-muted-foreground">@{conversation.client.telegram_username}</p>
           )}
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleHandoff}
+          className={conversation?.status === 'handed_off' ? 'text-orange-600 border-orange-300' : ''}
+          title={conversation?.status === 'handed_off' ? 'Включить бота' : 'Остановить бота'}
+        >
+          <BotOff className="w-4 h-4 mr-1.5" />
+          {conversation?.status === 'handed_off' ? 'Вкл. бота' : 'Стоп бот'}
+        </Button>
         <Button
           variant="outline"
           size="sm"

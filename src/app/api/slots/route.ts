@@ -14,15 +14,31 @@ const QuerySchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
-    // Auth
+    const supabaseClient = createAdminClient()
+    let tenantId: string | null = null
+
+    // Try JWT auth first
     const authHeader = req.headers.get('authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (authHeader?.startsWith('Bearer ')) {
+      try {
+        const jwtSecret = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET!)
+        const { payload } = await jwtVerify(authHeader.slice(7), jwtSecret)
+        tenantId = payload.tenant_id as string
+      } catch {
+        // JWT invalid, fall through to slug
+      }
     }
-    const token = authHeader.slice(7)
-    const jwtSecret = new TextEncoder().encode(process.env.SUPABASE_JWT_SECRET!)
-    const { payload } = await jwtVerify(token, jwtSecret)
-    const tenantId = payload.tenant_id as string
+
+    // Fallback: slug param
+    if (!tenantId) {
+      const slug = new URL(req.url).searchParams.get('slug')
+      if (slug) {
+        const { data } = await supabaseClient.from('tenants').select('id').eq('slug', slug).single()
+        tenantId = (data as { id: string } | null)?.id ?? null
+      }
+    }
+
+    if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     // Validate query params
     const url = new URL(req.url)
@@ -38,7 +54,7 @@ export async function GET(req: NextRequest) {
     }
 
     const { serviceId, masterId, dateFrom, dateTo } = query.data
-    const supabase = createAdminClient()
+    const supabase = supabaseClient
 
     // 1. Get service duration
     const { data: service } = await supabase

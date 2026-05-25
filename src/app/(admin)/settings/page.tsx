@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Save, Crown, AlertTriangle } from 'lucide-react'
+import { Save, Crown, AlertTriangle, Bot, ExternalLink, CheckCircle2 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { toast } from 'sonner'
 
 type TenantSettings = {
   id: string
@@ -18,6 +19,7 @@ type TenantSettings = {
   language: string | null
   description: string | null
   slug: string | null
+  telegram_bot_token: string | null
   subscription_status: string | null
   subscription_plan: string | null
   trial_ends_at: string | null
@@ -42,11 +44,20 @@ export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [botToken, setBotToken] = useState('')
+  const [savingBot, setSavingBot] = useState(false)
+  const [botUsername, setBotUsername] = useState('')
+  const [botStatus, setBotStatus] = useState<'idle' | 'saved' | 'localhost'>('idle')
 
   useEffect(() => {
     fetch('/api/admin/settings')
       .then(r => r.json())
-      .then(({ data }) => { if (data) setSettings(data) })
+      .then(({ data }) => {
+        if (data) {
+          setSettings(data)
+          setBotToken(data.telegram_bot_token ?? '')
+        }
+      })
       .finally(() => setIsLoading(false))
   }, [])
 
@@ -61,6 +72,66 @@ export default function SettingsPage() {
     })
     if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 2000) }
     setSaving(false)
+  }
+
+  async function handleSaveBot(e: React.FormEvent) {
+    e.preventDefault()
+    if (!settings) return
+    setSavingBot(true)
+    setBotStatus('idle')
+    try {
+      if (!botToken.trim()) {
+        await fetch('/api/admin/settings', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ telegram_bot_token: null }),
+        })
+        setSettings(s => s ? { ...s, telegram_bot_token: null } : s)
+        setBotUsername('')
+        toast.success('Токен бота удалён')
+        return
+      }
+
+      const webhookRes = await fetch('/api/admin/settings/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: botToken.trim() }),
+      })
+      const webhookJson = await webhookRes.json() as {
+        data?: { bot_username: string; bot_name: string; webhook_registered: boolean; is_localhost: boolean }
+        error?: string
+      }
+
+      if (!webhookRes.ok) {
+        toast.error(webhookJson.error ?? 'Неверный токен бота')
+        return
+      }
+
+      const { bot_username, webhook_registered, is_localhost } = webhookJson.data!
+      setBotUsername(bot_username)
+
+      await fetch('/api/admin/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telegram_bot_token: botToken.trim() }),
+      })
+      setSettings(s => s ? { ...s, telegram_bot_token: botToken.trim() } : s)
+
+      if (is_localhost) {
+        setBotStatus('localhost')
+        toast.warning(`Бот @${bot_username} подтверждён, но webhook не зарегистрирован — нужен деплой на Vercel`)
+      } else if (webhook_registered) {
+        setBotStatus('saved')
+        toast.success(`Бот @${bot_username} подключён, webhook активен`)
+      } else {
+        setBotStatus('saved')
+        toast.warning(`Бот @${bot_username} сохранён, но webhook не зарегистрирован`)
+      }
+    } catch {
+      toast.error('Ошибка сохранения')
+    } finally {
+      setSavingBot(false)
+    }
   }
 
   if (isLoading || !settings) return <div className="p-6 text-muted-foreground text-sm">Загрузка...</div>
@@ -154,6 +225,83 @@ export default function SettingsPage() {
             <Button type="submit" disabled={saving} className="gap-2 px-6">
               <Save className="w-4 h-4" />
               {saved ? 'Сохранено ✓' : saving ? 'Сохраняем...' : 'Сохранить'}
+            </Button>
+          </div>
+        </Card>
+      </form>
+
+      {/* Telegram Bot section */}
+      <form onSubmit={handleSaveBot}>
+        <Card className="p-6 flex flex-col gap-5">
+          <div className="flex items-center gap-3">
+            <Bot className="w-5 h-5 text-primary" />
+            <h2 className="font-semibold">Telegram бот для клиентов</h2>
+          </div>
+
+          <div className="rounded-xl bg-muted p-4 text-sm text-muted-foreground flex flex-col gap-1.5">
+            <p className="font-medium text-foreground">Как создать своего бота:</p>
+            <ol className="list-decimal list-inside space-y-1">
+              <li>Откройте <span className="font-mono">@BotFather</span> в Telegram</li>
+              <li>Отправьте <span className="font-mono">/newbot</span></li>
+              <li>Придумайте название (например: <em>Студия Виктории</em>)</li>
+              <li>Придумайте username (например: <span className="font-mono">@victoria_studio_bot</span>)</li>
+              <li>Скопируйте токен и вставьте ниже</li>
+            </ol>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">Токен бота</label>
+            <Input
+              value={botToken}
+              onChange={e => setBotToken(e.target.value)}
+              placeholder="1234567890:ABCdefGHIjklMNOpqrSTUvwxYZ"
+              className="font-mono text-sm"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Токен выдаётся BotFather и выглядит как <span className="font-mono">числа:буквы</span>
+            </p>
+          </div>
+
+          {botUsername && settings?.slug && (
+            <div className="rounded-xl border p-4 flex flex-col gap-2">
+              <p className="text-sm font-medium">Ссылка для клиентов:</p>
+              <div className="flex items-center gap-2">
+                <code className="text-xs bg-muted px-3 py-1.5 rounded-lg flex-1 truncate">
+                  {`https://t.me/${botUsername}`}
+                </code>
+                <a
+                  href={`https://t.me/${botUsername}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline shrink-0"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Дайте эту ссылку клиентам — откроет бота с Mini App
+              </p>
+            </div>
+          )}
+
+          {botStatus === 'localhost' && (
+            <div className="rounded-xl bg-yellow-50 border border-yellow-200 p-3 text-sm text-yellow-800 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>Бот подтверждён, но webhook не зарегистрирован — вы работаете локально. Задеплойте на Vercel и нажмите "Сохранить бота" снова.</span>
+            </div>
+          )}
+
+          {botStatus === 'saved' && (
+            <div className="flex items-center gap-1.5 text-sm text-green-600">
+              <CheckCircle2 className="w-4 h-4" />
+              Webhook зарегистрирован — бот активен
+            </div>
+          )}
+
+          <div className="flex justify-end">
+            <Button type="submit" disabled={savingBot} className="gap-2 px-6">
+              <Save className="w-4 h-4" />
+              {savingBot ? 'Проверяем...' : 'Сохранить бота'}
             </Button>
           </div>
         </Card>

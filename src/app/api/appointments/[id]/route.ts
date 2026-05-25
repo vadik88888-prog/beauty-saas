@@ -44,14 +44,19 @@ export async function PATCH(
   // Verify appointment belongs to this client/tenant
   const { data: appt } = await supabase
     .from('appointments')
-    .select('id, status, starts_at, service_id, master_id')
+    .select('id, status, starts_at, service_id, master_id, services(duration_min)')
     .eq('id', id)
     .eq('tenant_id', tenantId)
     .single()
 
   if (!appt) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const apptData = appt as { id: string; status: string; starts_at: string }
+  const apptData = appt as unknown as {
+    id: string; status: string; starts_at: string
+    service_id: string; master_id: string
+    services: { duration_min: number } | { duration_min: number }[] | null
+  }
+  const serviceData = Array.isArray(apptData.services) ? apptData.services[0] : apptData.services
 
   // Clients can only cancel their own appointments
   if (role === 'client') {
@@ -82,6 +87,43 @@ export async function PATCH(
 
     if (error) return NextResponse.json({ error: 'Update failed' }, { status: 500 })
     return NextResponse.json({ data: { success: true } })
+  }
+
+  if (newStartsAt) {
+    const durationMin = serviceData?.duration_min ?? 60
+    const newStart = new Date(newStartsAt)
+    const newEnd = new Date(newStart.getTime() + durationMin * 60_000)
+
+    // Check for overlap with other appointments of the same master
+    const { data: overlapping } = await supabase
+      .from('appointments')
+      .select('id')
+      .eq('master_id', apptData.master_id)
+      .eq('tenant_id', tenantId)
+      .neq('id', id)
+      .in('status', ['pending', 'confirmed'])
+      .lt('starts_at', newEnd.toISOString())
+      .gt('ends_at', newStart.toISOString())
+      .limit(1)
+
+    if (overlapping && overlapping.length > 0) {
+      return NextResponse.json({ error: 'Time slot is already taken' }, { status: 409 })
+    }
+
+    const { data: updated, error } = await supabase
+      .from('appointments')
+      .update({
+        starts_at: newStart.toISOString(),
+        ends_at: newEnd.toISOString(),
+        status: 'confirmed',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select('id, starts_at, ends_at, status')
+      .single()
+
+    if (error) return NextResponse.json({ error: 'Update failed' }, { status: 500 })
+    return NextResponse.json({ data: updated })
   }
 
   return NextResponse.json({ error: 'No action specified' }, { status: 400 })

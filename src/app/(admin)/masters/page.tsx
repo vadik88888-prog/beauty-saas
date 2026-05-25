@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Pencil, Trash2, User, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Plus, Pencil, Trash2, User, ToggleLeft, ToggleRight, CalendarDays } from 'lucide-react'
+import { toast } from 'sonner'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -26,6 +27,29 @@ type MasterItem = {
   sort_order: number
 }
 
+type ServiceItem = {
+  id: string
+  name: string
+}
+
+const DAY_NAMES = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
+
+type DaySchedule = {
+  day_of_week: number
+  start_time: string
+  end_time: string
+  is_working: boolean
+}
+
+function defaultSchedule(): DaySchedule[] {
+  return DAY_NAMES.map((_, i) => ({
+    day_of_week: i,
+    start_time: '09:00',
+    end_time: '18:00',
+    is_working: i < 6,
+  }))
+}
+
 const EMPTY_FORM = {
   name: '',
   bio: '',
@@ -38,17 +62,29 @@ const EMPTY_FORM = {
 
 export default function MastersAdminPage() {
   const [masters, setMasters] = useState<MasterItem[]>([])
+  const [services, setServices] = useState<ServiceItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [scheduleOpen, setScheduleOpen] = useState(false)
+  const [scheduleMasterId, setScheduleMasterId] = useState<string | null>(null)
+  const [scheduleMasterName, setScheduleMasterName] = useState('')
+  const [schedule, setSchedule] = useState<DaySchedule[]>(defaultSchedule())
+  const [savingSchedule, setSavingSchedule] = useState(false)
 
   async function loadMasters() {
-    const res = await fetch('/api/admin/masters')
-    const { data } = await res.json()
-    setMasters(data ?? [])
+    const [mastersRes, servicesRes] = await Promise.all([
+      fetch('/api/admin/masters'),
+      fetch('/api/admin/services'),
+    ])
+    const { data: mastersData } = await mastersRes.json()
+    const { data: servicesData } = await servicesRes.json()
+    setMasters(mastersData ?? [])
+    setServices((servicesData ?? []).map((s: { id: string; name: string }) => ({ id: s.id, name: s.name })))
     setIsLoading(false)
   }
 
@@ -57,10 +93,11 @@ export default function MastersAdminPage() {
   function openCreate() {
     setEditingId(null)
     setForm(EMPTY_FORM)
+    setSelectedServiceIds([])
     setDialogOpen(true)
   }
 
-  function openEdit(m: MasterItem) {
+  async function openEdit(m: MasterItem) {
     setEditingId(m.id)
     setForm({
       name: m.name,
@@ -71,6 +108,12 @@ export default function MastersAdminPage() {
       is_active: m.is_active,
       sort_order: m.sort_order,
     })
+    // Load existing service assignments
+    const res = await fetch(`/api/admin/master-services?masterId=${m.id}`)
+    if (res.ok) {
+      const { data } = await res.json()
+      setSelectedServiceIds(data ?? [])
+    }
     setDialogOpen(true)
   }
 
@@ -94,6 +137,33 @@ export default function MastersAdminPage() {
     })
 
     if (res.ok) {
+      const { data: savedMaster } = await res.json()
+      const masterId = editingId ?? savedMaster?.id
+
+      if (masterId && services.length > 0) {
+        // Load current assignments and sync
+        const currentRes = await fetch(`/api/admin/master-services?masterId=${masterId}`)
+        const { data: currentIds } = currentRes.ok ? await currentRes.json() : { data: [] }
+        const current = new Set<string>(currentIds ?? [])
+        const desired = new Set<string>(selectedServiceIds)
+
+        const toAdd = selectedServiceIds.filter(id => !current.has(id))
+        const toRemove = [...current].filter(id => !desired.has(id))
+
+        await Promise.all([
+          ...toAdd.map(serviceId => fetch('/api/admin/master-services', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ masterId, serviceId }),
+          })),
+          ...toRemove.map(serviceId => fetch('/api/admin/master-services', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ masterId, serviceId }),
+          })),
+        ])
+      }
+
       setDialogOpen(false)
       await loadMasters()
     }
@@ -104,6 +174,40 @@ export default function MastersAdminPage() {
     await fetch(`/api/admin/masters/${id}`, { method: 'DELETE' })
     setDeleteId(null)
     await loadMasters()
+  }
+
+  async function openSchedule(m: MasterItem) {
+    setScheduleMasterId(m.id)
+    setScheduleMasterName(m.name)
+    const res = await fetch(`/api/admin/masters/${m.id}/schedule`)
+    if (res.ok) {
+      const { data } = await res.json()
+      if (data?.length) {
+        setSchedule(data as DaySchedule[])
+      } else {
+        setSchedule(defaultSchedule())
+      }
+    } else {
+      setSchedule(defaultSchedule())
+    }
+    setScheduleOpen(true)
+  }
+
+  async function handleSaveSchedule() {
+    if (!scheduleMasterId) return
+    setSavingSchedule(true)
+    const res = await fetch(`/api/admin/masters/${scheduleMasterId}/schedule`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ schedule }),
+    })
+    if (res.ok) {
+      toast.success('Расписание сохранено')
+      setScheduleOpen(false)
+    } else {
+      toast.error('Ошибка сохранения')
+    }
+    setSavingSchedule(false)
   }
 
   async function toggleActive(m: MasterItem) {
@@ -172,6 +276,9 @@ export default function MastersAdminPage() {
                       : <ToggleLeft className="w-4 h-4 text-muted-foreground" />
                     }
                   </button>
+                  <button onClick={() => openSchedule(master)} className="p-1.5 rounded-lg hover:bg-muted transition-colors" title="Расписание">
+                    <CalendarDays className="w-4 h-4 text-muted-foreground" />
+                  </button>
                   <button onClick={() => openEdit(master)} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
                     <Pencil className="w-4 h-4 text-muted-foreground" />
                   </button>
@@ -216,6 +323,32 @@ export default function MastersAdminPage() {
               <input type="checkbox" checked={form.is_active} onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))} className="rounded" />
               <span className="text-sm">Активен (виден клиентам)</span>
             </label>
+
+            {services.length > 0 && (
+              <div>
+                <label className="text-sm font-medium mb-2 block">Услуги мастера</label>
+                <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto border rounded-lg p-2">
+                  {services.map(svc => (
+                    <label key={svc.id} className="flex items-center gap-2 cursor-pointer hover:bg-muted px-1 py-0.5 rounded">
+                      <input
+                        type="checkbox"
+                        checked={selectedServiceIds.includes(svc.id)}
+                        onChange={e => {
+                          setSelectedServiceIds(prev =>
+                            e.target.checked ? [...prev, svc.id] : prev.filter(id => id !== svc.id)
+                          )
+                        }}
+                        className="rounded"
+                      />
+                      <span className="text-sm">{svc.name}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Если не выбрана ни одна услуга — мастер показывается для всех
+                </p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Отмена</Button>
@@ -234,6 +367,55 @@ export default function MastersAdminPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Отмена</Button>
             <Button variant="destructive" onClick={() => deleteId && handleDelete(deleteId)}>Удалить</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Schedule dialog */}
+      <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Расписание — {scheduleMasterName}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 py-2">
+            {schedule.map((day, i) => (
+              <div key={day.day_of_week} className="flex items-center gap-3">
+                <label className="flex items-center gap-2 w-16 shrink-0 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={day.is_working}
+                    onChange={e => setSchedule(prev => prev.map((d, j) => j === i ? { ...d, is_working: e.target.checked } : d))}
+                    className="rounded"
+                  />
+                  <span className="text-sm font-medium">{DAY_NAMES[day.day_of_week]}</span>
+                </label>
+                {day.is_working ? (
+                  <>
+                    <input
+                      type="time"
+                      value={day.start_time}
+                      onChange={e => setSchedule(prev => prev.map((d, j) => j === i ? { ...d, start_time: e.target.value } : d))}
+                      className="flex-1 border rounded-lg px-2 py-1 text-sm bg-background"
+                    />
+                    <span className="text-muted-foreground text-sm">—</span>
+                    <input
+                      type="time"
+                      value={day.end_time}
+                      onChange={e => setSchedule(prev => prev.map((d, j) => j === i ? { ...d, end_time: e.target.value } : d))}
+                      className="flex-1 border rounded-lg px-2 py-1 text-sm bg-background"
+                    />
+                  </>
+                ) : (
+                  <span className="text-xs text-muted-foreground">Выходной</span>
+                )}
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setScheduleOpen(false)}>Отмена</Button>
+            <Button onClick={handleSaveSchedule} disabled={savingSchedule}>
+              {savingSchedule ? 'Сохраняем...' : 'Сохранить'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

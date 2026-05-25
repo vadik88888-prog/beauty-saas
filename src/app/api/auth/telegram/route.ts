@@ -33,17 +33,6 @@ export async function POST(req: NextRequest): Promise<NextResponse<ApiResponse<T
       return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
     }
 
-    // Check subscription is active
-    if (tenant.subscription_status === 'cancelled') {
-      return NextResponse.json({ error: 'Subscription inactive' }, { status: 403 })
-    }
-    if (
-      tenant.subscription_status === 'trial' &&
-      new Date(tenant.trial_ends_at) < new Date()
-    ) {
-      return NextResponse.json({ error: 'Trial expired' }, { status: 403 })
-    }
-
     // 2. Validate Telegram initData
     // Use platform bot token if tenant hasn't configured their own
     const botToken = tenant.telegram_bot_token ?? process.env.TELEGRAM_BOT_TOKEN!

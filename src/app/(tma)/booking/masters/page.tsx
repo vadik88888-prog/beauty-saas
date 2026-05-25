@@ -27,13 +27,26 @@ export default function MastersPage() {
       return
     }
 
-    const token = sessionStorage.getItem('tma_token')
-    fetch(`/api/masters?serviceId=${service.id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.json())
-      .then(({ data }) => setMasters(data ?? []))
-      .finally(() => setIsLoading(false))
+    const serviceId = service.id
+    async function loadMasters() {
+      const token = sessionStorage.getItem('tma_token')
+      const slug = sessionStorage.getItem('tenant_slug') ||
+        new URLSearchParams(window.location.search).get('slug') || ''
+
+      let res = token
+        ? await fetch(`/api/masters?serviceId=${serviceId}`, { headers: { Authorization: `Bearer ${token}` } })
+        : await fetch(`/api/masters?serviceId=${serviceId}&slug=${encodeURIComponent(slug)}`)
+
+      if (res.status === 401 && token) {
+        sessionStorage.removeItem('tma_token')
+        res = await fetch(`/api/masters?serviceId=${serviceId}&slug=${encodeURIComponent(slug)}`)
+      }
+
+      const { data } = await res.json()
+      setMasters(data ?? [])
+      setIsLoading(false)
+    }
+    loadMasters()
   }, [service, router])
 
   function handleSelect(master: MasterItem | null) {

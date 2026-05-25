@@ -15,7 +15,7 @@ async function getOwnerContext(): Promise<{ tenantId: string; role: string } | n
 }
 
 const SettingsSchema = z.object({
-  name: z.string().min(1).max(200),
+  name: z.string().min(1).max(200).optional(),
   phone: z.string().max(50).nullable().optional(),
   address: z.string().max(500).nullable().optional(),
   city: z.string().max(100).nullable().optional(),
@@ -23,6 +23,7 @@ const SettingsSchema = z.object({
   timezone: z.string().optional(),
   language: z.string().optional(),
   description: z.string().max(1000).nullable().optional(),
+  telegram_bot_token: z.string().max(200).nullable().optional(),
 })
 
 export async function GET() {
@@ -32,7 +33,7 @@ export async function GET() {
   const supabase = createAdminClient()
   const { data } = await supabase
     .from('tenants')
-    .select('id, name, phone, address, city, country, timezone, language, description, slug, subscription_status, subscription_plan, trial_ends_at')
+    .select('id, name, phone, address, city, country, timezone, language, description, slug, telegram_bot_token, subscription_status, subscription_plan, trial_ends_at')
     .eq('id', ctx.tenantId)
     .single()
 

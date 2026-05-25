@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Calendar, Clock, User, Scissors, CheckCircle2 } from 'lucide-react'
-import { Skeleton } from '@/components/ui/skeleton'
 import { useBookingStore } from '@/stores/bookingStore'
 import { formatDate, formatTime, formatDuration } from '@/lib/utils/date'
 import { formatPrice } from '@/lib/utils/format'
@@ -11,7 +10,7 @@ import { toast } from 'sonner'
 
 export default function ConfirmPage() {
   const router = useRouter()
-  const { service, master, selectedSlot, reset } = useBookingStore()
+  const { service, selectedSlot, reset } = useBookingStore()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isBooked, setIsBooked] = useState(false)
   const [notes, setNotes] = useState('')
@@ -26,7 +25,20 @@ export default function ConfirmPage() {
     setIsSubmitting(true)
 
     try {
-      const token = sessionStorage.getItem('tma_token')
+      let token = sessionStorage.getItem('tma_token')
+      if (!token) {
+        const deadline = Date.now() + 4000
+        while (!token && Date.now() < deadline) {
+          await new Promise(r => setTimeout(r, 300))
+          token = sessionStorage.getItem('tma_token')
+        }
+      }
+      if (!token) {
+        toast.error('Войдите через Telegram бот, чтобы создать запись.')
+        setIsSubmitting(false)
+        return
+      }
+
       const res = await fetch('/api/appointments', {
         method: 'POST',
         headers: {
@@ -46,6 +58,10 @@ export default function ConfirmPage() {
         if (res.status === 409) {
           toast.error('Это время уже занято. Выберите другое.')
           router.push('/booking/slots')
+          return
+        }
+        if (res.status === 401) {
+          toast.error('Сессия истекла. Закройте и снова откройте приложение через бот.')
           return
         }
         throw new Error(error ?? 'Ошибка')

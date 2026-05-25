@@ -97,3 +97,48 @@ export function getBotWebhookHandler() {
   const bot = getPlatformBot()
   return webhookCallback(bot, 'std/http')
 }
+
+// Create a one-off handler for a tenant-specific bot
+export function getTenantBotHandler(botToken: string, tenantSlug: string) {
+  const bot = new Bot(botToken)
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://beauty-saas-vert.vercel.app'
+  const miniAppUrl = `${appUrl}?slug=${tenantSlug}`
+
+  bot.command('start', async ctx => {
+    const firstName = ctx.from?.first_name ?? 'Привет'
+    await ctx.reply(
+      `Привет, ${firstName}! 👋\n\nЯ помогу вам записаться на услуги, узнать расписание и цены.\n\nНажмите кнопку ниже:`,
+      {
+        reply_markup: {
+          inline_keyboard: [[
+            { text: '💅 Открыть приложение', web_app: { url: miniAppUrl } },
+          ]],
+        },
+      }
+    )
+  })
+
+  bot.on('message:text', async ctx => {
+    try {
+      const res = await fetch(`${appUrl}/api/ai/chat/bot`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          telegramChatId: ctx.chat.id,
+          message: ctx.message.text,
+          telegramUser: ctx.from,
+          tenantSlug,
+        }),
+      })
+      if (res.ok) {
+        const { reply } = await res.json()
+        if (reply) await ctx.reply(reply, { parse_mode: 'HTML' })
+      }
+    } catch (err) {
+      console.error('Tenant bot AI error:', err)
+      await ctx.reply('Извините, произошла ошибка. Попробуйте позже.')
+    }
+  })
+
+  return webhookCallback(bot, 'std/http')
+}

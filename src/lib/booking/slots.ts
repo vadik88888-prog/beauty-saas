@@ -27,6 +27,7 @@ interface SlotInput {
   serviceDurationMin: number
   date: Date
   slotStepMin?: number
+  timezoneOffsetHours?: number
 }
 
 /**
@@ -41,13 +42,24 @@ export function calculateAvailableSlots({
   serviceDurationMin,
   date,
   slotStepMin = 30,
+  timezoneOffsetHours = 0,
 }: SlotInput): TimeSlot[] {
   const dayOfWeek = getDayOfWeek(date)
 
   // 1. Find working hours for this day
-  const todayHours = workingHours.find(
-    wh => wh.master_id === master.id && wh.day_of_week === dayOfWeek
-  )
+  const masterHours = workingHours.filter(wh => wh.master_id === master.id)
+  let todayHours = masterHours.find(wh => wh.day_of_week === dayOfWeek)
+
+  // Fallback: if no working hours configured at all, use default Mon-Sat 9:00-18:00
+  if (!todayHours && masterHours.length === 0 && dayOfWeek <= 5) {
+    todayHours = {
+      master_id: master.id,
+      day_of_week: dayOfWeek,
+      start_time: '09:00',
+      end_time: '18:00',
+      is_working: true,
+    } as WorkingHours
+  }
 
   if (!todayHours || !todayHours.is_working) return []
 
@@ -64,11 +76,12 @@ export function calculateAvailableSlots({
   const [startH, startM] = todayHours.start_time.split(':').map(Number)
   const [endH, endM] = todayHours.end_time.split(':').map(Number)
 
+  const off = Math.round(timezoneOffsetHours)
   const dayStart = new Date(date)
-  dayStart.setHours(startH, startM, 0, 0)
+  dayStart.setUTCHours(startH - off, startM, 0, 0)
 
   const dayEnd = new Date(date)
-  dayEnd.setHours(endH, endM, 0, 0)
+  dayEnd.setUTCHours(endH - off, endM, 0, 0)
 
   const minimumBookingTime = new Date(Date.now() + 60 * 60 * 1000) // 1 hour from now
   const slots: TimeSlot[] = []

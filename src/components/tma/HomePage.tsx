@@ -7,12 +7,10 @@ import { Calendar, MessageCircle, ChevronRight, Clock, MapPin, Star } from 'luci
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { TenantPublicData, AppointmentWithRelations } from '@/types'
-import { useTmaAuth } from '@/hooks/useTmaAuth'
 import { formatDate, formatTime } from '@/lib/utils/date'
 
 export function TmaHomePage() {
   const router = useRouter()
-  const { client, isLoading: authLoading } = useTmaAuth()
   const [tenant, setTenant] = useState<TenantPublicData | null>(null)
   const [nextAppointment, setNextAppointment] = useState<AppointmentWithRelations | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -27,7 +25,7 @@ export function TmaHomePage() {
 
         const [tenantRes, apptRes] = await Promise.all([
           fetch(tenantUrl, { headers }),
-          client ? fetch('/api/appointments?upcoming=1&limit=1', { headers: { Authorization: `Bearer ${token}` } }) : Promise.resolve(null),
+          token ? fetch('/api/appointments?upcoming=1&limit=1', { headers }) : Promise.resolve(null),
         ])
 
         if (tenantRes.ok) {
@@ -43,14 +41,22 @@ export function TmaHomePage() {
         setIsLoading(false)
       }
     }
-    if (!authLoading) load()
-  }, [authLoading, client])
+    load()
+  }, [])
 
-  if (isLoading || authLoading) return <HomePageSkeleton />
+  if (isLoading) return <HomePageSkeleton />
   if (!tenant) return null
 
   const greeting = getGreeting()
-  const clientName = client?.first_name ?? 'Привет'
+  const storedClient = typeof window !== 'undefined'
+    ? (() => {
+        try {
+          const raw = sessionStorage.getItem('tma_client')
+          return raw ? JSON.parse(raw) as { first_name?: string } : null
+        } catch { return null }
+      })()
+    : null
+  const clientName = storedClient?.first_name ?? 'Привет'
 
   return (
     <div className="flex flex-col min-h-screen pb-6 safe-bottom">

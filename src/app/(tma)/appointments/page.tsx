@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Calendar, Clock, User, ChevronRight, XCircle } from 'lucide-react'
+import { ArrowLeft, Calendar, Clock, XCircle, RefreshCw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
@@ -29,6 +29,10 @@ export default function AppointmentsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [cancelTarget, setCancelTarget] = useState<AppointmentWithRelations | null>(null)
   const [isCancelling, setIsCancelling] = useState(false)
+  const [rescheduleTarget, setRescheduleTarget] = useState<AppointmentWithRelations | null>(null)
+  const [rescheduleDate, setRescheduleDate] = useState('')
+  const [rescheduleTime, setRescheduleTime] = useState('')
+  const [isRescheduling, setIsRescheduling] = useState(false)
 
   useEffect(() => {
     setIsLoading(true)
@@ -66,6 +70,32 @@ export default function AppointmentsPage() {
     } finally {
       setIsCancelling(false)
       setCancelTarget(null)
+    }
+  }
+
+  async function handleReschedule() {
+    if (!rescheduleTarget || !rescheduleDate || !rescheduleTime) return
+    setIsRescheduling(true)
+    try {
+      const token = sessionStorage.getItem('tma_token')
+      const newStartsAt = new Date(`${rescheduleDate}T${rescheduleTime}:00`).toISOString()
+      const res = await fetch(`/api/appointments/${rescheduleTarget.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ newStartsAt }),
+      })
+      if (res.status === 409) throw new Error('Это время уже занято')
+      if (!res.ok) throw new Error('Ошибка переноса')
+      const { data } = await res.json()
+      setAppointments(prev => prev.map(a =>
+        a.id === rescheduleTarget.id ? { ...a, starts_at: data.starts_at, status: data.status } : a
+      ))
+      toast.success('Запись перенесена')
+      setRescheduleTarget(null)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Ошибка переноса')
+    } finally {
+      setIsRescheduling(false)
     }
   }
 
@@ -112,10 +142,57 @@ export default function AppointmentsPage() {
               appointment={appt}
               canCancel={tab === 'upcoming' && ['pending', 'confirmed'].includes(appt.status)}
               onCancel={() => setCancelTarget(appt)}
+              onReschedule={() => {
+                setRescheduleTarget(appt)
+                setRescheduleDate('')
+                setRescheduleTime('')
+              }}
             />
           ))
         )}
       </div>
+
+      {/* Reschedule dialog */}
+      <Dialog open={!!rescheduleTarget} onOpenChange={open => !open && setRescheduleTarget(null)}>
+        <DialogContent className="rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Перенести запись</DialogTitle>
+            <DialogDescription>
+              {rescheduleTarget?.service.name} — выберите новую дату и время
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 mt-2">
+            <input
+              type="date"
+              value={rescheduleDate}
+              onChange={e => setRescheduleDate(e.target.value)}
+              min={new Date().toISOString().split('T')[0]}
+              className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <input
+              type="time"
+              value={rescheduleTime}
+              onChange={e => setRescheduleTime(e.target.value)}
+              className="w-full h-10 rounded-xl border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <button
+              onClick={handleReschedule}
+              disabled={!rescheduleDate || !rescheduleTime || isRescheduling}
+              className="btn-tma"
+              style={{ background: 'var(--tg-button)' }}
+            >
+              {isRescheduling ? 'Переносим...' : 'Подтвердить перенос'}
+            </button>
+            <button
+              onClick={() => setRescheduleTarget(null)}
+              className="btn-tma"
+              style={{ background: 'var(--tg-secondary-bg)', color: 'var(--tg-text)' }}
+            >
+              Отмена
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Cancel dialog */}
       <Dialog open={!!cancelTarget} onOpenChange={open => !open && setCancelTarget(null)}>
@@ -153,10 +230,12 @@ function AppointmentCard({
   appointment: appt,
   canCancel,
   onCancel,
+  onReschedule,
 }: {
   appointment: AppointmentWithRelations
   canCancel: boolean
   onCancel: () => void
+  onReschedule: () => void
 }) {
   const statusInfo = STATUS_LABELS[appt.status] ?? { label: appt.status, color: 'bg-gray-100 text-gray-600' }
 
@@ -189,13 +268,23 @@ function AppointmentCard({
       )}
 
       {canCancel && (
-        <button
-          onClick={onCancel}
-          className="flex items-center gap-1.5 text-sm text-red-500 mt-0.5"
-        >
-          <XCircle className="w-4 h-4" />
-          Отменить
-        </button>
+        <div className="flex items-center gap-4 mt-0.5">
+          <button
+            onClick={onReschedule}
+            className="flex items-center gap-1.5 text-sm"
+            style={{ color: 'var(--tg-button)' }}
+          >
+            <RefreshCw className="w-4 h-4" />
+            Перенести
+          </button>
+          <button
+            onClick={onCancel}
+            className="flex items-center gap-1.5 text-sm text-red-500"
+          >
+            <XCircle className="w-4 h-4" />
+            Отменить
+          </button>
+        </div>
       )}
     </div>
   )

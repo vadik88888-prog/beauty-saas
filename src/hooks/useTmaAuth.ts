@@ -24,8 +24,11 @@ export function useTmaAuth(): TmaAuthState {
     try {
       const tg = window.Telegram?.WebApp
       if (!tg?.initData) {
-        // Dev mode: no Telegram context — skip auth but still load
-        setState(s => ({ ...s, isLoading: false }))
+        // No Telegram context (browser/desktop without WebApp API)
+        // Store slug for public API calls (services, masters, slots)
+        const slug = getTenantSlug()
+        if (slug) sessionStorage.setItem('tenant_slug', slug)
+        setState(s => ({ ...s, isLoading: false, error: 'no_telegram' }))
         return
       }
 
@@ -48,6 +51,7 @@ export function useTmaAuth(): TmaAuthState {
 
       // Store token in sessionStorage (not localStorage — per-session only)
       sessionStorage.setItem('tma_token', data.token)
+      if (data.client) sessionStorage.setItem('tma_client', JSON.stringify(data.client))
 
       setState({
         client: data.client,
@@ -108,5 +112,9 @@ function getTenantSlug(): string | null {
   if (slug) return slug
 
   // Try from sessionStorage (set on first load)
-  return sessionStorage.getItem('tenant_slug')
+  const stored = sessionStorage.getItem('tenant_slug')
+  if (stored) return stored
+
+  // Fallback: env var baked into bundle (covers old bot buttons without ?slug=)
+  return process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? null
 }

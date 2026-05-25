@@ -15,7 +15,17 @@ async function getTenantIdFromToken(req: NextRequest): Promise<string | null> {
 }
 
 export async function GET(req: NextRequest) {
-  const tenantId = await getTenantIdFromToken(req)
+  let tenantId = await getTenantIdFromToken(req)
+
+  if (!tenantId) {
+    const slug = new URL(req.url).searchParams.get('slug')
+    if (slug) {
+      const supabase = createAdminClient()
+      const { data } = await supabase.from('tenants').select('id').eq('slug', slug).single()
+      tenantId = (data as { id: string } | null)?.id ?? null
+    }
+  }
+
   if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const supabase = createAdminClient()

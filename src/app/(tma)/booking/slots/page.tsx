@@ -24,31 +24,42 @@ export default function SlotsPage() {
       return
     }
 
-    const token = sessionStorage.getItem('tma_token')
-    const today = new Date()
-    const end = new Date(today)
-    end.setDate(end.getDate() + DAYS_AHEAD)
+    const serviceId = service.id
+    const masterId = master?.id
 
-    const params = new URLSearchParams({
-      serviceId: service.id,
-      dateFrom: today.toISOString().slice(0, 10),
-      dateTo: end.toISOString().slice(0, 10),
-    })
-    if (master) params.set('masterId', master.id)
+    async function loadSlots() {
+      const token = sessionStorage.getItem('tma_token')
+      const slug = sessionStorage.getItem('tenant_slug') ||
+        new URLSearchParams(window.location.search).get('slug') || ''
+      const today = new Date()
+      const end = new Date(today)
+      end.setDate(end.getDate() + DAYS_AHEAD)
 
-    fetch(`/api/slots?${params}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.json())
-      .then(({ data }) => {
-        setSlots(data ?? [])
-        // Auto-select first available date
-        if (data?.[0]) {
-          setSelectedDate(data[0].datetime.slice(0, 10))
-        }
+      const params = new URLSearchParams({
+        serviceId,
+        dateFrom: today.toISOString().slice(0, 10),
+        dateTo: end.toISOString().slice(0, 10),
       })
-      .finally(() => setIsLoading(false))
-  }, [service, master, router])
+      if (masterId) params.set('masterId', masterId)
+      if (!token && slug) params.set('slug', slug)
+
+      let res = await fetch(`/api/slots?${params}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+
+      if (res.status === 401 && token) {
+        sessionStorage.removeItem('tma_token')
+        if (slug) params.set('slug', slug)
+        res = await fetch(`/api/slots?${params}`)
+      }
+
+      const { data } = await res.json()
+      setSlots(data ?? [])
+      if (data?.[0]) setSelectedDate(data[0].datetime.slice(0, 10))
+      setIsLoading(false)
+    }
+    loadSlots()
+  }, [service, master?.id, router])
 
   // Group slots by date
   const slotsByDate = useMemo(() => {
