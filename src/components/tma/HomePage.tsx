@@ -203,7 +203,7 @@ export function TmaHomePage() {
               serviceName={nextAppointment.service.name}
               masterName={nextAppointment.master.name}
               startsAt={nextAppointment.starts_at}
-              photoSrc={nextAppointment.master.photo_url ?? null}
+              photoSrc={nextAppointment.service.image_url ?? nextAppointment.master.photo_url ?? null}
               onClick={() => router.push('/appointments')}
               actions={
                 <ActionRow

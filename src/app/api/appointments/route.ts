@@ -146,7 +146,7 @@ export async function GET(req: NextRequest) {
       id, starts_at, ends_at, status, price, notes, source, created_at,
       client:clients(id, first_name, last_name, telegram_id),
       master:masters(id, name, photo_url),
-      service:services(id, name, duration_min, price, currency)
+      service:services(id, name, duration_min, price, currency, image_url)
     `)
     .eq('tenant_id', tenantId)
     .order('starts_at', { ascending: !upcoming })

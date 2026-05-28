@@ -360,7 +360,7 @@ export type Subscription = Database['public']['Tables']['subscriptions']['Row']
 export type AppointmentWithRelations = Appointment & {
   client: Pick<Client, 'id' | 'first_name' | 'last_name' | 'telegram_id'>
   master: Pick<Master, 'id' | 'name' | 'photo_url'>
-  service: Pick<Service, 'id' | 'name' | 'duration_min' | 'price' | 'currency'>
+  service: Pick<Service, 'id' | 'name' | 'duration_min' | 'price' | 'currency' | 'image_url'>
 }
 
 export type ServiceWithCategory = Service & {
