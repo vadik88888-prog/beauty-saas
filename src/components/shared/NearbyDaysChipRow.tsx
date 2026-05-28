@@ -1,6 +1,5 @@
 'use client'
 import { motion, useReducedMotion } from 'framer-motion'
-import { ChevronRight } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 export type NearbyDay = {
@@ -57,18 +56,42 @@ export function NearbyDaysChipRow({
 }: NearbyDaysChipRowProps) {
   const reduce = useReducedMotion()
   const scrollRef = useRef<HTMLDivElement | null>(null)
-  const [hintVisible, setHintVisible] = useState<boolean>(days.length > 2)
+  const hasOverflow = days.length > 2
+  const [hintVisible, setHintVisible] = useState<boolean>(hasOverflow)
 
-  // Hide hint when user scrolls or after 5s
+  // Native scroll-affordance: nudge the chip row slightly so users see it scrolls.
+  useEffect(() => {
+    if (!hasOverflow || reduce) return
+    const node = scrollRef.current
+    if (!node) return
+    let cancelled = false
+    const t1 = window.setTimeout(() => {
+      if (cancelled) return
+      node.scrollTo({ left: 28, behavior: 'smooth' })
+    }, 700)
+    const t2 = window.setTimeout(() => {
+      if (cancelled) return
+      node.scrollTo({ left: 0, behavior: 'smooth' })
+    }, 1400)
+    return () => {
+      cancelled = true
+      window.clearTimeout(t1)
+      window.clearTimeout(t2)
+    }
+  }, [hasOverflow, reduce])
+
+  // Hide caption when user actually scrolls or after 7s
   useEffect(() => {
     if (!hintVisible) return
     const node = scrollRef.current
     const hide = () => setHintVisible(false)
     const onScroll = () => {
-      if ((node?.scrollLeft ?? 0) > 4) hide()
+      // Ignore the auto-nudge scroll: it returns to 0; we only hide on
+      // user-initiated scroll past the nudge offset.
+      if ((node?.scrollLeft ?? 0) > 40) hide()
     }
     node?.addEventListener('scroll', onScroll, { passive: true })
-    const timer = window.setTimeout(hide, 5000)
+    const timer = window.setTimeout(hide, 7000)
     return () => {
       node?.removeEventListener('scroll', onScroll)
       window.clearTimeout(timer)
@@ -133,34 +156,31 @@ export function NearbyDaysChipRow({
           )
         })}
         </div>
+
+        {/* Soft gradient edge so the user feels there's more content */}
+        {hasOverflow && (
+          <span
+            aria-hidden
+            className="absolute top-0 bottom-1 right-0 w-10 pointer-events-none"
+            style={{
+              background:
+                'linear-gradient(270deg, var(--background) 0%, transparent 100%)',
+            }}
+          />
+        )}
       </div>
 
-      {/* Swipe hint: fade-out animated chevron at the right edge */}
-      {hintVisible && !reduce && (
-        <motion.div
-          aria-hidden
-          className="absolute top-0 bottom-1 right-0 pointer-events-none flex items-center pl-6"
-          style={{
-            background:
-              'linear-gradient(270deg, var(--background) 30%, transparent 100%)',
-          }}
-          initial={{ opacity: 0 }}
+      {/* Caption hint — small, muted, disappears after first real scroll */}
+      {hintVisible && (
+        <motion.p
+          className="text-[10px] text-muted-2 text-center mt-1.5"
+          initial={reduce ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.4 }}
+          transition={{ duration: 0.3, delay: 0.2 }}
         >
-          <motion.span
-            className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-sage text-page shadow-sm"
-            animate={{ x: [0, 4, 0] }}
-            transition={{
-              duration: 1.4,
-              repeat: Infinity,
-              ease: [0.45, 0.05, 0.55, 0.95],
-            }}
-          >
-            <ChevronRight className="w-4 h-4" strokeWidth={2.2} />
-          </motion.span>
-        </motion.div>
+          ← Листайте, чтобы выбрать другой день →
+        </motion.p>
       )}
     </div>
   )

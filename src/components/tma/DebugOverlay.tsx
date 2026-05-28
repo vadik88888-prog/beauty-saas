@@ -71,6 +71,10 @@ export function DebugOverlay() {
 
   if (typeof window === 'undefined' || hidden) return null
 
+  // Gated behind ?debug=1 — overlay isn't visible to regular clients.
+  const visible = !!new URLSearchParams(window.location.search).get('debug')
+  if (!visible) return null
+
   const elapsedSec = Math.round((Date.now() - mountedAt) / 1000)
   const meSec =
     info.meRespAt != null
