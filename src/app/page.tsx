@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { Suspense } from 'react'
 import { TmaHomePage } from '@/components/tma/HomePage'
 import { TmaProviders } from '@/components/tma/TmaProviders'
-import { BottomNav } from '@/components/tma/BottomNav'
+import { TmaInner } from '@/components/tma/TmaInner'
 import { Skeleton } from '@/components/ui/skeleton'
 
 export default async function RootPage({
@@ -14,16 +14,18 @@ export default async function RootPage({
 }) {
   const { slug } = await searchParams
 
-  // TMA request — slug in URL → show client Mini App, skip admin auth redirect
+  // TMA request — slug in URL → show client Mini App, skip admin auth redirect.
+  // TmaInner wraps useTmaAuth + DebugOverlay + BottomNav + RegistrationModal.
+  // Without it on the root route, the home screen never authenticates →
+  // client info / appointments fail to load.
   if (slug) {
     return (
       <TmaProviders>
-        <div className="tma-root min-h-screen bg-tg-bg text-tg-text pb-16">
+        <TmaInner>
           <Suspense fallback={<HomePageSkeleton />}>
             <TmaHomePage />
           </Suspense>
-        </div>
-        <BottomNav />
+        </TmaInner>
       </TmaProviders>
     )
   }

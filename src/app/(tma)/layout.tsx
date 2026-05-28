@@ -1,41 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { TmaProviders } from '@/components/tma/TmaProviders'
-import { BottomNav } from '@/components/tma/BottomNav'
-import { useTmaAuth } from '@/hooks/useTmaAuth'
-import { RegistrationModal } from '@/components/tma/RegistrationModal'
-import { DebugOverlay } from '@/components/tma/DebugOverlay'
-
-function TmaInner({ children }: { children: React.ReactNode }) {
-  const { client, isLoading } = useTmaAuth()
-  const [needsRegistration, setNeedsRegistration] = useState(false)
-
-  useEffect(() => {
-    if (isLoading) return
-    if (!client) return
-    // Block app if phone is missing
-    if (!client.phone) setNeedsRegistration(true)
-    else setNeedsRegistration(false)
-  }, [client, isLoading])
-
-  return (
-    <>
-      <div className="tma-root min-h-screen bg-background text-foreground pb-16">
-        {children}
-      </div>
-      <BottomNav />
-      <DebugOverlay />
-      {needsRegistration && client && (
-        <RegistrationModal
-          initialFirstName={client.first_name}
-          initialLastName={client.last_name}
-          onComplete={() => setNeedsRegistration(false)}
-        />
-      )}
-    </>
-  )
-}
+import { TmaInner } from '@/components/tma/TmaInner'
 
 export default function TmaLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
