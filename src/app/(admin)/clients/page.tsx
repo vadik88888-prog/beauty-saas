@@ -1,9 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { Search, Users, Phone, Star } from 'lucide-react'
-import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { Search, Users, Phone, Star, AtSign, Calendar, Sparkles, Ban } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { MetricCard } from '@/components/shared/MetricCard'
 import { formatDate } from '@/lib/utils/date'
 import { formatPrice } from '@/lib/utils/format'
 
@@ -61,104 +62,84 @@ export default async function ClientsPage({
   const total = count ?? 0
   const totalPages = Math.ceil(total / limit)
 
+  const activeRecent = clients.filter(c =>
+    c.last_visit_at && new Date(c.last_visit_at) > new Date(Date.now() - 30 * 86400000)
+  ).length
+
+  // Count clients who came via AI (heuristic — clients with appointments source='ai')
+  type AiClientRow = { client_id: string }
+  const { data: aiClientsData } = await supabase
+    .from('appointments')
+    .select('client_id')
+    .eq('tenant_id', tenantId)
+    .eq('source', 'ai')
+  const aiClientIds = new Set(((aiClientsData ?? []) as AiClientRow[]).map(a => a.client_id))
+
   return (
-    <div className="p-6 flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Клиенты</h1>
-          <p className="text-muted-foreground text-sm mt-1">{total} клиентов всего</p>
-        </div>
-      </div>
+    <div className="p-5 md:p-8 max-w-5xl mx-auto flex flex-col gap-6">
+      <PageHeader
+        title="Клиенты"
+        description={`${total} ${pluralize(total, ['клиент', 'клиента', 'клиентов'])} · AI помнит каждого`}
+      />
 
       {/* Search */}
       <form method="GET">
         <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <Input
             name="search"
             defaultValue={search}
-            placeholder="Поиск по имени, телефону, username..."
+            placeholder="Имя, телефон или @username..."
             className="pl-9"
           />
         </div>
       </form>
 
-      {/* Stats row */}
-      <div className="grid grid-cols-3 gap-4">
-        <StatCard label="Всего клиентов" value={total} icon={<Users className="w-5 h-5 text-blue-500" />} />
-        <StatCard label="Активные (30 дней)" value={clients.filter(c => c.last_visit_at && new Date(c.last_visit_at) > new Date(Date.now() - 30 * 86400000)).length} icon={<Star className="w-5 h-5 text-yellow-500" />} />
-        <StatCard label="На этой странице" value={clients.length} icon={<Phone className="w-5 h-5 text-green-500" />} />
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-3">
+        <MetricCard label="Всего" value={total} icon={Users} />
+        <MetricCard label="Активные за 30 дней" value={activeRecent} icon={Star} />
+        <MetricCard isAi label="Записаны через AI" value={aiClientIds.size} icon={Sparkles} />
       </div>
 
-      {/* Table */}
-      <Card className="overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/30">
-                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Клиент</th>
-                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Контакт</th>
-                <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Визиты</th>
-                <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Потрачено</th>
-                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Последний визит</th>
-                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Статус</th>
-              </tr>
-            </thead>
-            <tbody>
-              {clients.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="text-center py-12 text-muted-foreground">
-                    {search ? 'Клиенты не найдены' : 'Нет клиентов'}
-                  </td>
-                </tr>
-              ) : clients.map(client => (
-                <tr key={client.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3">
-                    <div>
-                      <p className="font-semibold">
-                        {[client.first_name, client.last_name].filter(Boolean).join(' ') || 'Без имени'}
-                      </p>
-                      {client.tags && client.tags.length > 0 && (
-                        <div className="flex gap-1 mt-1">
-                          {client.tags.map(tag => (
-                            <Badge key={tag} variant="secondary" className="text-xs py-0">{tag}</Badge>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {client.phone && <p>{client.phone}</p>}
-                    {client.telegram_username && <p className="text-xs">@{client.telegram_username}</p>}
-                  </td>
-                  <td className="px-4 py-3 text-right font-semibold">{client.total_visits}</td>
-                  <td className="px-4 py-3 text-right">{formatPrice(client.total_spent, 'BYN')}</td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {client.last_visit_at ? formatDate(client.last_visit_at) : '—'}
-                  </td>
-                  <td className="px-4 py-3">
-                    {client.is_blocked
-                      ? <Badge variant="destructive">Заблокирован</Badge>
-                      : <Badge variant="secondary">Активен</Badge>
-                    }
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* List */}
+      {clients.length === 0 ? (
+        <EmptyState
+          icon={Users}
+          title={search ? 'Клиенты не найдены' : 'Нет клиентов'}
+          description={
+            search
+              ? `По запросу «${search}» никого нет`
+              : 'Клиенты появятся здесь, когда начнут писать боту или приходить на услуги'
+          }
+        />
+      ) : (
+        <div className="flex flex-col gap-2">
+          {clients.map(client => {
+            const isAi = aiClientIds.has(client.id)
+            const fullName = [client.first_name, client.last_name].filter(Boolean).join(' ') || 'Без имени'
+            return (
+              <ClientCard
+                key={client.id}
+                client={client}
+                fullName={fullName}
+                isAi={isAi}
+              />
+            )
+          })}
         </div>
-      </Card>
+      )}
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center gap-2 justify-center">
+        <div className="flex items-center gap-1 justify-center flex-wrap">
           {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
             <a
               key={p}
               href={`?page=${p}${search ? `&search=${encodeURIComponent(search)}` : ''}`}
-              className={`w-9 h-9 flex items-center justify-center rounded-lg text-sm font-medium transition-colors ${
+              className={`w-9 h-9 flex items-center justify-center rounded-xl text-[12px] font-medium transition-colors ${
                 p === page
-                  ? 'bg-primary text-primary-foreground'
+                  ? 'bg-foreground text-background'
                   : 'hover:bg-muted text-muted-foreground'
               }`}
             >
@@ -171,11 +152,85 @@ export default async function ClientsPage({
   )
 }
 
-function StatCard({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) {
+function ClientCard({
+  client, fullName, isAi,
+}: {
+  client: ClientRow
+  fullName: string
+  isAi: boolean
+}) {
   return (
-    <Card className="p-4">
-      <div className="flex items-center gap-2 mb-1">{icon}<span className="text-sm text-muted-foreground">{label}</span></div>
-      <p className="text-2xl font-bold">{value}</p>
-    </Card>
+    <div
+      className="flex items-center gap-4 p-4 rounded-2xl border border-border bg-surface-elevated"
+      style={{ boxShadow: 'var(--shadow-xs)' }}
+    >
+      <div className="w-11 h-11 rounded-2xl bg-surface-sunken flex items-center justify-center shrink-0 text-[14px] font-semibold text-foreground">
+        {fullName.charAt(0).toUpperCase()}
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 mb-0.5">
+          <p className="font-semibold text-[14px] text-foreground truncate">{fullName}</p>
+          {isAi && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-ai-soft text-ai-foreground border border-ai-border">
+              <Sparkles className="w-2.5 h-2.5" strokeWidth={2.2} />
+              AI
+            </span>
+          )}
+          {client.is_blocked && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded bg-destructive-soft text-destructive">
+              <Ban className="w-2.5 h-2.5" />
+              Заблокирован
+            </span>
+          )}
+          {client.tags?.map(tag => (
+            <span key={tag} className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+              {tag}
+            </span>
+          ))}
+        </div>
+        <div className="flex items-center gap-3 text-[11px] text-muted-foreground flex-wrap">
+          {client.phone && (
+            <span className="inline-flex items-center gap-1">
+              <Phone className="w-3 h-3" strokeWidth={1.8} />
+              {client.phone}
+            </span>
+          )}
+          {client.telegram_username && (
+            <span className="inline-flex items-center gap-1">
+              <AtSign className="w-3 h-3" strokeWidth={1.8} />
+              {client.telegram_username}
+            </span>
+          )}
+          <span className="inline-flex items-center gap-1">
+            <Calendar className="w-3 h-3" strokeWidth={1.8} />
+            {client.last_visit_at ? formatDate(client.last_visit_at) : 'нет визитов'}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex flex-col items-end gap-0.5 shrink-0">
+        <div className="text-[15px] font-semibold text-foreground tabular-nums">
+          {client.total_visits}
+        </div>
+        <div className="text-[10px] text-muted-foreground">
+          {pluralize(client.total_visits, ['визит', 'визита', 'визитов'])}
+        </div>
+        {client.total_spent > 0 && (
+          <div className="text-[11px] text-muted-foreground mt-0.5">
+            {formatPrice(client.total_spent, 'BYN')}
+          </div>
+        )}
+      </div>
+    </div>
   )
+}
+
+function pluralize(n: number, forms: [string, string, string]): string {
+  const abs = Math.abs(n) % 100
+  const last = abs % 10
+  if (abs > 10 && abs < 20) return forms[2]
+  if (last > 1 && last < 5) return forms[1]
+  if (last === 1) return forms[0]
+  return forms[2]
 }

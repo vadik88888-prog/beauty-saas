@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { seedKnowledgeBaseIfEmpty } from '@/lib/onboarding/kb-seed'
 
 async function getStaffContext(): Promise<{ tenantId: string } | null> {
   const supabase = await createClient()
@@ -52,6 +53,12 @@ export async function PATCH(req: NextRequest) {
   await supabase
     .from('onboarding_progress')
     .upsert({ tenant_id: ctx.tenantId, step_salon: true, updated_at: new Date().toISOString() }, { onConflict: 'tenant_id' })
+
+  // Seed knowledge base — идемпотентно, no-op если статьи уже есть.
+  // Не блокируем response: AI получит статьи при следующем запросе.
+  seedKnowledgeBaseIfEmpty(ctx.tenantId, supabase).catch(err =>
+    console.error('[onboarding] kb seed error:', err)
+  )
 
   return NextResponse.json({ data })
 }

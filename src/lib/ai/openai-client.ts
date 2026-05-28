@@ -12,6 +12,8 @@ export interface LLMCallOptions {
   model?: string
   maxTokens?: number
   temperature?: number
+  // Force a specific tool call. Pass { type: 'function', function: { name: 'tool_name' } } to override auto.
+  toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
 }
 
 export interface LLMResponse {
@@ -23,6 +25,14 @@ export interface LLMResponse {
   assistantMessage: OpenAI.Chat.ChatCompletionMessage
 }
 
+/**
+ * Modern models (GPT-5.x, o1, o3) require `max_completion_tokens` instead of `max_tokens`.
+ * Older models (gpt-4o, gpt-4-turbo) still use `max_tokens`. This helper picks the right key.
+ */
+function isModernModel(model: string): boolean {
+  return /^(gpt-5|o1|o3|o4)/i.test(model)
+}
+
 export async function callLLM(opts: LLMCallOptions): Promise<LLMResponse> {
   const model = opts.model ?? 'gpt-4o-mini'
 
@@ -31,14 +41,21 @@ export async function callLLM(opts: LLMCallOptions): Promise<LLMResponse> {
     ...opts.messages,
   ]
 
-  const response = await openai.chat.completions.create({
+  const tokenLimit = opts.maxTokens ?? 500
+  const baseParams = {
     model,
     messages,
     tools: opts.tools?.length ? opts.tools : undefined,
-    tool_choice: opts.tools?.length ? 'auto' : undefined,
-    temperature: opts.temperature ?? 0.3,
-    max_tokens: opts.maxTokens ?? 500,
-  })
+    tool_choice: opts.tools?.length ? (opts.toolChoice ?? 'auto') : undefined,
+  }
+
+  // GPT-5.x / o1 / o3 use max_completion_tokens; they also don't accept custom temperature
+  // (always 1). Older models use max_tokens + adjustable temperature.
+  const params = isModernModel(model)
+    ? { ...baseParams, max_completion_tokens: tokenLimit }
+    : { ...baseParams, max_tokens: tokenLimit, temperature: opts.temperature ?? 0.3 }
+
+  const response = (await openai.chat.completions.create(params as unknown as Parameters<typeof openai.chat.completions.create>[0])) as OpenAI.Chat.ChatCompletion
 
   const choice = response.choices[0]
 
@@ -52,10 +69,17 @@ export async function callLLM(opts: LLMCallOptions): Promise<LLMResponse> {
 }
 
 export function estimateCost(model: string, tokens: number): number {
+  // Approximate per-token cost (input+output mix). Real cost should be computed from usage.
   const rates: Record<string, number> = {
     'gpt-4o': 0.000005,
     'gpt-4o-mini': 0.0000002,
     'gpt-4-turbo': 0.00001,
+    'gpt-5.2': 0.0000079,         // ~$1.75 in / $14 out, avg
+    'gpt-5.2-codex': 0.0000079,
+    'gpt-5.5': 0.0000175,         // ~$5 in / $30 out
+    'gpt-5.5-pro': 0.000105,      // ~$30 in / $180 out
+    'o1-mini': 0.000003,
+    'o3-mini': 0.0000022,
   }
   return (rates[model] ?? 0.000002) * tokens
 }

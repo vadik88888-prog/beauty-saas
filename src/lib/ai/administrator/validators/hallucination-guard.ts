@@ -1,6 +1,7 @@
-import type { ToolResult } from '@/lib/ai/administrator/types'
+import type { ToolResult, SalonSnapshot } from '@/lib/ai/administrator/types'
+import { getUTCOffsetHours } from '@/lib/utils/date'
 
-// Tracks which data was actually retrieved via tools in this turn
+// Tracks which data was actually retrieved via tools in this turn (or seeded from snapshot).
 export class HallucinationGuard {
   private retrievedServiceIds = new Set<string>()
   private retrievedMasterIds = new Set<string>()
@@ -8,7 +9,27 @@ export class HallucinationGuard {
   // Plain-text facts for response validation
   private knownServiceNames = new Set<string>()
   private knownMasterNames = new Set<string>()
-  private knownSlotTimes = new Set<string>() // "HH:MM" in local tenant time
+  private knownSlotTimes = new Set<string>() // "HH:MM" in tenant's local time
+  private tzOffsetHours: number
+
+  constructor(opts?: { timezone?: string; snapshot?: SalonSnapshot }) {
+    this.tzOffsetHours = opts?.timezone
+      ? getUTCOffsetHours(opts.timezone)
+      : 3  // fallback Europe/Minsk
+
+    // Seed snapshot: services/masters from snapshot are AUTOMATICALLY known to AI,
+    // so AI mentioning them is NOT hallucination
+    if (opts?.snapshot) {
+      for (const s of opts.snapshot.services) {
+        this.retrievedServiceIds.add(s.id)
+        this.knownServiceNames.add(s.name.toLowerCase().trim())
+      }
+      for (const m of opts.snapshot.masters) {
+        this.retrievedMasterIds.add(m.id)
+        this.knownMasterNames.add(m.name.toLowerCase().trim())
+      }
+    }
+  }
 
   // Feed tool results into the guard after each tool call
   ingest(toolResults: ToolResult[]): void {
@@ -57,8 +78,8 @@ export class HallucinationGuard {
               const hh = String(d.getUTCHours()).padStart(2, '0')
               const mm = String(d.getUTCMinutes()).padStart(2, '0')
               this.knownSlotTimes.add(`${hh}:${mm}`)
-              // Also add Europe/Minsk view (UTC+3)
-              const localD = new Date(d.getTime() + 3 * 3600_000)
+              // Add tenant's local view (uses tenant timezone)
+              const localD = new Date(d.getTime() + this.tzOffsetHours * 3600_000)
               const lh = String(localD.getUTCHours()).padStart(2, '0')
               const lm = String(localD.getUTCMinutes()).padStart(2, '0')
               this.knownSlotTimes.add(`${lh}:${lm}`)

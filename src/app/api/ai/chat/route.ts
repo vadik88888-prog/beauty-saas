@@ -62,6 +62,8 @@ export async function POST(req: NextRequest): Promise<NextResponse<ApiResponse<A
         conversationId: result.conversationId,
         action: result.action,
         actionData: result.actionData,
+        knowledgeSources: result.knowledgeSources,
+        suggestedActions: result.suggestedActions,
       },
     })
   } catch (err) {

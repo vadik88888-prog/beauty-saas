@@ -89,7 +89,7 @@ export function TmaProviders({ children }: { children: React.ReactNode }) {
     if (tg) {
       tg.ready()
       tg.expand()
-      applyTelegramTheme(tg)
+      forcePremiumTheme(tg)
     }
     setMounted(true)
   }, [])
@@ -104,21 +104,22 @@ export function TmaProviders({ children }: { children: React.ReactNode }) {
   )
 }
 
-function applyTelegramTheme(tg: TelegramWebApp) {
-  const params = tg.themeParams
-  const root = document.documentElement
+// Force our own premium light theme regardless of Telegram client theme.
+// We DO NOT inherit Telegram colors — the app must look like a premium beauty
+// AI assistant in both light and dark Telegram clients.
+function forcePremiumTheme(tg: TelegramWebApp & {
+  setHeaderColor?: (color: string) => void
+  setBackgroundColor?: (color: string) => void
+}) {
+  const premiumBg = '#FAF6EE' // matches oklch(0.985 0.008 80) cream
 
-  if (params.bg_color) root.style.setProperty('--tg-bg', params.bg_color)
-  if (params.text_color) root.style.setProperty('--tg-text', params.text_color)
-  if (params.hint_color) root.style.setProperty('--tg-hint', params.hint_color)
-  if (params.link_color) root.style.setProperty('--tg-link', params.link_color)
-  if (params.button_color) root.style.setProperty('--tg-button', params.button_color)
-  if (params.button_text_color) root.style.setProperty('--tg-button-text', params.button_text_color)
-  if (params.secondary_bg_color) root.style.setProperty('--tg-secondary-bg', params.secondary_bg_color)
-
-  if (tg.colorScheme === 'dark') {
-    document.documentElement.classList.add('dark')
-  } else {
-    document.documentElement.classList.remove('dark')
+  try {
+    tg.setHeaderColor?.(premiumBg)
+    tg.setBackgroundColor?.(premiumBg)
+  } catch {
+    // older Telegram clients don't support setHeader/BackgroundColor
   }
+
+  // Ensure no .dark class persists (we removed dark theme entirely)
+  document.documentElement.classList.remove('dark')
 }

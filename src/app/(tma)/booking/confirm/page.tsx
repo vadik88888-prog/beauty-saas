@@ -6,6 +6,7 @@ import { ArrowLeft, Calendar, Clock, User, Scissors, CheckCircle2 } from 'lucide
 import { useBookingStore } from '@/stores/bookingStore'
 import { formatDate, formatTime, formatDuration } from '@/lib/utils/date'
 import { formatPrice } from '@/lib/utils/format'
+import { waitForTmaToken } from '@/lib/tma-token'
 import { toast } from 'sonner'
 
 export default function ConfirmPage() {
@@ -14,7 +15,20 @@ export default function ConfirmPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isBooked, setIsBooked] = useState(false)
   const [notes, setNotes] = useState('')
+  // Store booking details locally so SuccessScreen survives store reset
+  const [bookedDetails, setBookedDetails] = useState<{ service: string; datetime: string; masterName: string } | null>(null)
 
+  function handleDone() {
+    reset()
+    router.replace('/home')
+  }
+
+  // Show success screen first — before the null guard — using local state (survives reset())
+  if (isBooked && bookedDetails) {
+    return <SuccessScreen onDone={handleDone} service={bookedDetails.service} datetime={bookedDetails.datetime} masterName={bookedDetails.masterName} />
+  }
+
+  // Guard: redirect if store data missing (only when not yet booked)
   if (!service || !selectedSlot) {
     router.replace('/booking/services')
     return null
@@ -25,14 +39,7 @@ export default function ConfirmPage() {
     setIsSubmitting(true)
 
     try {
-      let token = sessionStorage.getItem('tma_token')
-      if (!token) {
-        const deadline = Date.now() + 4000
-        while (!token && Date.now() < deadline) {
-          await new Promise(r => setTimeout(r, 300))
-          token = sessionStorage.getItem('tma_token')
-        }
-      }
+      const token = await waitForTmaToken()
       if (!token) {
         toast.error('Войдите через Telegram бот, чтобы создать запись.')
         setIsSubmitting(false)
@@ -68,6 +75,7 @@ export default function ConfirmPage() {
       }
 
       window.Telegram?.WebApp.HapticFeedback?.notificationOccurred('success')
+      setBookedDetails({ service: service.name, datetime: selectedSlot.datetime, masterName: selectedSlot.masterName })
       setIsBooked(true)
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Ошибка записи'
@@ -75,15 +83,6 @@ export default function ConfirmPage() {
     } finally {
       setIsSubmitting(false)
     }
-  }
-
-  function handleDone() {
-    reset()
-    router.replace('/')
-  }
-
-  if (isBooked) {
-    return <SuccessScreen onDone={handleDone} service={service.name} datetime={selectedSlot.datetime} masterName={selectedSlot.masterName} />
   }
 
   return (
@@ -147,7 +146,7 @@ export default function ConfirmPage() {
         </button>
 
         <button
-          onClick={() => { reset(); router.replace('/') }}
+          onClick={() => { reset(); router.replace('/home') }}
           className="text-center text-sm text-tg-hint py-2"
         >
           Отмена

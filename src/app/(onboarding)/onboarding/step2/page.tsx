@@ -3,10 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { OnboardingShell } from '@/components/onboarding/OnboardingShell'
-import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
-import { User } from 'lucide-react'
+import { User, ArrowRight } from 'lucide-react'
 
 export default function OnboardingStep2() {
   const router = useRouter()
@@ -43,7 +41,6 @@ export default function OnboardingStep2() {
     })
 
     if (res.ok) {
-      // Mark step complete
       await fetch('/api/onboarding/progress', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -61,75 +58,90 @@ export default function OnboardingStep2() {
   }
 
   return (
-    <OnboardingShell currentStep={2}>
-      <Card className="p-6 sm:p-8">
-        <div className="mb-6">
-          <h2 className="text-xl font-bold">Первый мастер</h2>
-          <p className="text-muted-foreground text-sm mt-1">
-            Добавьте мастера, который будет принимать записи. Можно пропустить и добавить позже.
-          </p>
+    <OnboardingShell
+      currentStep={2}
+      title="Добавьте первого мастера"
+      description="Можно пропустить и добавить позже. AI будет учитывать его расписание при записи."
+    >
+      <form onSubmit={handleNext} className="card-elevated p-5 md:p-6 flex flex-col gap-5">
+        {/* Avatar placeholder */}
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-surface-sunken flex items-center justify-center shrink-0">
+            <User className="w-6 h-6 text-muted-foreground" strokeWidth={1.8} />
+          </div>
+          <div>
+            <p className="text-[13px] font-medium text-foreground">Фото мастера</p>
+            <p className="text-[11px] text-muted-foreground">Можно загрузить позже в разделе «Мастера»</p>
+          </div>
         </div>
 
-        <form onSubmit={handleNext} className="flex flex-col gap-5">
-          {/* Avatar placeholder */}
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center shrink-0">
-              <User className="w-7 h-7 text-muted-foreground" />
-            </div>
-            <div className="text-sm text-muted-foreground">
-              <p className="font-medium">Фото мастера</p>
-              <p>Можно добавить позже в разделе «Мастера»</p>
-            </div>
-          </div>
+        <Field label="Имя мастера" required>
+          <Input
+            value={form.name}
+            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+            placeholder="Анна Иванова"
+          />
+        </Field>
 
-          <div>
-            <label className="text-sm font-medium mb-1.5 block">Имя мастера *</label>
-            <Input
-              value={form.name}
-              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              placeholder="Анна Иванова"
-            />
-          </div>
+        <Field label="Специализация">
+          <Input
+            value={form.speciality}
+            onChange={e => setForm(f => ({ ...f, speciality: e.target.value }))}
+            placeholder="Мастер маникюра и педикюра"
+          />
+        </Field>
 
-          <div>
-            <label className="text-sm font-medium mb-1.5 block">Специализация</label>
-            <Input
-              value={form.speciality}
-              onChange={e => setForm(f => ({ ...f, speciality: e.target.value }))}
-              placeholder="Мастер маникюра и педикюра"
-            />
-          </div>
+        <Field label="О мастере">
+          <Input
+            value={form.bio}
+            onChange={e => setForm(f => ({ ...f, bio: e.target.value }))}
+            placeholder="Опыт работы 5 лет, сертифицированный специалист"
+          />
+        </Field>
 
-          <div>
-            <label className="text-sm font-medium mb-1.5 block">О мастере</label>
-            <Input
-              value={form.bio}
-              onChange={e => setForm(f => ({ ...f, bio: e.target.value }))}
-              placeholder="Опыт работы 5 лет, сертифицированный специалист"
-            />
-          </div>
+        <Field label="Телефон">
+          <Input
+            value={form.phone}
+            onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+            placeholder="+375 29 000-00-00"
+          />
+        </Field>
 
-          <div>
-            <label className="text-sm font-medium mb-1.5 block">Телефон мастера</label>
-            <Input
-              value={form.phone}
-              onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-              placeholder="+375 29 000-00-00"
-            />
-          </div>
+        {error && (
+          <p className="text-[13px] text-destructive bg-destructive-soft rounded-xl px-3 py-2.5">
+            {error}
+          </p>
+        )}
 
-          {error && <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">{error}</p>}
-
-          <div className="flex justify-between pt-2">
-            <Button type="button" variant="ghost" onClick={handleSkip}>
-              Пропустить
-            </Button>
-            <Button type="submit" disabled={saving} className="px-8">
-              {saving ? 'Сохраняем...' : 'Далее →'}
-            </Button>
-          </div>
-        </form>
-      </Card>
+        <div className="flex items-center justify-between pt-2">
+          <button
+            type="button"
+            onClick={handleSkip}
+            className="px-4 h-11 rounded-xl text-muted-foreground hover:bg-muted text-[13px] font-medium transition-colors"
+          >
+            Пропустить
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="px-5 h-11 rounded-xl bg-foreground text-background text-[14px] font-medium hover:opacity-90 transition-opacity disabled:opacity-40 inline-flex items-center gap-2"
+          >
+            {saving ? 'Сохраняем...' : 'Далее'}
+            {!saving && <ArrowRight className="w-4 h-4" />}
+          </button>
+        </div>
+      </form>
     </OnboardingShell>
+  )
+}
+
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="text-[12px] font-medium text-muted-foreground mb-1.5 block">
+        {label}{required && ' *'}
+      </label>
+      {children}
+    </div>
   )
 }

@@ -53,7 +53,7 @@ export async function executeSearchKnowledge(
       }
     }
 
-    // FTS search using ts_rank
+    // Try FTS search via RPC first
     const { data, error } = await supabase.rpc('search_knowledge_articles', {
       p_tenant_id: tenantId,
       p_query: args.query,
@@ -63,19 +63,52 @@ export async function executeSearchKnowledge(
     let rows: Array<{ id: string; title: string; content: string; rank: number }>
 
     if (error || !data) {
-      // RPC not available — fallback to direct query (less efficient but works)
-      const { data: fallback } = await supabase
+      // RPC not available — use Supabase textSearch (PostgreSQL FTS without custom RPC)
+      const searchQuery = args.query
+        .toLowerCase()
+        .replace(/[^\w\sЀ-ӿ]/g, ' ')
+        .trim()
+        .split(/\s+/)
+        .filter(w => w.length > 2)
+        .join(' | ') // OR search for better recall
+
+      const tsQuery = searchQuery || args.query
+
+      const { data: ftsData } = await supabase
         .from('tenant_knowledge_articles')
         .select('id, title, content')
         .eq('tenant_id', tenantId)
         .eq('is_active', true)
-        .ilike('content', `%${args.query}%`)
+        .textSearch('content', tsQuery, { type: 'plain', config: 'russian' })
         .limit(maxResults * 2)
 
-      rows = ((fallback ?? []) as Array<{ id: string; title: string; content: string }>).map(r => ({
-        ...r,
-        rank: 0.5, // arbitrary mid relevance for ilike fallback
-      }))
+      if (ftsData && ftsData.length > 0) {
+        rows = (ftsData as Array<{ id: string; title: string; content: string }>).map(r => ({
+          ...r,
+          rank: 0.6, // reasonable relevance for textSearch fallback
+        }))
+      } else {
+        // Last resort: keyword match in title or content using OR across key words
+        const words = args.query.split(/\s+/).filter(w => w.length > 2)
+        let fallbackQuery = supabase
+          .from('tenant_knowledge_articles')
+          .select('id, title, content')
+          .eq('tenant_id', tenantId)
+          .eq('is_active', true)
+
+        if (words.length > 0) {
+          // ilike on the first significant word for a last-resort match
+          fallbackQuery = fallbackQuery.ilike('content', `%${words[0]}%`)
+        } else {
+          fallbackQuery = fallbackQuery.ilike('content', `%${args.query}%`)
+        }
+
+        const { data: fallback } = await fallbackQuery.limit(maxResults)
+        rows = ((fallback ?? []) as Array<{ id: string; title: string; content: string }>).map(r => ({
+          ...r,
+          rank: 0.3,
+        }))
+      }
     } else {
       rows = data as Array<{ id: string; title: string; content: string; rank: number }>
     }

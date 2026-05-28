@@ -24,6 +24,7 @@ const SettingsSchema = z.object({
   language: z.string().optional(),
   description: z.string().max(1000).nullable().optional(),
   telegram_bot_token: z.string().max(200).nullable().optional(),
+  telegram_channel_id: z.string().max(50).nullable().optional(),
 })
 
 export async function GET() {
@@ -33,7 +34,7 @@ export async function GET() {
   const supabase = createAdminClient()
   const { data } = await supabase
     .from('tenants')
-    .select('id, name, phone, address, city, country, timezone, language, description, slug, telegram_bot_token, subscription_status, subscription_plan, trial_ends_at')
+    .select('id, name, phone, address, city, country, timezone, language, description, slug, telegram_bot_token, telegram_channel_id, subscription_status, subscription_plan, trial_ends_at')
     .eq('id', ctx.tenantId)
     .single()
 

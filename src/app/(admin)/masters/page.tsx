@@ -1,11 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Pencil, Trash2, User, ToggleLeft, ToggleRight, CalendarDays, Upload, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, User, CalendarDays, Upload, X, UserCheck } from 'lucide-react'
 import { toast } from 'sonner'
-import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
 import {
   Dialog,
@@ -15,6 +13,9 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import Image from 'next/image'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { cn } from '@/lib/utils'
 
 type MasterItem = {
   id: string
@@ -251,74 +252,105 @@ export default function MastersAdminPage() {
   }
 
   return (
-    <div className="p-6 flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Мастера</h1>
-          <p className="text-muted-foreground text-sm mt-1">{masters.length} мастеров</p>
-        </div>
-        <Button onClick={openCreate} className="gap-2">
-          <Plus className="w-4 h-4" />
-          Добавить мастера
-        </Button>
-      </div>
+    <div className="p-5 md:p-8 max-w-5xl mx-auto flex flex-col gap-6">
+      <PageHeader
+        title="Мастера"
+        description={`${masters.length} ${pluralize(masters.length, ['мастер', 'мастера', 'мастеров'])} · AI учитывает их расписание и услуги при записи`}
+        actions={
+          <button
+            onClick={openCreate}
+            className="px-4 h-10 rounded-xl bg-foreground text-background text-[13px] font-medium hover:opacity-90 transition-opacity inline-flex items-center gap-2"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Добавить мастера</span>
+            <span className="sm:hidden">Добавить</span>
+          </button>
+        }
+      />
 
       {isLoading ? (
         <div className="text-muted-foreground text-sm">Загрузка...</div>
       ) : masters.length === 0 ? (
-        <Card className="p-12 text-center text-muted-foreground">
-          <p>Мастера ещё не добавлены</p>
-          <Button variant="outline" className="mt-4" onClick={openCreate}>Добавить первого мастера</Button>
-        </Card>
+        <EmptyState
+          icon={UserCheck}
+          title="Мастеров пока нет"
+          description="Добавьте первого мастера — AI начнёт записывать к нему клиентов"
+          action={
+            <button
+              onClick={openCreate}
+              className="px-4 h-10 rounded-xl bg-foreground text-background text-[13px] font-medium hover:opacity-90 transition-opacity inline-flex items-center gap-2"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Добавить мастера
+            </button>
+          }
+        />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {masters.map(master => (
-            <Card key={master.id} className="p-4 flex flex-col gap-3">
+            <div
+              key={master.id}
+              className={cn(
+                'p-4 rounded-2xl border border-border bg-surface-elevated flex flex-col gap-3',
+                !master.is_active && 'opacity-60'
+              )}
+              style={{ boxShadow: 'var(--shadow-xs)' }}
+            >
               <div className="flex items-center gap-3">
-                <div className="w-14 h-14 rounded-xl overflow-hidden bg-muted shrink-0">
+                <div className="w-12 h-12 rounded-2xl overflow-hidden bg-surface-sunken shrink-0">
                   {master.photo_url ? (
-                    <Image src={master.photo_url} alt={master.name} width={56} height={56} className="w-full h-full object-cover" />
+                    <Image src={master.photo_url} alt={master.name} width={48} height={48} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                      <User className="w-6 h-6 text-muted-foreground" />
+                      <User className="w-5 h-5 text-muted-foreground" strokeWidth={1.8} />
                     </div>
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-sm truncate">{master.name}</p>
-                  {master.speciality && <p className="text-xs text-muted-foreground">{master.speciality}</p>}
-                  {master.phone && <p className="text-xs text-muted-foreground">{master.phone}</p>}
+                  <p className="font-semibold text-[14px] text-foreground truncate">{master.name}</p>
+                  {master.speciality && (
+                    <p className="text-[12px] text-muted-foreground truncate">{master.speciality}</p>
+                  )}
+                  {!master.is_active && (
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground mt-1 inline-block">
+                      скрыт
+                    </span>
+                  )}
                 </div>
               </div>
 
               {master.bio && (
-                <p className="text-xs text-muted-foreground line-clamp-2">{master.bio}</p>
+                <p className="text-[11px] text-muted-foreground line-clamp-2">{master.bio}</p>
+              )}
+              {master.phone && (
+                <p className="text-[11px] text-muted-foreground">{master.phone}</p>
               )}
 
-              <div className="flex items-center justify-between">
-                {master.is_active
-                  ? <Badge variant="secondary" className="text-green-600 bg-green-50">Активен</Badge>
-                  : <Badge variant="secondary">Скрыт</Badge>
-                }
+              <div className="flex items-center justify-between pt-1">
+                <Switch checked={master.is_active} onCheckedChange={() => toggleActive(master)} />
                 <div className="flex items-center gap-1">
-                  <button onClick={() => toggleActive(master)} className="p-1.5 rounded-lg hover:bg-muted transition-colors" title={master.is_active ? 'Скрыть' : 'Активировать'}>
-                    {master.is_active
-                      ? <ToggleRight className="w-4 h-4 text-green-500" />
-                      : <ToggleLeft className="w-4 h-4 text-muted-foreground" />
-                    }
+                  <button
+                    onClick={() => openSchedule(master)}
+                    className="p-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
+                    title="Расписание"
+                  >
+                    <CalendarDays className="w-3.5 h-3.5" />
                   </button>
-                  <button onClick={() => openSchedule(master)} className="p-1.5 rounded-lg hover:bg-muted transition-colors" title="Расписание">
-                    <CalendarDays className="w-4 h-4 text-muted-foreground" />
+                  <button
+                    onClick={() => openEdit(master)}
+                    className="p-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
                   </button>
-                  <button onClick={() => openEdit(master)} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
-                    <Pencil className="w-4 h-4 text-muted-foreground" />
-                  </button>
-                  <button onClick={() => setDeleteId(master.id)} className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors">
-                    <Trash2 className="w-4 h-4 text-destructive" />
+                  <button
+                    onClick={() => setDeleteId(master.id)}
+                    className="p-2 rounded-lg hover:bg-destructive-soft text-destructive transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
-            </Card>
+            </div>
           ))}
         </div>
       )}
@@ -376,9 +408,9 @@ export default function MastersAdminPage() {
                 </label>
               )}
             </div>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={form.is_active} onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))} className="rounded" />
-              <span className="text-sm">Активен (виден клиентам)</span>
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <Switch checked={form.is_active} onCheckedChange={v => setForm(f => ({ ...f, is_active: v }))} />
+              <span className="text-[13px] text-foreground">Активен — виден клиентам и AI</span>
             </label>
 
             {services.length > 0 && (
@@ -408,10 +440,12 @@ export default function MastersAdminPage() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Отмена</Button>
-            <Button onClick={handleSave} disabled={saving || !form.name}>
+            <button onClick={() => setDialogOpen(false)} className="px-4 h-10 rounded-xl bg-muted text-foreground text-[13px] font-medium hover:bg-surface-sunken transition-colors">
+              Отмена
+            </button>
+            <button onClick={handleSave} disabled={saving || !form.name} className="px-4 h-10 rounded-xl bg-foreground text-background text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-40">
               {saving ? 'Сохраняем...' : 'Сохранить'}
-            </Button>
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -420,10 +454,14 @@ export default function MastersAdminPage() {
       <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Удалить мастера?</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">Профиль мастера будет удалён. История записей сохранится.</p>
+          <p className="text-[13px] text-muted-foreground">Профиль мастера будет удалён. История записей сохранится.</p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteId(null)}>Отмена</Button>
-            <Button variant="destructive" onClick={() => deleteId && handleDelete(deleteId)}>Удалить</Button>
+            <button onClick={() => setDeleteId(null)} className="px-4 h-10 rounded-xl bg-muted text-foreground text-[13px] font-medium hover:bg-surface-sunken transition-colors">
+              Отмена
+            </button>
+            <button onClick={() => deleteId && handleDelete(deleteId)} className="px-4 h-10 rounded-xl bg-destructive text-white text-[13px] font-medium hover:opacity-90 transition-opacity">
+              Удалить
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -469,13 +507,24 @@ export default function MastersAdminPage() {
             ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setScheduleOpen(false)}>Отмена</Button>
-            <Button onClick={handleSaveSchedule} disabled={savingSchedule}>
+            <button onClick={() => setScheduleOpen(false)} className="px-4 h-10 rounded-xl bg-muted text-foreground text-[13px] font-medium hover:bg-surface-sunken transition-colors">
+              Отмена
+            </button>
+            <button onClick={handleSaveSchedule} disabled={savingSchedule} className="px-4 h-10 rounded-xl bg-foreground text-background text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-40">
               {savingSchedule ? 'Сохраняем...' : 'Сохранить'}
-            </Button>
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   )
+}
+
+function pluralize(n: number, forms: [string, string, string]): string {
+  const abs = Math.abs(n) % 100
+  const last = abs % 10
+  if (abs > 10 && abs < 20) return forms[2]
+  if (last > 1 && last < 5) return forms[1]
+  if (last === 1) return forms[0]
+  return forms[2]
 }

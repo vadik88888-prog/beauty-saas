@@ -16,7 +16,7 @@ export default async function OnboardingLayout({ children }: { children: React.R
   if (!tenantUser) redirect('/login')
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-muted/30">
+    <div className="min-h-screen bg-background">
       {children}
     </div>
   )

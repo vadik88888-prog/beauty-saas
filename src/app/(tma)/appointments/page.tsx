@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeft, Calendar, Clock, XCircle, RefreshCw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import type { AppointmentWithRelations } from '@/types/database'
 import { formatDate, formatTime, formatDuration } from '@/lib/utils/date'
 import { formatPrice } from '@/lib/utils/format'
+import { waitForTmaToken } from '@/lib/tma-token'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
@@ -24,6 +25,7 @@ type Tab = 'upcoming' | 'past'
 
 export default function AppointmentsPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [tab, setTab] = useState<Tab>('upcoming')
   const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -36,16 +38,33 @@ export default function AppointmentsPage() {
 
   useEffect(() => {
     setIsLoading(true)
-    const token = sessionStorage.getItem('tma_token')
     const params = tab === 'upcoming' ? '?upcoming=1&limit=20' : '?limit=20'
 
-    fetch(`/api/appointments${params}`, {
-      headers: { Authorization: `Bearer ${token}` },
+    waitForTmaToken().then(token => {
+      if (!token) {
+        setAppointments([])
+        setIsLoading(false)
+        return
+      }
+      fetch(`/api/appointments${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(r => r.json())
+        .then(({ data }) => setAppointments(data ?? []))
+        .finally(() => setIsLoading(false))
     })
-      .then(r => r.json())
-      .then(({ data }) => setAppointments(data ?? []))
-      .finally(() => setIsLoading(false))
   }, [tab])
+
+  // Auto-open reschedule dialog when navigated from HomePage with ?reschedule=<id>
+  useEffect(() => {
+    const targetId = searchParams.get('reschedule')
+    if (!targetId || appointments.length === 0) return
+    const target = appointments.find(a => a.id === targetId)
+    if (!target) return
+    setRescheduleTarget(target)
+    // Clear query so back-nav doesn't re-trigger
+    router.replace('/appointments', { scroll: false })
+  }, [searchParams, appointments, router])
 
   async function handleCancel() {
     if (!cancelTarget) return
@@ -58,15 +77,19 @@ export default function AppointmentsPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ status: 'cancelled', reason: 'Отменено клиентом' }),
+        body: JSON.stringify({ action: 'cancel', reason: 'Отменено клиентом' }),
       })
-      if (!res.ok) throw new Error('Ошибка отмены')
+      const json = await res.json().catch(() => ({})) as { error?: string; hint?: string }
+      if (!res.ok) {
+        const msg = json.hint ? `${json.error ?? 'Ошибка'} · ${json.hint}` : (json.error ?? 'Ошибка отмены')
+        throw new Error(msg)
+      }
 
       setAppointments(prev => prev.filter(a => a.id !== cancelTarget.id))
       toast.success('Запись отменена')
       window.Telegram?.WebApp.HapticFeedback?.notificationOccurred('warning')
-    } catch {
-      toast.error('Не удалось отменить запись')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Не удалось отменить запись')
     } finally {
       setIsCancelling(false)
       setCancelTarget(null)
@@ -82,15 +105,21 @@ export default function AppointmentsPage() {
       const res = await fetch(`/api/appointments/${rescheduleTarget.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ newStartsAt }),
+        body: JSON.stringify({ action: 'reschedule', newStartsAt }),
       })
-      if (res.status === 409) throw new Error('Это время уже занято')
-      if (!res.ok) throw new Error('Ошибка переноса')
-      const { data } = await res.json()
-      setAppointments(prev => prev.map(a =>
-        a.id === rescheduleTarget.id ? { ...a, starts_at: data.starts_at, status: data.status } : a
-      ))
+      const json = await res.json().catch(() => ({})) as { error?: string; hint?: string; data?: { starts_at: string; ends_at: string } }
+      if (!res.ok) {
+        const msg = json.hint ? `${json.error ?? 'Ошибка'} · ${json.hint}` : (json.error ?? 'Ошибка переноса')
+        throw new Error(msg)
+      }
+      const data = json.data
+      if (data) {
+        setAppointments(prev => prev.map(a =>
+          a.id === rescheduleTarget.id ? { ...a, starts_at: data.starts_at } : a
+        ))
+      }
       toast.success('Запись перенесена')
+      window.Telegram?.WebApp.HapticFeedback?.notificationOccurred('success')
       setRescheduleTarget(null)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Ошибка переноса')

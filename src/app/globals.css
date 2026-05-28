@@ -2,14 +2,52 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
-
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-subtle: var(--subtle);
+  --color-border-strong: var(--border-strong);
+
+  --color-ai: var(--ai);
+  --color-ai-foreground: var(--ai-foreground);
+  --color-ai-soft: var(--ai-soft);
+  --color-ai-border: var(--ai-border);
+
+  --color-accent-soft: var(--accent-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-destructive-soft: var(--destructive-soft);
+
+  --font-sans: var(--font-inter);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-inter);
+  --font-inter: var(--font-inter);
+  --font-serif: var(--font-cormorant);
+
+  /* Beauty v2 raw palette tokens (новые, не подмена semantic) */
+  --color-page: var(--page);
+  --color-cream: var(--cream);
+  --color-cream-2: var(--cream-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted-2: var(--muted-2);
+  --color-sage: var(--sage);
+  --color-sage-2: var(--sage-2);
+  --color-sage-soft: var(--sage-soft);
+  --color-sage-glow: var(--sage-glow);
+  --color-sage-tint: var(--sage-tint);
+  --color-pink: var(--pink);
+  --color-peach: var(--peach);
+  --color-lilac: var(--lilac);
+  --color-gold: var(--gold);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -18,11 +56,13 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
+
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -39,6 +79,7 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -46,62 +87,147 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* Surfaces — warm cream base */
+  --background: oklch(0.985 0.008 80);
+  --foreground: oklch(0.20 0.015 60);
+  --surface: oklch(0.99 0.005 80);
+  --surface-elevated: oklch(1 0 0);
+  --surface-sunken: oklch(0.965 0.012 80);
 
-  /* Telegram Mini App theme fallbacks (overridden by JS in TMA context) */
-  --tg-bg: #ffffff;
-  --tg-secondary-bg: #f4f4f5;
-  --tg-text: #09090b;
-  --tg-hint: #71717a;
-  --tg-link: #6366f1;
-  --tg-button: #6366f1;
-  --tg-button-text: #ffffff;
+  /* Cards & popovers */
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.20 0.015 60);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.20 0.015 60);
+
+  /* Text & borders */
+  --muted: oklch(0.96 0.012 80);
+  --muted-foreground: oklch(0.50 0.015 60);
+  --subtle: oklch(0.68 0.012 60);
+  --border: oklch(0.93 0.010 80);
+  --border-strong: oklch(0.88 0.012 80);
+  --input: oklch(0.93 0.010 80);
+  --ring: oklch(0.70 0.075 155);
+
+  /* Primary — graphite, для CTA и текста */
+  --primary: oklch(0.22 0.01 60);
+  --primary-foreground: oklch(0.985 0.008 80);
+  --secondary: oklch(0.96 0.012 80);
+  --secondary-foreground: oklch(0.22 0.01 60);
+
+  /* AI accent (sage) — signature цвет */
+  --ai: oklch(0.70 0.075 155);
+  --ai-foreground: oklch(0.30 0.06 155);
+  --ai-soft: oklch(0.95 0.025 155);
+  --ai-border: oklch(0.86 0.04 155);
+
+  /* Champagne accent (вторичный) */
+  --accent: oklch(0.88 0.045 75);
+  --accent-foreground: oklch(0.32 0.04 60);
+  --accent-soft: oklch(0.97 0.022 75);
+
+  /* Status */
+  --success: oklch(0.68 0.10 150);
+  --success-soft: oklch(0.96 0.03 150);
+  --warning: oklch(0.78 0.10 70);
+  --warning-soft: oklch(0.97 0.04 70);
+  --destructive: oklch(0.60 0.18 25);
+  --destructive-soft: oklch(0.97 0.05 25);
+
+  /* Charts (sage-toned scale) */
+  --chart-1: oklch(0.70 0.075 155);
+  --chart-2: oklch(0.78 0.06 155);
+  --chart-3: oklch(0.85 0.05 75);
+  --chart-4: oklch(0.55 0.05 155);
+  --chart-5: oklch(0.40 0.04 155);
+
+  /* Radius */
+  --radius: 0.875rem;
+
+  /* Shadows — subtle warm */
+  --shadow-xs: 0 1px 2px 0 oklch(0.20 0.015 60 / 0.04);
+  --shadow-sm: 0 2px 8px -2px oklch(0.20 0.015 60 / 0.06);
+  --shadow-md: 0 4px 16px -4px oklch(0.20 0.015 60 / 0.08);
+
+  /* Beauty v2 palette (raw — для использования через bg-page, bg-cream, bg-sage, и т.д.) */
+  --page: #efe9dd;
+  --cream: #faf6ec;
+  --cream-2: #fffbf2;
+  --ink: #1b2a22;
+  --ink-2: #2f3b32;
+  --muted-2: #a3a698;
+  --sage: #5e7d5d;
+  --sage-2: #7d9a78;
+  --sage-soft: #c9d8c5;
+  --sage-glow: #a5c0a1;
+  --sage-tint: #e7eee2;
+  --pink: #f0d8d4;
+  --peach: #e8c4ad;
+  --lilac: #e5dcf2;
+  --gold: #e6a83a;
+  --line: #e3dccb;
+  --line-soft: #ece5d3;
+
+  /* Easings (4 motion languages) */
+  --ease-silk: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-luxe: cubic-bezier(0.65, 0.05, 0.36, 1);
+  --ease-glide: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-breath: cubic-bezier(0.45, 0.05, 0.55, 0.95);
+
+  /* Sidebar (admin) — кремовый, чуть светлее главного фона */
+  --sidebar: oklch(0.99 0.006 80);
+  --sidebar-foreground: oklch(0.30 0.015 60);
+  --sidebar-primary: oklch(0.70 0.075 155);
+  --sidebar-primary-foreground: oklch(0.985 0.008 80);
+  --sidebar-accent: oklch(0.95 0.025 155);
+  --sidebar-accent-foreground: oklch(0.30 0.06 155);
+  --sidebar-border: oklch(0.93 0.010 80);
+  --sidebar-ring: oklch(0.70 0.075 155);
+
+  /* TMA legacy shim — мапим старые --tg-* токены на новую palette,
+     чтобы старые экраны (booking flow, profile, promotions) не сломались
+     до их миграции в Phase 2-3. Override через JS отключён в TmaProviders. */
+  --tg-bg: var(--background);
+  --tg-secondary-bg: var(--surface-sunken);
+  --tg-text: var(--foreground);
+  --tg-hint: var(--muted-foreground);
+  --tg-link: var(--ai-foreground);
+  --tg-button: var(--foreground);
+  --tg-button-text: var(--background);
 }
 
-/* TMA utility classes */
+/* Reduce motion — глобальное правило для accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* TMA utility classes (backward-compat shim) */
 .bg-tg-bg { background-color: var(--tg-bg); }
 .bg-tg-secondary { background-color: var(--tg-secondary-bg); }
+.bg-tg-button { background-color: var(--tg-button); }
 .text-tg-text { color: var(--tg-text); }
 .text-tg-hint { color: var(--tg-hint); }
 .text-tg-link { color: var(--tg-link); }
+.text-tg-button-text { color: var(--tg-button-text); }
 
+/* Premium mobile button (TMA) */
 .btn-tma {
   width: 100%;
-  min-height: 52px;
+  min-height: 56px;
   border-radius: 14px;
   font-size: 16px;
   font-weight: 600;
@@ -109,63 +235,26 @@
   align-items: center;
   justify-content: center;
   padding: 0 20px;
-  transition: opacity 0.15s, transform 0.1s;
+  background-color: var(--foreground);
+  color: var(--background);
   border: none;
   cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+  -webkit-tap-highlight-color: transparent;
 }
-.btn-tma:active {
-  opacity: 0.85;
-  transform: scale(0.98);
-}
+.btn-tma:active { opacity: 0.85; transform: scale(0.99); }
+.btn-tma:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.safe-bottom {
-  padding-bottom: env(safe-area-inset-bottom, 16px);
-}
+/* Safe areas for iPhone notch */
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 16px); }
+.safe-top { padding-top: env(safe-area-inset-top, 0px); }
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+/* Scrollbar hide for horizontal scroll lists */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
-
-/* Telegram Mini App CSS Variables (injected dynamically via JS) */
-:root {
-  --tg-bg: #ffffff;
-  --tg-text: #000000;
-  --tg-hint: #999999;
-  --tg-link: #2481cc;
-  --tg-button: #2481cc;
-  --tg-button-text: #ffffff;
-  --tg-secondary-bg: #f1f1f1;
-}
+.scrollbar-hide::-webkit-scrollbar { display: none; }
 
 @layer base {
   * {
@@ -173,38 +262,57 @@
   }
   body {
     @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
   html {
     @apply font-sans;
   }
 }
 
-/* TMA utility classes */
-.bg-tg-bg { background-color: var(--tg-bg); }
-.bg-tg-secondary { background-color: var(--tg-secondary-bg); }
-.text-tg-text { color: var(--tg-text); }
-.text-tg-hint { color: var(--tg-hint); }
-.text-tg-link { color: var(--tg-link); }
-.bg-tg-button { background-color: var(--tg-button); }
-.text-tg-button-text { color: var(--tg-button-text); }
+@layer components {
+  .text-display {
+    @apply text-[28px] md:text-[34px] font-semibold tracking-tight leading-[1.15];
+  }
+  .text-h1 {
+    @apply text-[22px] md:text-[26px] font-semibold tracking-tight leading-tight;
+  }
+  .text-h2 {
+    @apply text-[17px] md:text-[19px] font-medium leading-snug;
+  }
+  .text-body {
+    @apply text-[14px] leading-relaxed;
+  }
+  .text-caption {
+    @apply text-[12px] text-muted-foreground;
+  }
 
-/* Large mobile buttons */
-.btn-tma {
-  min-height: 56px;
-  width: 100%;
-  border-radius: 14px;
-  font-size: 16px;
-  font-weight: 600;
-  background-color: var(--tg-button);
-  color: var(--tg-button-text);
-  border: none;
-  cursor: pointer;
-  transition: opacity 0.15s ease;
-  -webkit-tap-highlight-color: transparent;
+  .card-elevated {
+    @apply bg-surface-elevated border border-border rounded-2xl;
+    box-shadow: var(--shadow-xs);
+  }
+  .card-sunken {
+    @apply bg-surface-sunken border border-border rounded-2xl;
+  }
+
+  .ai-pill {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-ai-soft text-ai-foreground border border-ai-border text-[11px] font-medium;
+  }
+
+  .font-serif {
+    font-family: var(--font-cormorant), Georgia, serif;
+  }
+  .text-serif-h1 {
+    font-family: var(--font-cormorant), Georgia, serif;
+    @apply text-[28px] md:text-[34px] font-medium tracking-[0.04em] leading-[1.15];
+  }
+  .text-serif-h2 {
+    font-family: var(--font-cormorant), Georgia, serif;
+    @apply text-[22px] md:text-[26px] font-medium tracking-[0.05em] leading-tight;
+  }
+  .text-serif-quote {
+    font-family: var(--font-cormorant), Georgia, serif;
+    font-style: italic;
+    @apply text-[17px] md:text-[19px] tracking-[0.02em] leading-snug;
+  }
 }
-.btn-tma:active { opacity: 0.8; }
-.btn-tma:disabled { opacity: 0.5; cursor: not-allowed; }
-
-/* Safe area for iPhone notch */
-.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-.safe-top { padding-top: env(safe-area-inset-top); }

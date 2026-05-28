@@ -1,18 +1,23 @@
-import { createAdminClient } from '@/lib/supabase/admin'
-import { addMinutes } from '@/lib/utils/date'
+import { rescheduleAppointment, resolveClientAppointment } from '@/lib/booking/manage-appointment'
+import { notifyAdminAboutHandoff } from '@/lib/ai/admin-notify'
 import type { AiTool, ToolResult } from '@/lib/ai/administrator/types'
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export const rescheduleBookingTool: AiTool = {
   type: 'function',
   function: {
     name: 'reschedule_appointment',
-    description: 'Move an existing appointment to a new date/time. First call get_available_slots to find a valid new slot.',
+    description: 'Move client\'s appointment to a new time. First call get_available_slots to find valid new time. If client gives a hint instead of UUID (e.g. "запись на пятницу"), pass that — backend fuzzy-resolves.',
     parameters: {
       type: 'object',
       required: ['appointment_id', 'new_starts_at'],
       properties: {
-        appointment_id: { type: 'string', description: 'Existing appointment UUID' },
-        new_starts_at: { type: 'string', description: 'New ISO datetime UTC from get_available_slots' },
+        appointment_id: {
+          type: 'string',
+          description: 'Appointment UUID OR free-form hint (service / date)',
+        },
+        new_starts_at: { type: 'string', description: 'New ISO datetime UTC (from get_available_slots)' },
       },
     },
   },
@@ -21,77 +26,82 @@ export const rescheduleBookingTool: AiTool = {
 export async function executeRescheduleBooking(
   args: { appointment_id: string; new_starts_at: string },
   tenantId: string,
-  clientId: string
+  clientId: string,
+  conversationId?: string
 ): Promise<ToolResult> {
-  try {
-    const supabase = createAdminClient()
+  console.log('[reschedule-booking] args:', JSON.stringify(args), 'tenant:', tenantId, 'client:', clientId)
 
-    // Fetch existing appointment + service duration
-    const { data: existing } = await supabase
-      .from('appointments')
-      .select('id, service_id, client_id, services(duration_min, name)')
-      .eq('id', args.appointment_id)
-      .eq('tenant_id', tenantId)
-      .in('status', ['pending', 'confirmed'])
-      .single()
+  let apptId = args.appointment_id
+  let serviceName = ''
+  let resolvedStartsAt = ''
 
-    if (!existing) {
+  // Fuzzy resolve if not UUID
+  if (!UUID_RE.test(apptId)) {
+    const resolved = await resolveClientAppointment({ tenantId, clientId, hint: apptId })
+    if (!resolved) {
       return {
         success: false,
-        error: 'Appointment not found or already cancelled',
-        fallbackMessage: 'Запись не найдена или уже отменена.',
+        error: 'No upcoming appointment found',
+        fallbackMessage: 'Не вижу у вас активных записей для переноса.',
+      }
+    }
+    apptId = resolved.id
+    serviceName = resolved.service_name
+    resolvedStartsAt = resolved.starts_at
+    console.log(`[reschedule-booking] Fuzzy-resolved "${args.appointment_id}" → ${apptId} (${serviceName})`)
+  }
+
+  const result = await rescheduleAppointment({
+    appointmentId: apptId,
+    tenantId,
+    clientId,
+    newStartsAt: args.new_starts_at,
+  })
+
+  if (!result.success) {
+    // АВТО-HANDOFF при too_late: передаём админу с уведомлением + новое желаемое время
+    if (result.code === 'too_late') {
+      const newWhen = (() => {
+        const d = new Date(args.new_starts_at)
+        return isNaN(d.getTime()) ? args.new_starts_at : d.toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' })
+      })()
+      const currentWhen = resolvedStartsAt
+        ? new Date(resolvedStartsAt).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' })
+        : ''
+      const summary = `Клиент хочет ПЕРЕНЕСТИ запись${serviceName ? ` «${serviceName}»` : ''}${currentWhen ? ` с ${currentWhen}` : ''} на ${newWhen}, но до неё уже меньше минимума. Свяжитесь с клиентом.`
+      await notifyAdminAboutHandoff({
+        tenantId,
+        clientId,
+        reason: 'LATE_RESCHEDULE_REQUEST',
+        summary,
+        conversationId,
+        markConversationHandedOff: true,
+      }).catch(err => console.error('[reschedule-booking] handoff notify failed:', err))
+
+      return {
+        success: true,
+        data: {
+          action: 'handoff',
+          message: 'До записи уже мало времени — сама перенести не могу, но передала вашу просьбу администратору. Он подтвердит новое время в течение нескольких минут.',
+        },
       }
     }
 
-    const appt = existing as unknown as {
-      id: string
-      service_id: string
-      client_id: string
-      services: { duration_min: number; name: string } | null
-    }
-
-    // Security: only the client who owns the appointment can reschedule
-    if (appt.client_id !== clientId) {
-      return { success: false, error: 'Forbidden', fallbackMessage: 'Это не ваша запись.' }
-    }
-
-    const durationMin = appt.services?.duration_min ?? 60
-    const newEndsAt = addMinutes(new Date(args.new_starts_at), durationMin).toISOString()
-
-    const { error } = await supabase
-      .from('appointments')
-      .update({
-        starts_at: args.new_starts_at,
-        ends_at: newEndsAt,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', args.appointment_id)
-
-    if (error) {
-      if (error.code === '23505') {
-        return {
-          success: false,
-          error: 'New slot already taken',
-          fallbackMessage: 'Это время уже занято. Давайте выберем другое.',
-        }
-      }
-      throw error
-    }
-
-    return {
-      success: true,
-      data: {
-        appointment_id: appt.id,
-        new_starts_at: args.new_starts_at,
-        service_name: appt.services?.name ?? '',
-        confirmation_text: `Запись перенесена на ${new Date(args.new_starts_at).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' })}`,
-      },
-    }
-  } catch (err) {
     return {
       success: false,
-      error: String(err),
-      fallbackMessage: 'Не удалось перенести запись. Попробуйте ещё раз.',
+      error: result.error,
+      fallbackMessage: result.hint ? `${result.error}. ${result.hint}` : result.error,
     }
+  }
+
+  const newDate = new Date(result.data.starts_at)
+  return {
+    success: true,
+    data: {
+      appointment_id: apptId,
+      service_name: serviceName,
+      new_starts_at: result.data.starts_at,
+      confirmation_text: `Запись перенесена на ${newDate.toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' })}`,
+    },
   }
 }

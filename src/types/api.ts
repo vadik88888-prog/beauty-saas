@@ -16,6 +16,7 @@ export interface TelegramAuthRequest {
 
 export interface TelegramAuthResponse {
   token: string
+  tenantSlug: string  // resolved slug (from initData if input slug was wrong/missing)
   client: {
     id: string
     first_name: string | null
@@ -73,6 +74,8 @@ export interface AiChatResponse {
   conversationId: string
   action?: 'booking_created' | 'booking_cancelled' | 'booking_rescheduled' | 'handoff'
   actionData?: Record<string, unknown>
+  knowledgeSources?: Array<{ title: string; relevance_pct: number }>
+  suggestedActions?: Array<{ label: string; message: string }>
 }
 
 // ---- Admin Dashboard ----

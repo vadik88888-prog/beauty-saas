@@ -61,3 +61,26 @@ export async function GET() {
 
   return NextResponse.json({ data: conversations })
 }
+
+// Delete ALL conversations and messages for this tenant (destructive — admin only)
+export async function DELETE() {
+  const tenantId = await getStaffTenantId()
+  if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const supabase = createAdminClient()
+
+  // Get all conversation IDs for this tenant
+  const { data: convIds } = await supabase
+    .from('conversations')
+    .select('id')
+    .eq('tenant_id', tenantId)
+
+  const ids = (convIds ?? []).map((c: { id: string }) => c.id)
+
+  if (ids.length > 0) {
+    await supabase.from('messages').delete().in('conversation_id', ids)
+  }
+  await supabase.from('conversations').delete().eq('tenant_id', tenantId)
+
+  return NextResponse.json({ data: { deleted: ids.length } })
+}

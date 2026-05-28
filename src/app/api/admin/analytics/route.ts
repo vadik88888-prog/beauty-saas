@@ -33,10 +33,10 @@ export async function GET(req: NextRequest) {
     .lt('ends_at', nowIso)
     .in('status', ['confirmed', 'pending'])
 
-  const [apptRes, aiUsageRes] = await Promise.all([
+  const [apptRes, aiUsageRes, convCountRes, aiMsgsRes] = await Promise.all([
     supabase
       .from('appointments')
-      .select('id, starts_at, status, price, service:services(name), master:masters(name)')
+      .select('id, starts_at, status, price, source, applied_promo_id, discount_amount, original_price, service:services(name), master:masters(name)')
       .eq('tenant_id', tenantId)
       .gte('starts_at', fromStr)
       .order('starts_at'),
@@ -46,9 +46,20 @@ export async function GET(req: NextRequest) {
       .eq('tenant_id', tenantId)
       .gte('date', from.toISOString().slice(0, 10))
       .order('date'),
+    supabase
+      .from('conversations')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .gte('created_at', fromStr),
+    supabase
+      .from('messages')
+      .select('id, conversation:conversations!inner(tenant_id)', { count: 'exact', head: true })
+      .eq('role', 'assistant')
+      .eq('conversation.tenant_id', tenantId)
+      .gte('created_at', fromStr),
   ])
 
-  type ApptRow = { id: string; starts_at: string; status: string; price: number | null; service: { name: string } | null; master: { name: string } | null }
+  type ApptRow = { id: string; starts_at: string; status: string; price: number | null; source: string | null; applied_promo_id: string | null; discount_amount: number | null; original_price: number | null; service: { name: string } | null; master: { name: string } | null }
   const appts = (apptRes.data as unknown as ApptRow[]) ?? []
 
   // Daily revenue + bookings
@@ -75,31 +86,72 @@ export async function GET(req: NextRequest) {
   }
   const byService = Object.values(serviceMap).sort((a, b) => b.revenue - a.revenue).slice(0, 10)
 
-  // Master breakdown
-  const masterMap: Record<string, { name: string; count: number; noShow: number }> = {}
+  // Master breakdown — separate counters: total non-cancelled (для отображения "сколько записей"),
+  // и closed (completed + no_show) — знаменатель для честного % неявок (исключаем будущие confirmed).
+  const masterMap: Record<string, { name: string; count: number; closed: number; noShow: number }> = {}
   for (const a of appts) {
     const name = a.master?.name ?? 'Без мастера'
-    if (!masterMap[name]) masterMap[name] = { name, count: 0, noShow: 0 }
+    if (!masterMap[name]) masterMap[name] = { name, count: 0, closed: 0, noShow: 0 }
     if (a.status !== 'cancelled') masterMap[name].count++
+    if (a.status === 'completed' || a.status === 'no_show') masterMap[name].closed++
     if (a.status === 'no_show') masterMap[name].noShow++
   }
   const byMaster = Object.values(masterMap).sort((a, b) => b.count - a.count)
 
-  // Summary
+  // Summary — revenue ТОЛЬКО по completed, no_show_rate знаменатель = closed (completed + no_show),
+  // иначе будущие confirmed разбавляют процент и он выглядит ниже реального
   const totalRevenue = appts.filter(a => a.status === 'completed').reduce((s, a) => s + (a.price ?? 0), 0)
   const totalBookings = appts.filter(a => a.status !== 'cancelled').length
   const completedCount = appts.filter(a => a.status === 'completed').length
   const noShowCount = appts.filter(a => a.status === 'no_show').length
-  const noShowRate = totalBookings > 0 ? Math.round((noShowCount / totalBookings) * 100) : 0
+  const closedCount = completedCount + noShowCount
+  const noShowRate = closedCount > 0 ? Math.round((noShowCount / closedCount) * 100) : 0
 
   // AI costs
   type UsageRow = { total_tokens: number; cost_usd: number }
   const aiCost = ((aiUsageRes.data as unknown as UsageRow[]) ?? []).reduce((s, r) => s + (r.cost_usd ?? 0), 0)
   const aiTokens = ((aiUsageRes.data as unknown as UsageRow[]) ?? []).reduce((s, r) => s + (r.total_tokens ?? 0), 0)
 
+  // Promo activation — записи с применённой акцией (исключая отменённые)
+  const eligibleAppts = appts.filter(a => a.status !== 'cancelled')
+  const promoAppts = eligibleAppts.filter(a => a.applied_promo_id)
+  const promoBookings = promoAppts.length
+  const promoActivationRate = eligibleAppts.length > 0
+    ? Math.round((promoBookings / eligibleAppts.length) * 100)
+    : 0
+  const promoDiscountTotal = promoAppts.reduce((s, a) => s + (a.discount_amount ?? 0), 0)
+
+  // AI ROI
+  const aiAppts = appts.filter(a => a.source === 'ai')
+  const aiBookings = aiAppts.length
+  const aiRevenue = aiAppts.filter(a => a.status === 'completed').reduce((s, a) => s + (a.price ?? 0), 0)
+  const aiConversations = convCountRes.count ?? 0
+  const aiMessages = aiMsgsRes.count ?? 0
+  // Saved hours — оценка через **диалоги**, не сообщения. Реалистичная "стоимость"
+  // одного диалога с клиентом для живого админа ~4 мин (прочитать, ответить, проверить).
+  // Booking-диалог стоит дороже — добавляем 3 мин за каждую созданную AI-запись (звонок/уточнение).
+  const aiSavedMinutes = aiConversations * 4 + aiBookings * 3
+  const aiSavedHours = Math.round((aiSavedMinutes / 60) * 10) / 10
+  // Conversion: bookings created via AI / total AI conversations
+  const aiConversionRate = aiConversations > 0 ? Math.round((aiBookings / aiConversations) * 100) : 0
+
   return NextResponse.json({
     data: {
       summary: { totalRevenue, totalBookings, completedCount, noShowRate, aiCost, aiTokens },
+      ai: {
+        bookings: aiBookings,
+        revenue: aiRevenue,
+        conversations: aiConversations,
+        messages: aiMessages,
+        savedHours: aiSavedHours,
+        conversionRate: aiConversionRate,
+      },
+      promo: {
+        bookings: promoBookings,
+        eligible: eligibleAppts.length,
+        activationRate: promoActivationRate,
+        discountTotal: promoDiscountTotal,
+      },
       daily,
       byService,
       byMaster,

@@ -2,272 +2,381 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
-import { Calendar, MessageCircle, ChevronRight, Clock, MapPin, Star } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { Bell, Calendar, ChevronRight, MapPin, RefreshCcw, Repeat, Sparkles } from 'lucide-react'
+import { toast } from 'sonner'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
+import { AlinaHeroCard } from '@/components/shared/AlinaHeroCard'
+import { BookCard } from '@/components/shared/BookCard'
+import { ActionRow } from '@/components/shared/ActionRow'
+import { RecommendationCard } from '@/components/shared/RecommendationCard'
+import { PromoCard } from '@/components/shared/PromoCard'
+import { Stagger, StaggerItem } from '@/components/motion/Stagger'
 import type { TenantPublicData, AppointmentWithRelations } from '@/types'
-import { formatDate, formatTime } from '@/lib/utils/date'
+import type { Service, Master, Promotion } from '@/types/database'
+import { useBookingStore } from '@/stores/bookingStore'
+import { getTenantSlug } from '@/lib/tma-token'
+
+interface ClientInfo {
+  first_name?: string | null
+  total_visits?: number | null
+}
+
+interface UsualBooking {
+  service: Service
+  master: Master
+}
 
 export function TmaHomePage() {
   const router = useRouter()
+  const setBookingService = useBookingStore(s => s.setService)
+  const setBookingMaster = useBookingStore(s => s.setMaster)
   const [tenant, setTenant] = useState<TenantPublicData | null>(null)
   const [nextAppointment, setNextAppointment] = useState<AppointmentWithRelations | null>(null)
+  const [aiName, setAiName] = useState('Алина')
+  const [client, setClient] = useState<ClientInfo | null>(null)
+  const [usual, setUsual] = useState<UsualBooking | null>(null)
+  const [recommendation, setRecommendation] = useState<Service | null>(null)
+  const [topPromo, setTopPromo] = useState<Promotion | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    async function load() {
-      try {
-        const token = sessionStorage.getItem('tma_token')
-        const slug = new URLSearchParams(window.location.search).get('slug') ?? sessionStorage.getItem('tenant_slug') ?? ''
-        const tenantUrl = token ? '/api/tenant' : `/api/tenant?slug=${encodeURIComponent(slug)}`
-        const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
+    let cancelled = false
+    let privateLoaded = false
 
-        const [tenantRes, apptRes] = await Promise.all([
-          fetch(tenantUrl, { headers }),
-          token ? fetch('/api/appointments?upcoming=1&limit=1', { headers }) : Promise.resolve(null),
-        ])
+    // Phase 1 — instant public fetch via slug.
+    async function loadPublic() {
+      const slug = getTenantSlug()
 
-        if (tenantRes.ok) {
-          const { data } = await tenantRes.json()
-          setTenant(data)
-        }
+      const [tenantRes, promoRes, servicesRes] = await Promise.all([
+        fetch(`/api/tenant?slug=${encodeURIComponent(slug)}`),
+        fetch(`/api/promotions?slug=${encodeURIComponent(slug)}`),
+        fetch(`/api/services?slug=${encodeURIComponent(slug)}`),
+      ])
 
-        if (apptRes?.ok) {
-          const { data } = await apptRes.json()
-          setNextAppointment(data?.[0] ?? null)
-        }
-      } finally {
-        setIsLoading(false)
+      if (cancelled) return
+
+      if (tenantRes.ok) {
+        const { data } = await tenantRes.json()
+        if (!cancelled) setTenant(data)
       }
+      if (promoRes.ok) {
+        const { data } = await promoRes.json()
+        const list = (data ?? []) as Promotion[]
+        if (!cancelled && list.length > 0) setTopPromo(list[0])
+      }
+      if (servicesRes.ok) {
+        const { data } = await servicesRes.json()
+        const list = (data ?? []) as Service[]
+        const active = list.find(s => s.is_active) ?? list[0] ?? null
+        if (!cancelled) setRecommendation(active)
+      }
+      if (!cancelled) setIsLoading(false)
     }
-    load()
+
+    // Phase 2 — private fetch (runs when a JWT becomes available, retries on
+    // failure so stale-token → re-auth → fresh-token sequences still load.
+    async function loadPrivate(token: string) {
+      if (privateLoaded) return
+      const headers = { Authorization: `Bearer ${token}` }
+
+      const [apptRes, meRes] = await Promise.all([
+        fetch('/api/appointments?upcoming=1&limit=1', { headers }),
+        fetch('/api/auth/me', { headers }),
+      ])
+
+      if (cancelled) return
+
+      // If the auth check failed (stale token, 401, etc), bail without marking
+      // loaded — useTmaAuth will re-auth, dispatch `tma:auth-ready` again,
+      // and our listener will retry with the fresh token.
+      if (!meRes.ok) return
+      privateLoaded = true
+
+      if (apptRes.ok) {
+        const { data } = await apptRes.json()
+        if (!cancelled) setNextAppointment(data?.[0] ?? null)
+      }
+      const json = await meRes.json()
+      if (cancelled) return
+      const name = json?.aiSettings?.admin_name
+      if (name && name !== 'Администратор') setAiName(name)
+      if (json?.client) setClient(json.client as ClientInfo)
+      if (json?.usual) setUsual(json.usual as UsualBooking)
+    }
+
+    loadPublic()
+
+    // Try right away if token already in storage (returning visit).
+    const existing = sessionStorage.getItem('tma_token')
+    if (existing) loadPrivate(existing)
+
+    // Listen forever (until unmount) — handles slow cold-start auth.
+    const onAuthReady = () => {
+      const t = sessionStorage.getItem('tma_token')
+      if (t) loadPrivate(t)
+    }
+    window.addEventListener('tma:auth-ready', onAuthReady)
+
+    return () => {
+      cancelled = true
+      window.removeEventListener('tma:auth-ready', onAuthReady)
+    }
   }, [])
 
   if (isLoading) return <HomePageSkeleton />
   if (!tenant) return null
 
   const greeting = getGreeting()
-  const storedClient = typeof window !== 'undefined'
-    ? (() => {
-        try {
-          const raw = sessionStorage.getItem('tma_client')
-          return raw ? JSON.parse(raw) as { first_name?: string } : null
-        } catch { return null }
-      })()
-    : null
-  const clientName = storedClient?.first_name ?? 'Привет'
+  const clientName = client?.first_name ?? null
+  const isReturning = (client?.total_visits ?? 0) > 0
+  const welcome = buildAiGreeting(nextAppointment, isReturning, clientName)
+  const hasGrid = recommendation || topPromo
 
   return (
-    <div className="flex flex-col min-h-screen pb-6 safe-bottom">
-      {/* Hero / Cover */}
-      <div className="relative h-52 w-full overflow-hidden">
-        {tenant.cover_url ? (
-          <Image
-            src={tenant.cover_url}
-            alt={tenant.name}
-            fill
-            className="object-cover"
-            priority
-          />
-        ) : (
-          <div
-            className="h-full w-full"
-            style={{ background: `linear-gradient(135deg, ${tenant.branding.primary_color} 0%, ${tenant.branding.secondary_color ?? '#818CF8'} 100%)` }}
-          />
-        )}
-
-        {/* Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-
-        {/* Logo + name */}
-        <div className="absolute bottom-4 left-4 flex items-center gap-3">
-          {tenant.logo_url ? (
-            <Image
-              src={tenant.logo_url}
-              alt="logo"
-              width={44}
-              height={44}
-              className="rounded-xl border-2 border-white/30"
-            />
-          ) : (
-            <div
-              className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-lg"
-              style={{ background: tenant.branding.primary_color }}
-            >
-              {tenant.name[0]}
-            </div>
-          )}
-          <div>
-            <h1 className="text-white font-bold text-lg leading-tight">{tenant.name}</h1>
-            {tenant.city && (
-              <p className="text-white/70 text-xs flex items-center gap-1 mt-0.5">
-                <MapPin className="w-3 h-3" />
-                {tenant.city}
-              </p>
-            )}
+    <div className="flex flex-col min-h-screen pb-6 safe-bottom safe-top">
+      {/* Compact header */}
+      <header className="flex items-center justify-between px-5 pt-4 pb-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-7 h-7 rounded-lg bg-sage-tint border border-sage-soft flex items-center justify-center shrink-0">
+            <Sparkles className="w-3.5 h-3.5 text-sage" strokeWidth={2.2} />
           </div>
+          <p className="text-[13px] font-semibold text-ink truncate">{tenant.name}</p>
         </div>
-      </div>
+        {tenant.city && (
+          <p className="text-[11px] text-muted-2 flex items-center gap-1 shrink-0">
+            <MapPin className="w-3 h-3" />
+            {tenant.city}
+          </p>
+        )}
+      </header>
 
-      <div className="flex flex-col gap-4 px-4 pt-5">
-
+      <Stagger className="flex flex-col gap-5 px-5" staggerChildren={0.08}>
         {/* Greeting */}
-        <div>
-          <p className="text-tg-hint text-sm">{greeting}</p>
-          <h2 className="text-xl font-bold text-tg-text">{clientName} 👋</h2>
-        </div>
+        <StaggerItem>
+          <p className="text-[13px] text-muted-foreground">{greeting}</p>
+          <h1 className="text-serif-h1 text-ink mt-0.5">
+            {clientName ? (
+              <>
+                <span style={{ color: 'var(--gold)' }}>{clientName}</span>
+                <span className="ml-2">✨</span>
+              </>
+            ) : (
+              'Добро пожаловать ✨'
+            )}
+          </h1>
+        </StaggerItem>
 
-        {/* Next appointment card */}
-        {nextAppointment ? (
-          <NextAppointmentCard
-            appointment={nextAppointment}
-            primaryColor={tenant.branding.primary_color}
-            onPress={() => router.push('/appointments')}
+        {/* AI Hero Card — whole card clickable → /chat */}
+        <StaggerItem>
+          <AlinaHeroCard
+            variant="full"
+            name={aiName}
+            status="AI-администратор · online"
+            welcome={welcome}
+            hint="Написать"
+            onClick={() => router.push('/chat')}
           />
-        ) : (
-          <FirstVisitBanner primaryColor={tenant.branding.primary_color} />
+        </StaggerItem>
+
+        {/* Next appointment (if exists) */}
+        {nextAppointment && (
+          <StaggerItem>
+            <BookCard
+              variant="next"
+              serviceName={nextAppointment.service.name}
+              masterName={nextAppointment.master.name}
+              startsAt={nextAppointment.starts_at}
+              photoSrc={nextAppointment.master.photo_url ?? null}
+              onClick={() => router.push('/appointments')}
+              actions={
+                <ActionRow
+                  items={[
+                    {
+                      id: 'reschedule',
+                      label: (
+                        <span className="inline-flex items-center gap-1">
+                          <RefreshCcw className="w-3 h-3" strokeWidth={1.8} />
+                          Перенести
+                        </span>
+                      ),
+                      onClick: () => {
+                        window.Telegram?.WebApp.HapticFeedback?.impactOccurred('light')
+                        router.push(`/appointments?reschedule=${nextAppointment.id}`)
+                      },
+                    },
+                    {
+                      id: 'remind',
+                      label: (
+                        <span className="inline-flex items-center gap-1">
+                          <Bell className="w-3 h-3" strokeWidth={1.8} />
+                          Напомнить
+                        </span>
+                      ),
+                      onClick: () => {
+                        window.Telegram?.WebApp.HapticFeedback?.notificationOccurred?.('success')
+                        toast.success('Напомним за день и за 3 часа до визита 🌿')
+                      },
+                    },
+                  ]}
+                />
+              }
+            />
+          </StaggerItem>
         )}
 
-        {/* Main actions */}
-        <div className="flex flex-col gap-3 mt-1">
-          <button
-            className="btn-tma"
-            style={{ background: tenant.branding.primary_color }}
+        {/* "Как обычно" — для returning клиентов без ближайшей записи */}
+        {usual && !nextAppointment && (
+          <StaggerItem>
+            <UsualBookingCard
+              usual={usual}
+              onPress={() => {
+                window.Telegram?.WebApp.HapticFeedback?.impactOccurred('light')
+                setBookingService(usual.service)
+                setBookingMaster(usual.master)
+                router.push('/booking/slots')
+              }}
+            />
+          </StaggerItem>
+        )}
+
+        {/* Main CTA — serif-cta with subtitle and ambient halo */}
+        <StaggerItem>
+          <Button
+            variant="serif-cta"
+            size="xl"
+            halo
+            className="w-full flex-col items-start py-3 px-5 gap-0.5 h-auto"
             onClick={() => router.push('/booking/services')}
           >
-            <span className="flex items-center justify-center gap-2">
-              <Calendar className="w-5 h-5" />
+            <span className="inline-flex items-center gap-2 text-base font-serif">
+              <Calendar className="w-4 h-4" strokeWidth={1.8} />
               Записаться
             </span>
-          </button>
-
-          <button
-            className="btn-tma"
-            style={{ background: 'var(--tg-secondary-bg)', color: 'var(--tg-text)' }}
-            onClick={() => router.push('/chat')}
-          >
-            <span className="flex items-center justify-center gap-2">
-              <MessageCircle className="w-5 h-5" style={{ color: tenant.branding.primary_color }} />
-              Написать администратору
+            <span className="text-[11px] font-sans tracking-normal opacity-80">
+              Выбрать услугу и удобное время
             </span>
-          </button>
-        </div>
+          </Button>
+        </StaggerItem>
 
-        {/* Quick nav tiles */}
-        <div className="grid grid-cols-2 gap-3 mt-1">
-          <QuickTile
-            icon="📋"
-            label="Мои записи"
-            onClick={() => router.push('/appointments')}
-          />
-          <QuickTile
-            icon="⭐"
-            label="Акции"
-            onClick={() => router.push('/promotions')}
-          />
-        </div>
-      </div>
+        {/* 2-col grid: Recommendation + Promo (compact vertical cards for mobile) */}
+        {hasGrid && (
+          <StaggerItem>
+            <div className="grid grid-cols-2 gap-3">
+              {recommendation ? (
+                <RecommendationCard
+                  title={recommendation.name}
+                  durationMin={recommendation.duration_min}
+                  price={
+                    recommendation.price
+                      ? `${recommendation.price} ${recommendation.currency || '₽'}`
+                      : null
+                  }
+                  photoSrc={recommendation.image_url}
+                  onCtaClick={() => {
+                    setBookingService(recommendation)
+                    router.push('/booking/masters')
+                  }}
+                />
+              ) : (
+                <div />
+              )}
+              {topPromo ? (
+                <PromoCard
+                  title={topPromo.title}
+                  endsAt={topPromo.ends_at}
+                  onCtaClick={() => router.push('/promotions')}
+                />
+              ) : (
+                <div />
+              )}
+            </div>
+          </StaggerItem>
+        )}
+      </Stagger>
     </div>
   )
 }
 
-// ---- Sub-components ----
+// ────── Sub-components ──────
 
-function NextAppointmentCard({
-  appointment,
-  primaryColor,
+function UsualBookingCard({
+  usual,
   onPress,
 }: {
-  appointment: AppointmentWithRelations
-  primaryColor: string
+  usual: UsualBooking
   onPress: () => void
 }) {
   return (
     <button
       onClick={onPress}
-      className="w-full text-left rounded-2xl p-4 border border-border bg-card active:scale-[0.99] transition-transform"
+      className="w-full text-left rounded-2xl p-4 bg-sage-tint border border-sage-soft active:scale-[0.99] transition-transform"
     >
-      <div className="flex items-center justify-between mb-2">
-        <Badge
-          variant="secondary"
-          className="text-xs font-medium"
-          style={{ background: `${primaryColor}20`, color: primaryColor }}
-        >
-          Ближайшая запись
-        </Badge>
-        <ChevronRight className="w-4 h-4 text-tg-hint" />
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-sage flex items-center justify-center shrink-0">
+          <Repeat className="w-4 h-4 text-page" strokeWidth={2} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-medium text-sage uppercase tracking-wider">
+            Как обычно
+          </p>
+          <p className="text-[14px] font-semibold text-ink truncate mt-0.5">
+            {usual.service.name}
+          </p>
+          <p className="text-[12px] text-muted-2 truncate">
+            у {usual.master.name}
+          </p>
+        </div>
+        <ChevronRight className="w-4 h-4 text-sage shrink-0" />
       </div>
-
-      <p className="font-semibold text-base text-tg-text">{appointment.service.name}</p>
-
-      <div className="flex items-center gap-4 mt-2">
-        <span className="flex items-center gap-1 text-sm text-tg-hint">
-          <Calendar className="w-3.5 h-3.5" />
-          {formatDate(appointment.starts_at)}
-        </span>
-        <span className="flex items-center gap-1 text-sm text-tg-hint">
-          <Clock className="w-3.5 h-3.5" />
-          {formatTime(appointment.starts_at)}
-        </span>
-      </div>
-
-      <p className="text-sm text-tg-hint mt-1">
-        Мастер: <span className="text-tg-text font-medium">{appointment.master.name}</span>
-      </p>
-    </button>
-  )
-}
-
-function FirstVisitBanner({ primaryColor }: { primaryColor: string }) {
-  return (
-    <div
-      className="rounded-2xl p-4"
-      style={{ background: `${primaryColor}15`, borderLeft: `3px solid ${primaryColor}` }}
-    >
-      <p className="font-semibold text-sm text-tg-text">Ещё нет записей</p>
-      <p className="text-xs text-tg-hint mt-0.5">Нажмите «Записаться», чтобы выбрать удобное время</p>
-    </div>
-  )
-}
-
-function QuickTile({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex flex-col items-center justify-center gap-2 py-4 rounded-2xl bg-tg-secondary active:opacity-70 transition-opacity"
-    >
-      <span className="text-2xl">{icon}</span>
-      <span className="text-xs font-medium text-tg-text">{label}</span>
     </button>
   )
 }
 
 function HomePageSkeleton() {
   return (
-    <div className="flex flex-col gap-4">
-      <Skeleton className="h-52 w-full" />
-      <div className="px-4 flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-7 w-40" />
-        </div>
-        <Skeleton className="h-24 w-full rounded-2xl" />
-        <Skeleton className="h-14 w-full rounded-xl" />
-        <Skeleton className="h-14 w-full rounded-xl" />
-        <div className="grid grid-cols-2 gap-3">
-          <Skeleton className="h-20 rounded-2xl" />
-          <Skeleton className="h-20 rounded-2xl" />
-        </div>
+    <div className="flex flex-col gap-5 px-5 pt-5 safe-top">
+      <Skeleton tone="cream" className="h-7 w-32" />
+      <div className="flex flex-col gap-1.5">
+        <Skeleton tone="cream" className="h-3 w-20" />
+        <Skeleton tone="cream" className="h-7 w-40" />
+      </div>
+      <Skeleton tone="cream" className="h-40 w-full rounded-3xl" />
+      <Skeleton tone="cream" className="h-32 w-full rounded-2xl" />
+      <Skeleton tone="cream" className="h-16 w-full rounded-2xl" />
+      <div className="grid grid-cols-2 gap-3">
+        <Skeleton tone="cream" className="h-32 rounded-2xl" />
+        <Skeleton tone="cream" className="h-32 rounded-2xl" />
       </div>
     </div>
   )
 }
 
+// ────── Helpers ──────
+
+function buildAiGreeting(
+  next: AppointmentWithRelations | null,
+  isReturning: boolean,
+  name: string | null
+): string {
+  if (next) {
+    const date = new Date(next.starts_at)
+    const dateStr = date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
+    const timeStr = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+    return `Жду вас ${dateStr} в ${timeStr} на «${next.service.name}». Если что-то изменится — напишите.`
+  }
+  if (isReturning) {
+    return name
+      ? `С возвращением, ${name}! Чем могу помочь сегодня — записать или подсказать что-нибудь?`
+      : 'С возвращением! Готова помочь с записью или вопросом.'
+  }
+  return 'Привет! Помогу выбрать услугу, подобрать мастера и записать на удобное время.'
+}
+
 function getGreeting(): string {
   const hour = new Date().getHours()
-  if (hour < 12) return 'Доброе утро,'
-  if (hour < 17) return 'Добрый день,'
-  if (hour < 21) return 'Добрый вечер,'
-  return 'Добрый вечер,'
+  if (hour < 12) return 'Доброе утро'
+  if (hour < 17) return 'Добрый день'
+  if (hour < 22) return 'Добрый вечер'
+  return 'Доброй ночи'
 }

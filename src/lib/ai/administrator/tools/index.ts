@@ -29,9 +29,9 @@ export const TOOL_REGISTRY: AiTool[] = [
 export async function executeTool(
   name: string,
   args: Record<string, unknown>,
-  context: { tenantId: string; clientId: string }
+  context: { tenantId: string; clientId: string; conversationId?: string }
 ): Promise<ToolResult> {
-  const { tenantId, clientId } = context
+  const { tenantId, clientId, conversationId } = context
 
   switch (name) {
     case 'get_services':
@@ -48,7 +48,7 @@ export async function executeTool(
 
     case 'book_appointment':
       return executeCreateBooking(
-        args as { service_id: string; master_id: string; starts_at: string; notes?: string },
+        args as { service_id: string; master_id: string; starts_at: string; notes?: string; applied_promo_id?: string },
         tenantId,
         clientId
       )
@@ -57,14 +57,16 @@ export async function executeTool(
       return executeRescheduleBooking(
         args as { appointment_id: string; new_starts_at: string },
         tenantId,
-        clientId
+        clientId,
+        conversationId
       )
 
     case 'cancel_appointment':
       return executeCancelBooking(
         args as { appointment_id: string; reason?: string },
         tenantId,
-        clientId
+        clientId,
+        conversationId
       )
 
     case 'get_client_appointments':
@@ -82,7 +84,7 @@ export async function executeTool(
 
     case 'request_human_handoff':
       return executeHumanHandoff(
-        args as { reason: string; summary?: string; urgency: string },
+        { ...(args as { reason: string; summary: string; urgency: string }), conversationId },
         tenantId,
         clientId
       )

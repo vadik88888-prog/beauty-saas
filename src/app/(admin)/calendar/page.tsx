@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { ChevronLeft, ChevronRight, Calendar, X, Phone, MessageCircle, CheckCircle, XCircle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar, X, Phone, MessageCircle, CheckCircle, XCircle, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
+import { AiBadge } from '@/components/shared/AiBadge'
+import { cn } from '@/lib/utils'
 
 type Appointment = {
   id: string
@@ -12,6 +14,7 @@ type Appointment = {
   status: string
   price: number | null
   notes: string | null
+  source: string | null
   client: {
     first_name: string | null
     last_name: string | null
@@ -30,10 +33,17 @@ const HOUR_END = 21
 const HOURS = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i)
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-yellow-100 border-yellow-400 text-yellow-800',
-  confirmed: 'bg-blue-100 border-blue-400 text-blue-800',
-  completed: 'bg-green-100 border-green-400 text-green-800',
-  no_show: 'bg-red-100 border-red-400 text-red-800',
+  pending: 'bg-warning-soft border-warning text-foreground',
+  confirmed: 'bg-ai-soft border-ai text-ai-foreground',
+  completed: 'bg-success-soft border-success text-foreground',
+  no_show: 'bg-destructive-soft border-destructive text-foreground',
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  pending: 'Ожидает',
+  confirmed: 'Подтверждена',
+  completed: 'Завершена',
+  no_show: 'No-show',
 }
 
 function getMonday(date: Date): Date {
@@ -154,14 +164,23 @@ export default function CalendarPage() {
             const colorClass = STATUS_COLORS[appt.status] ?? STATUS_COLORS.pending
             const clientName = [appt.client?.first_name, appt.client?.last_name].filter(Boolean).join(' ') || 'Клиент'
             const startTime = new Date(appt.starts_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+            const isAi = appt.source === 'ai'
             return (
               <div
                 key={appt.id}
-                className={`absolute left-0.5 right-0.5 rounded border-l-4 px-1.5 py-0.5 overflow-hidden cursor-pointer hover:opacity-90 transition-opacity ${colorClass}`}
+                className={cn(
+                  'absolute left-0.5 right-0.5 rounded-lg border-l-4 px-1.5 py-0.5 overflow-hidden cursor-pointer hover:opacity-90 transition-opacity',
+                  colorClass
+                )}
                 style={{ top, height }}
                 onClick={() => setSelectedAppt(appt)}
               >
-                <p className="text-xs font-bold leading-tight truncate">{startTime} {clientName}</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-xs font-semibold leading-tight truncate flex-1">{startTime} {clientName}</p>
+                  {isAi && (
+                    <Sparkles className="w-2.5 h-2.5 shrink-0" strokeWidth={2.2} aria-label="Запись через AI" />
+                  )}
+                </div>
                 {height > 40 && appt.service && (
                   <p className="text-xs leading-tight truncate opacity-80">{appt.service.name}</p>
                 )}
@@ -301,22 +320,29 @@ export default function CalendarPage() {
       </div>
 
       {/* Legend */}
-      <div className="px-4 md:px-6 py-3 border-t flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+      <div className="px-4 md:px-6 py-3 border-t border-border flex items-center gap-2 text-[11px] text-muted-foreground flex-wrap">
         {Object.entries(STATUS_COLORS).map(([status, cls]) => (
-          <span key={status} className={`px-2 py-0.5 rounded border-l-4 ${cls}`}>
-            {status === 'pending' ? 'Ожидает' : status === 'confirmed' ? 'Подтверждена' : status === 'completed' ? 'Завершена' : 'No-show'}
+          <span key={status} className={cn('px-2 py-0.5 rounded-lg border-l-4', cls)}>
+            {STATUS_LABELS[status]}
           </span>
         ))}
-        <span className="ml-auto">Всего: <b>{appointments.length}</b></span>
+        <span className="inline-flex items-center gap-1 px-2 py-0.5">
+          <Sparkles className="w-2.5 h-2.5 text-ai-foreground" strokeWidth={2.2} />
+          <span className="text-ai-foreground">через AI</span>
+        </span>
+        <span className="ml-auto">Всего: <b className="text-foreground">{appointments.length}</b></span>
       </div>
 
       {/* Appointment detail modal */}
       {selectedAppt && (
         <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setSelectedAppt(null)} />
-          <div className="relative bg-background rounded-t-2xl md:rounded-2xl shadow-xl w-full md:max-w-md p-5 z-10">
+          <div className="absolute inset-0 bg-foreground/40 backdrop-blur-sm" onClick={() => setSelectedAppt(null)} />
+          <div className="relative bg-surface-elevated rounded-t-2xl md:rounded-2xl w-full md:max-w-md p-5 z-10 border border-border" style={{ boxShadow: 'var(--shadow-md)' }}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-base">Детали записи</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="font-bold text-base">Детали записи</h2>
+                {selectedAppt.source === 'ai' && <AiBadge />}
+              </div>
               <button onClick={() => setSelectedAppt(null)} className="p-1 rounded-lg hover:bg-muted">
                 <X className="w-4 h-4" />
               </button>

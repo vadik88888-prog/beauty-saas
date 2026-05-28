@@ -6,27 +6,124 @@ export const createBookingTool: AiTool = {
   type: 'function',
   function: {
     name: 'book_appointment',
-    description: 'Create a new appointment. ONLY call this AFTER the client has explicitly confirmed all details (service, master, date, time). Never create without confirmation.',
+    description: 'Create a new appointment AFTER explicit client confirmation. Pass applied_promo_id from SALON SNAPSHOT if an active promotion applies (then backend computes discount).',
     parameters: {
       type: 'object',
       required: ['service_id', 'master_id', 'starts_at'],
       properties: {
-        service_id: { type: 'string', description: 'Service UUID' },
-        master_id: { type: 'string', description: 'Master UUID' },
-        starts_at: { type: 'string', description: 'ISO datetime UTC from get_available_slots result' },
+        service_id: { type: 'string', description: 'Service UUID or name (fuzzy resolved)' },
+        master_id: { type: 'string', description: 'Master UUID or name (fuzzy resolved)' },
+        starts_at: { type: 'string', description: 'ISO datetime UTC from get_available_slots' },
         notes: { type: 'string', description: 'Optional client notes' },
+        applied_promo_id: { type: 'string', description: 'Promotion UUID from SALON SNAPSHOT if discount applies' },
       },
     },
   },
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function normalizeName(s: string): string {
+  return s.toLowerCase().replace(/[^a-zа-яё0-9]/gi, '').trim()
+}
+
+async function resolveServiceId(supabase: ReturnType<typeof createAdminClient>, raw: string, tenantId: string): Promise<string | null> {
+  if (UUID_RE.test(raw)) {
+    const { data } = await supabase.from('services').select('id').eq('id', raw).eq('tenant_id', tenantId).maybeSingle()
+    if (data) return (data as { id: string }).id
+  }
+  const { data: all } = await supabase.from('services').select('id, name').eq('tenant_id', tenantId).eq('is_active', true)
+  const list = (all ?? []) as Array<{ id: string; name: string }>
+  const needle = normalizeName(raw)
+  const exact = list.find(s => normalizeName(s.name) === needle)
+  const partial = exact ?? list.find(s => normalizeName(s.name).includes(needle) || needle.includes(normalizeName(s.name)))
+  return partial?.id ?? null
+}
+
+async function resolveMasterId(supabase: ReturnType<typeof createAdminClient>, raw: string, tenantId: string): Promise<string | null> {
+  if (UUID_RE.test(raw)) {
+    const { data } = await supabase.from('masters').select('id').eq('id', raw).eq('tenant_id', tenantId).maybeSingle()
+    if (data) return (data as { id: string }).id
+  }
+  const { data } = await supabase.from('masters').select('id').eq('tenant_id', tenantId).eq('is_active', true).ilike('name', `%${raw}%`).limit(1).maybeSingle()
+  return data ? (data as { id: string }).id : null
+}
+
+type PromoRow = {
+  id: string
+  title: string | null
+  discount_type: 'percent' | 'fixed' | null
+  discount_value: number | null
+  starts_at: string | null
+  ends_at: string | null
+}
+
+// Returns active promo if raw is UUID OR matches title fuzzy. Active = is_active AND within date range.
+async function resolveActivePromo(
+  supabase: ReturnType<typeof createAdminClient>,
+  raw: string,
+  tenantId: string
+): Promise<PromoRow | null> {
+  const nowMs = Date.now()
+  const withinRange = (p: PromoRow) => {
+    const startOk = !p.starts_at || new Date(p.starts_at).getTime() <= nowMs
+    const endOk = !p.ends_at || new Date(p.ends_at).getTime() >= nowMs
+    return startOk && endOk
+  }
+
+  if (UUID_RE.test(raw)) {
+    const { data } = await supabase
+      .from('promotions')
+      .select('id, title, discount_type, discount_value, starts_at, ends_at')
+      .eq('id', raw)
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .maybeSingle()
+    const p = data as PromoRow | null
+    return p && withinRange(p) ? p : null
+  }
+
+  const { data } = await supabase
+    .from('promotions')
+    .select('id, title, discount_type, discount_value, starts_at, ends_at')
+    .eq('tenant_id', tenantId)
+    .eq('is_active', true)
+  const list = ((data ?? []) as PromoRow[]).filter(withinRange)
+  if (list.length === 0) return null
+
+  const needle = normalizeName(raw)
+  const exact = list.find(p => p.title && normalizeName(p.title) === needle)
+  if (exact) return exact
+  const partial = list.find(p => {
+    const t = p.title ? normalizeName(p.title) : ''
+    return t && (t.includes(needle) || needle.includes(t))
+  })
+  if (partial) return partial
+  // Если активная акция одна — AI явно подразумевает её, даже если назвал криво
+  return list.length === 1 ? list[0] : null
+}
+
 export async function executeCreateBooking(
-  args: { service_id: string; master_id: string; starts_at: string; notes?: string },
+  args: { service_id: string; master_id: string; starts_at: string; notes?: string; applied_promo_id?: string },
   tenantId: string,
   clientId: string
 ): Promise<ToolResult> {
+  console.log('[booking] args:', JSON.stringify(args), 'tenant:', tenantId, 'client:', clientId)
   try {
     const supabase = createAdminClient()
+
+    const resolvedServiceId = await resolveServiceId(supabase, args.service_id, tenantId)
+    const resolvedMasterId = await resolveMasterId(supabase, args.master_id, tenantId)
+    if (!resolvedServiceId) {
+      console.warn(`[booking] Service not found: "${args.service_id}"`)
+      return { success: false, error: 'Service not found', fallbackMessage: 'Не нашла такую услугу — выберите из списка.' }
+    }
+    if (!resolvedMasterId) {
+      console.warn(`[booking] Master not found: "${args.master_id}"`)
+      return { success: false, error: 'Master not found', fallbackMessage: 'Не нашла такого мастера — уточните имя.' }
+    }
+    args.service_id = resolvedServiceId
+    args.master_id = resolvedMasterId
 
     const { data: service } = await supabase
       .from('services')
@@ -62,6 +159,26 @@ export async function executeCreateBooking(
       }
     }
 
+    // Resolve promo and compute discount if applicable
+    let appliedPromoId: string | null = null
+    let originalPrice: number | null = null
+    let discountAmount: number | null = null
+    let finalPrice = s.price
+
+    if (args.applied_promo_id && s.price && s.price > 0) {
+      const promo = await resolveActivePromo(supabase, args.applied_promo_id, tenantId)
+      if (promo && promo.discount_value && promo.discount_value > 0) {
+        originalPrice = s.price
+        discountAmount = promo.discount_type === 'percent'
+          ? Math.round((s.price * promo.discount_value / 100) * 100) / 100
+          : Math.min(promo.discount_value, s.price)
+        finalPrice = Math.max(0, s.price - discountAmount)
+        appliedPromoId = promo.id
+      } else {
+        console.warn(`[booking] Promo not resolved: "${args.applied_promo_id}"`)
+      }
+    }
+
     const { data: appt, error } = await supabase
       .from('appointments')
       .insert({
@@ -71,7 +188,10 @@ export async function executeCreateBooking(
         master_id: args.master_id,
         starts_at: args.starts_at,
         ends_at: endsAt,
-        price: s.price,
+        price: finalPrice,
+        original_price: originalPrice,
+        discount_amount: discountAmount,
+        applied_promo_id: appliedPromoId,
         notes: args.notes ?? null,
         source: 'ai',
         status: 'confirmed',

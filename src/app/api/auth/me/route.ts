@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { jwtVerify } from 'jose'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getUsualBooking } from '@/lib/clients/usual-booking'
 
 export async function PATCH(req: NextRequest) {
   try {
@@ -49,7 +50,7 @@ export async function GET(req: NextRequest) {
     const tenantId = payload.tenant_id as string
 
     const supabase = createAdminClient()
-    const [clientRes, aiSettingsRes] = await Promise.all([
+    const [clientRes, aiSettingsRes, usual] = await Promise.all([
       supabase
         .from('clients')
         .select('id, first_name, last_name, telegram_id, telegram_username, phone, loyalty_points, total_visits, is_blocked')
@@ -60,6 +61,7 @@ export async function GET(req: NextRequest) {
         .select('welcome_message, admin_name')
         .eq('tenant_id', tenantId)
         .single(),
+      getUsualBooking(clientId, tenantId, supabase),
     ])
 
     const client = clientRes.data
@@ -75,6 +77,7 @@ export async function GET(req: NextRequest) {
         welcome_message: aiSettings?.welcome_message ?? null,
         admin_name: aiSettings?.admin_name ?? 'Администратор',
       },
+      usual,
     })
   } catch {
     return NextResponse.json({ error: 'Invalid token' }, { status: 401 })

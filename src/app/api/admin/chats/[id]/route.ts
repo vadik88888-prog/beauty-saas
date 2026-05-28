@@ -31,14 +31,14 @@ export async function GET(
   const [convRes, messagesRes] = await Promise.all([
     supabase
       .from('conversations')
-      .select('id, status, created_at, updated_at, client:clients(id, first_name, last_name, telegram_username, telegram_id, phone)')
+      .select('id, status, created_at, updated_at, client_id, handoff_reason, handoff_summary, client:clients(id, first_name, last_name, telegram_username, telegram_id, phone, total_visits, last_visit_at, is_blocked, notes)')
       .eq('id', id)
       .eq('tenant_id', ctx.tenantId)
       .single(),
 
     supabase
       .from('messages')
-      .select('id, role, content, created_at')
+      .select('id, role, content, created_at, metadata')
       .eq('conversation_id', id)
       .order('created_at', { ascending: true })
       .limit(100),
@@ -46,10 +46,33 @@ export async function GET(
 
   if (!convRes.data) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  // Load client's recent appointments for command center context
+  const conv = convRes.data as { client_id: string | null }
+  type ApptRow = {
+    id: string
+    starts_at: string
+    status: string
+    source: string | null
+    service: { name: string } | null
+    master: { name: string } | null
+  }
+  let recentAppointments: ApptRow[] = []
+  if (conv.client_id) {
+    const { data } = await supabase
+      .from('appointments')
+      .select('id, starts_at, status, source, service:services(name), master:masters(name)')
+      .eq('client_id', conv.client_id)
+      .eq('tenant_id', ctx.tenantId)
+      .order('starts_at', { ascending: false })
+      .limit(5)
+    recentAppointments = (data as unknown as ApptRow[]) ?? []
+  }
+
   return NextResponse.json({
     data: {
       conversation: convRes.data,
       messages: messagesRes.data ?? [],
+      recentAppointments,
     },
   })
 }
@@ -68,15 +91,22 @@ export async function POST(
 
   const supabase = createAdminClient()
 
-  // Verify conversation belongs to tenant
+  // Verify conversation belongs to tenant + получаем tenant-specific bot token
+  // (раньше использовался platform TELEGRAM_BOT_TOKEN → сообщения через "чужого" бота отвергались Telegram'ом)
   const { data: conv } = await supabase
     .from('conversations')
-    .select('id, telegram_chat_id, tenant_id')
+    .select('id, telegram_chat_id, tenant_id, tenant:tenants(telegram_bot_token)')
     .eq('id', id)
     .eq('tenant_id', ctx.tenantId)
     .single()
 
   if (!conv) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Supabase возвращает tenant как массив даже для FK single — нормализуем
+  type ConvRaw = { id: string; telegram_chat_id: number | null; tenant_id: string; tenant: { telegram_bot_token: string | null }[] | { telegram_bot_token: string | null } | null }
+  const raw = conv as ConvRaw
+  const tenantObj = Array.isArray(raw.tenant) ? raw.tenant[0] : raw.tenant
+  const convRow = { id: raw.id, telegram_chat_id: raw.telegram_chat_id, tenant_id: raw.tenant_id, tenant: tenantObj ?? null }
 
   // Save message to DB
   const { data: message, error } = await supabase
@@ -97,23 +127,30 @@ export async function POST(
     .update({ updated_at: new Date().toISOString() })
     .eq('id', id)
 
-  // Send to Telegram via bot
-  if (conv.telegram_chat_id) {
-    try {
-      const botToken = process.env.TELEGRAM_BOT_TOKEN
-      if (botToken) {
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+  // Send to Telegram via TENANT-SPECIFIC bot (не platform — иначе Telegram отвергнет
+  // как "бот не имеет доступа к этому чату"). Platform fallback оставлен на случай legacy.
+  if (convRow.telegram_chat_id) {
+    const botToken = convRow.tenant?.telegram_bot_token ?? process.env.TELEGRAM_BOT_TOKEN
+    if (botToken) {
+      try {
+        const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            chat_id: conv.telegram_chat_id,
-            text: content.trim(),
+            chat_id: convRow.telegram_chat_id,
+            text: `<b>Администратор:</b>\n${content.trim()}`,
             parse_mode: 'HTML',
           }),
         })
+        if (!tgRes.ok) {
+          const body = await tgRes.text()
+          console.warn(`[admin-reply] Telegram send failed (${tgRes.status}):`, body)
+        }
+      } catch (err) {
+        console.warn('[admin-reply] Telegram error:', err)
       }
-    } catch {
-      // Don't fail the API call if Telegram send fails
+    } else {
+      console.warn('[admin-reply] No bot token for tenant', convRow.tenant_id)
     }
   }
 

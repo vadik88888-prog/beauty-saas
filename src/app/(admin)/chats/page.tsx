@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { MessageSquare, User, Clock, CheckCircle, AlertCircle } from 'lucide-react'
+import { MessageSquare, User, Clock, CheckCircle, AlertCircle, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { toast } from 'sonner'
 
 type Conversation = {
   id: string
@@ -37,6 +38,7 @@ export default function ChatsPage() {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [filter, setFilter] = useState<string>('all')
+  const [isClearing, setIsClearing] = useState(false)
 
   useEffect(() => {
     fetch('/api/admin/chats')
@@ -44,6 +46,21 @@ export default function ChatsPage() {
       .then(({ data }) => setConversations(data ?? []))
       .finally(() => setIsLoading(false))
   }, [])
+
+  async function handleClearAll() {
+    if (!confirm('Удалить ВСЕ диалоги и сообщения? Это нельзя отменить.')) return
+    setIsClearing(true)
+    try {
+      const res = await fetch('/api/admin/chats', { method: 'DELETE' })
+      const { data } = await res.json()
+      setConversations([])
+      toast.success(`Удалено ${data?.deleted ?? 0} диалогов`)
+    } catch {
+      toast.error('Ошибка при очистке')
+    } finally {
+      setIsClearing(false)
+    }
+  }
 
   const filtered = filter === 'all'
     ? conversations
@@ -53,8 +70,20 @@ export default function ChatsPage() {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="px-6 py-5 border-b bg-background">
-        <h1 className="text-xl font-bold">Чаты с клиентами</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">История диалогов AI-администратора</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold">Чаты с клиентами</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">История диалогов AI-администратора</p>
+          </div>
+          <button
+            onClick={handleClearAll}
+            disabled={isClearing || conversations.length === 0}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            {isClearing ? 'Очистка...' : 'Очистить все'}
+          </button>
+        </div>
       </div>
 
       {/* Filter tabs */}

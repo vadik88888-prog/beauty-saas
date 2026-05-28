@@ -12,8 +12,8 @@ export const getAvailabilityTool: AiTool = {
       type: 'object',
       required: ['service_id'],
       properties: {
-        service_id: { type: 'string', description: 'Service UUID (required)' },
-        master_id: { type: 'string', description: 'Optional: specific master UUID' },
+        service_id: { type: 'string', description: 'Service UUID from get_services result. If you have only the service NAME (e.g. "Маникюр"), pass the name — backend will resolve it.' },
+        master_id: { type: 'string', description: 'Optional master UUID OR master name. Omit if client did not specify a master.' },
         date_from: { type: 'string', description: 'Start date YYYY-MM-DD (default: today)' },
         date_to: { type: 'string', description: 'End date YYYY-MM-DD (default: 14 days ahead)' },
       },
@@ -21,36 +21,78 @@ export const getAvailabilityTool: AiTool = {
   },
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function normalizeServiceName(s: string): string {
+  return s.toLowerCase().replace(/[^a-zа-яё0-9]/gi, '').trim()
+}
+
 export async function executeGetAvailability(
   args: { service_id: string; master_id?: string; date_from?: string; date_to?: string },
   tenantId: string
 ): Promise<ToolResult> {
+  console.log('[availability] args:', JSON.stringify(args), 'tenant:', tenantId)
   try {
     const supabase = createAdminClient()
     const today = new Date().toISOString().slice(0, 10)
-    const dateFrom = args.date_from ?? today
-    const dateTo = args.date_to ?? (() => {
+
+    // Normalize dates — AI sometimes passes ISO timestamps or invalid formats
+    const normalizeDate = (d?: string) => {
+      if (!d) return undefined
+      const m = d.match(/(\d{4}-\d{2}-\d{2})/)
+      return m ? m[1] : undefined
+    }
+    const dateFrom = normalizeDate(args.date_from) ?? today
+    const dateTo = normalizeDate(args.date_to) ?? (() => {
       const d = new Date()
       d.setDate(d.getDate() + 14)
       return d.toISOString().slice(0, 10)
     })()
 
-    const [{ data: service }, { data: tenantData }] = await Promise.all([
-      supabase
+    const [{ data: tenantData }] = await Promise.all([
+      supabase.from('tenants').select('timezone').eq('id', tenantId).single(),
+    ])
+
+    // Resolve service: try UUID first, then fuzzy name match
+    let service: { id: string; duration_min: number; name: string; buffer_after_min: number | null } | null = null
+
+    if (UUID_RE.test(args.service_id)) {
+      const { data } = await supabase
         .from('services')
         .select('id, duration_min, name, buffer_after_min')
         .eq('id', args.service_id)
         .eq('tenant_id', tenantId)
-        .single(),
-      supabase
-        .from('tenants')
-        .select('timezone')
-        .eq('id', tenantId)
-        .single(),
-    ])
+        .maybeSingle()
+      service = data as typeof service
+    }
 
     if (!service) {
-      return { success: false, error: 'Service not found', fallbackMessage: 'Услуга не найдена.' }
+      // Fuzzy lookup by name — AI often passes "маникюр" instead of UUID
+      const { data: allServices } = await supabase
+        .from('services')
+        .select('id, duration_min, name, buffer_after_min')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+
+      type SvcRow = { id: string; duration_min: number; name: string; buffer_after_min: number | null }
+      const list = (allServices ?? []) as SvcRow[]
+      const needle = normalizeServiceName(args.service_id)
+      const exact = list.find(s => normalizeServiceName(s.name) === needle)
+      const partial = exact ?? list.find(s => normalizeServiceName(s.name).includes(needle) || needle.includes(normalizeServiceName(s.name)))
+      service = partial ?? null
+
+      if (service) {
+        console.log(`[availability] Fuzzy-matched service_id "${args.service_id}" → "${service.name}" (${service.id})`)
+      }
+    }
+
+    if (!service) {
+      console.warn(`[availability] Service not found for service_id="${args.service_id}", tenant=${tenantId}`)
+      return {
+        success: false,
+        error: 'Service not found',
+        fallbackMessage: 'Не получилось найти эту услугу. Уточните название из списка выше.',
+      }
     }
 
     const svc = service as { id: string; duration_min: number; name: string; buffer_after_min: number | null }
@@ -79,8 +121,25 @@ export async function executeGetAvailability(
     if (capableMasterIds.length > 0) {
       mastersDbQuery = mastersDbQuery.in('id', capableMasterIds)
     }
+
+    // Resolve master_id: support UUID OR name (AI sometimes passes name)
     if (args.master_id) {
-      mastersDbQuery = mastersDbQuery.eq('id', args.master_id)
+      if (UUID_RE.test(args.master_id)) {
+        mastersDbQuery = mastersDbQuery.eq('id', args.master_id)
+      } else {
+        const { data: matchedMaster } = await supabase
+          .from('masters')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .eq('is_active', true)
+          .ilike('name', `%${args.master_id}%`)
+          .limit(1)
+          .maybeSingle()
+        if (matchedMaster) {
+          mastersDbQuery = mastersDbQuery.eq('id', (matchedMaster as { id: string }).id)
+          console.log(`[availability] Fuzzy-matched master_id "${args.master_id}" → ${(matchedMaster as { id: string }).id}`)
+        }
+      }
     }
 
     const { data: mastersData } = await mastersDbQuery
@@ -99,6 +158,8 @@ export async function executeGetAvailability(
         : capableMasterIds.length === 0
           ? 'service_not_linked_to_masters'
           : 'no_masters'
+
+      console.warn(`[availability] No masters for service ${args.service_id} (${svc.name}). reason=${reason}, totalActive=${totalActiveMasters}, capableIds=${capableMasterIds.length}`)
 
       const fallbackMessage = reason === 'no_masters_at_all'
         ? 'В салоне пока нет активных мастеров. Свяжитесь с администратором.'
@@ -161,6 +222,7 @@ export async function executeGetAvailability(
     const limited = slots.slice(0, 20)
 
     if (!limited.length) {
+      console.warn(`[availability] No slots for service "${svc.name}" (${args.service_id}), range ${dateFrom}–${dateTo}, masters: [${masters.map(m => m.name).join(', ')}], tz offset=${timezoneOffsetHours}`)
       return {
         success: true,
         data: {

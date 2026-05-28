@@ -2,17 +2,27 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { callLLM, estimateCost } from '@/lib/ai/openai-client'
 import { buildSystemPrompt, loadTenantConfig, loadClientContext } from './system-prompt'
 import { ConversationStore } from './memory/conversation-store'
+import { maybeRecomputeSummary } from './memory/summarizer'
 import { ConversationStateMachine } from './orchestrator/state-machine'
 import { ResponseValidator } from './validators/response-validator'
 import { HallucinationGuard } from './validators/hallucination-guard'
 import { TOOL_REGISTRY, executeTool } from './tools'
+import { buildLlmSuggestedActions } from './llm-suggested-actions'
+import { describeToolForUser, updateLiveStatus } from './live-status'
+
+// Burst rate limit: max сообщений от одного клиента за окно (защита от spam, который
+// съест OpenAI бюджет). Per-day лимит остаётся отдельно через max_messages_day.
+const BURST_WINDOW_MIN = 2
+const BURST_MAX_MESSAGES = 8
 import type {
   AdministratorInput,
   AdministratorResult,
+  BookingFlowState,
   LLMMessage,
   ToolResult,
   AttachmentInput,
 } from './types'
+import { DEFAULT_BOOKING_STATE } from './types'
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 
 export const maxDuration = 60
@@ -68,12 +78,40 @@ export async function runAdministrator(
     }
   }
 
+  // 2b. Burst rate limit — защита от spam за короткое окно. Двухшаговый запрос:
+  // сначала получаем conversation_ids клиента, потом count user messages в окне.
+  // (PostgREST nested filter через !inner работает неоднозначно для count head:true)
+  const burstWindowIso = new Date(Date.now() - BURST_WINDOW_MIN * 60 * 1000).toISOString()
+  const { data: clientConvs } = await supabase
+    .from('conversations')
+    .select('id')
+    .eq('client_id', clientId)
+    .eq('tenant_id', tenantId)
+  const convIds = ((clientConvs ?? []) as { id: string }[]).map(c => c.id)
+
+  if (convIds.length > 0) {
+    const { count: recentUserCount } = await supabase
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('role', 'user')
+      .in('conversation_id', convIds)
+      .gte('created_at', burstWindowIso)
+
+    if ((recentUserCount ?? 0) >= BURST_MAX_MESSAGES) {
+      return {
+        reply: `Слишком много сообщений за минуту. Подождите немного и продолжим — я никуда не убегу 🌸`,
+        conversationId: conversationId ?? '',
+        conversationState: 'IDLE',
+      }
+    }
+  }
+
   // 3. Load or create conversation
   const store = new ConversationStore()
   const convData = await store.load(tenantId, clientId, telegramId, conversationId)
   conversationId = convData.conversationId
 
-  const { history, bookingState, conversationState: currentState } = convData
+  const { history, bookingState, conversationState: currentState, summary, summaryUpToCount, totalMessageCount } = convData
 
   // 4. Build user message (with vision support if attachments provided)
   const userMessageParam = buildUserMessage(message, attachments)
@@ -85,6 +123,7 @@ export async function runAdministrator(
   const allMessages = [...history, { role: 'user', content: message } as LLMMessage]
   if (sm.shouldHandoff(allMessages, bookingState)) {
     await store.markHandedOff(conversationId)
+    updateLiveStatus(supabase, conversationId, null)  // на случай stale статуса
     return {
       reply: 'Понимаю ваше беспокойство. Передаю вас администратору — ответят в течение нескольких минут.',
       conversationId,
@@ -93,19 +132,40 @@ export async function runAdministrator(
     }
   }
 
-  // 6. Build system prompt
-  const systemPrompt = buildSystemPrompt(tenantConfig, clientContext, bookingState)
+  // 6. Build system prompt (+ предыдущий summary если был сжат старый контекст)
+  const baseSystemPrompt = buildSystemPrompt(tenantConfig, clientContext, bookingState)
+  const systemPrompt = summary
+    ? `${baseSystemPrompt}\n\n# PREVIOUS CONVERSATION CONTEXT (summary of older messages — older parts of this same dialog)\n${summary}`
+    : baseSystemPrompt
 
   // 7. Build messages array for OpenAI (last 20 messages + new user message)
   const trimmedHistory = history.slice(-20) as ChatCompletionMessageParam[]
   const messages: ChatCompletionMessageParam[] = [...trimmedHistory, userMessageParam]
 
-  // 8. Agentic loop
-  const hallucinationGuard = new HallucinationGuard()
+  // 8. Agentic loop — guard initialized with tenant timezone + snapshot (services/masters already known)
+  const hallucinationGuard = new HallucinationGuard({
+    timezone: tenantConfig.timezone,
+    snapshot: tenantConfig.snapshot,
+  })
   const toolResults: ToolResult[] = []
+  const knowledgeSources: Array<{ title: string; relevance_pct: number }> = []
   let totalTokens = 0
   let actionType: AdministratorResult['action'] = undefined
   let actionData: Record<string, unknown> | undefined
+
+  // Track which tools have been called across ALL rounds this turn
+  // Used to enforce service-selection flow: user must pick before availability is checked
+  let getServicesCalledThisTurn = false
+
+  // NOTE: forceGetServices removed — AI now has full salon snapshot (services/masters/promos)
+  // in system prompt, so it knows everything from the start without forced tool call.
+
+  // Medical handoff detection — force tool_choice to ensure AI actually triggers handoff,
+  // not just writes an empathic text (GPT-4o-mini sometimes drifts and skips the tool call).
+  const isMedicalQuery = detectMedicalQuery(message)
+  if (isMedicalQuery) {
+    console.log('[AI] medical query detected — forcing request_human_handoff')
+  }
 
   let llmResponse = await callLLM({
     system: systemPrompt,
@@ -113,6 +173,9 @@ export async function runAdministrator(
     tools: TOOL_REGISTRY,
     model,
     temperature,
+    toolChoice: isMedicalQuery
+      ? { type: 'function', function: { name: 'request_human_handoff' } }
+      : 'auto',
   })
 
   totalTokens += llmResponse.total_tokens
@@ -120,17 +183,65 @@ export async function runAdministrator(
   let rounds = 0
   while (llmResponse.tool_calls?.length && rounds < MAX_TOOL_ROUNDS) {
     rounds++
+
+    const roundToolNames = llmResponse.tool_calls.map(
+      tc => (tc as { function: { name: string } }).function.name
+    )
+    const wantsAvailability = roundToolNames.includes('get_available_slots')
+    const wantsServices = roundToolNames.includes('get_services')
+
+    // Cross-round guard: if get_services was called in a previous round and now AI
+    // wants get_available_slots — it's skipping user service confirmation.
+    // Execute all pending tool calls so the conversation is valid, then inject correction.
+    if (getServicesCalledThisTurn && wantsAvailability) {
+      console.warn('[AI] Cross-round service-selection guard — blocking availability check before user picks service.')
+      messages.push(llmResponse.assistantMessage as ChatCompletionMessageParam)
+      for (const tc of llmResponse.tool_calls) {
+        const tcFn = tc as { id: string; function: { name: string; arguments: string } }
+        const args = JSON.parse(tcFn.function.arguments) as Record<string, unknown>
+        const result = await executeTool(tcFn.function.name, args, { tenantId, clientId, conversationId })
+        toolResults.push(result)
+        hallucinationGuard.ingest([result])
+        messages.push({ role: 'tool', tool_call_id: tcFn.id, content: JSON.stringify(result) })
+      }
+      messages.push({
+        role: 'user',
+        content: '[SYSTEM CORRECTION] You tried to check availability before the client chose a specific service. Present the services list from the earlier get_services call. Ask: "Какую услугу вы хотите записать?" Do NOT include any time slot info. Wait for the client to reply.',
+      } as ChatCompletionMessageParam)
+      llmResponse = await callLLM({ system: systemPrompt, messages, tools: TOOL_REGISTRY, model, temperature })
+      totalTokens += llmResponse.total_tokens
+      break
+    }
+
     messages.push(llmResponse.assistantMessage as ChatCompletionMessageParam)
 
     for (const tc of llmResponse.tool_calls) {
       // Cast to standard function tool call shape (OpenAI SDK union includes custom tool calls)
       const tcFn = tc as { id: string; function: { name: string; arguments: string } }
       const args = JSON.parse(tcFn.function.arguments) as Record<string, unknown>
-      const result = await executeTool(tcFn.function.name, args, { tenantId, clientId })
+      // Multi-step thinking visible: пишем live_status ДО запуска tool (клиент видит фразу при polling)
+      updateLiveStatus(supabase, conversationId, describeToolForUser(tcFn.function.name, args))
+      const result = await executeTool(tcFn.function.name, args, { tenantId, clientId, conversationId })
       toolResults.push(result)
       hallucinationGuard.ingest([result])
 
+      if (tcFn.function.name === 'get_services') getServicesCalledThisTurn = true
+
+      if (tcFn.function.name === 'search_knowledge' && result.success) {
+        const articles = (result.data as { articles?: Array<{ title: string; relevance_pct: number }> })?.articles ?? []
+        knowledgeSources.push(...articles.map(a => ({ title: a.title, relevance_pct: a.relevance_pct })))
+      }
+
       if (tcFn.function.name === 'request_human_handoff') {
+        actionType = 'handoff'
+        await store.markHandedOff(conversationId)
+      }
+      // Auto-handoff из cancel/reschedule (too_late path) — tool возвращает success: true
+      // с data.action='handoff'. Помечаем conversation handed_off как при явном handoff.
+      if (
+        (tcFn.function.name === 'cancel_appointment' || tcFn.function.name === 'reschedule_appointment') &&
+        result.success && (result.data as Record<string, unknown> | undefined)?.action === 'handoff'
+      ) {
         actionType = 'handoff'
         await store.markHandedOff(conversationId)
       }
@@ -144,6 +255,18 @@ export async function runAdministrator(
         tool_call_id: tcFn.id,
         content: JSON.stringify(result),
       })
+    }
+
+    // Same-round guard: AI called get_services AND get_available_slots together.
+    if (wantsServices && wantsAvailability) {
+      console.warn('[AI] Same-round service-selection guard — AI called get_services + get_available_slots together. Injecting correction.')
+      messages.push({
+        role: 'user',
+        content: '[SYSTEM CORRECTION] You called get_services and get_available_slots in the same response. Show ONLY the services list. Ask the client which service they want. Do NOT mention any time slots, dates, or availability in this message.',
+      } as ChatCompletionMessageParam)
+      llmResponse = await callLLM({ system: systemPrompt, messages, tools: TOOL_REGISTRY, model, temperature })
+      totalTokens += llmResponse.total_tokens
+      break
     }
 
     llmResponse = await callLLM({
@@ -181,12 +304,24 @@ export async function runAdministrator(
     v === 'POTENTIAL_HALLUCINATION'
   )
 
+  // IMPORTANT: don't run hallucination retry if AI just successfully performed a destructive
+  // action (booking/reschedule/cancel). The AI is confirming a REAL action that happened —
+  // even if hallucination guard sees unfamiliar names/times, the action is real in DB.
+  // Blocking the confirmation reply leaves the client confused while the booking exists.
+  const hadDestructiveSuccess = toolResults.some(r => r.success && r.data && (
+    (r.data as Record<string, unknown>).appointment_id !== undefined ||
+    (r.data as Record<string, unknown>).cancelled === true ||
+    (r.data as Record<string, unknown>).action === 'handoff'
+  ))
+
   if (isHallucination) {
-    console.warn('[AI] Hallucination detected. Violations:', validation.violations, '| Response:', llmResponse.content.slice(0, 300))
+    console.warn('[AI] Hallucination detected. Violations:', validation.violations,
+      '| hadDestructiveSuccess:', hadDestructiveSuccess,
+      '| Response:', llmResponse.content.slice(0, 300))
   }
 
-  // Retry once with explicit correction instruction if hallucination detected
-  if (isHallucination && rounds < MAX_TOOL_ROUNDS) {
+  // Retry only when no destructive action was confirmed — AI must rewrite the response
+  if (isHallucination && !hadDestructiveSuccess && rounds < MAX_TOOL_ROUNDS) {
     messages.push({ role: 'assistant', content: llmResponse.content })
     messages.push({
       role: 'user',
@@ -209,7 +344,8 @@ export async function runAdministrator(
       for (const tc of llmResponse.tool_calls) {
         const tcFn = tc as { id: string; function: { name: string; arguments: string } }
         const args = JSON.parse(tcFn.function.arguments) as Record<string, unknown>
-        const result = await executeTool(tcFn.function.name, args, { tenantId, clientId })
+        updateLiveStatus(supabase, conversationId, describeToolForUser(tcFn.function.name, args))
+        const result = await executeTool(tcFn.function.name, args, { tenantId, clientId, conversationId })
         toolResults.push(result)
         hallucinationGuard.ingest([result])
         if (tcFn.function.name === 'book_appointment' && result.success) {
@@ -234,7 +370,10 @@ export async function runAdministrator(
     })
   }
 
-  const finalReply = validation.isValid ? llmResponse.content : (validation.sanitizedContent ?? llmResponse.content)
+  // If a destructive action succeeded, always trust AI's reply (it's confirming real DB change)
+  const finalReply = (validation.isValid || hadDestructiveSuccess)
+    ? llmResponse.content
+    : (validation.sanitizedContent ?? llmResponse.content)
 
   // 10. Detect intent and update conversation state
   const intent = sm.detectIntent(message)
@@ -253,16 +392,54 @@ export async function runAdministrator(
   })
 
   // 12. Persist conversation
+  // После успешного book_appointment — сбрасываем serviceId/masterId/date/timeSlot/notes,
+  // чтобы следующая запись в этом же диалоге не наследовала stale данные предыдущей.
+  // Сохраняем counters (frustration/toolFailure) и lastBookingId для контекста и upsell.
+  const nextBookingState: BookingFlowState = actionType === 'booking_created'
+    ? {
+        ...DEFAULT_BOOKING_STATE,
+        state: nextState,
+        lastBookingId: (actionData?.appointment_id as string | undefined) ?? bookingState.lastBookingId,
+        frustrationCount: bookingState.frustrationCount,
+        toolFailureCount: bookingState.toolFailureCount,
+        upsellOffered: bookingState.upsellOffered,
+      }
+    : { ...bookingState, state: nextState }
+
+  // 12a. Suggested actions ДО save — чтобы попали в messages.metadata и пережили reload TMA.
+  // Раньше считались после save и терялись при перезагрузке чата.
+  const suggestedActions = await buildLlmSuggestedActions({
+    reply: finalReply,
+    conversationState: nextState,
+    isFirstMessage: history.length === 0,
+    isHandedOff: actionType === 'handoff' || nextState === 'HUMAN_HANDOFF',
+    bookingJustCreated: actionType === 'booking_created',
+  })
+
   const nextStatus = actionType === 'handoff' ? 'handed_off' : 'active'
+  const messageMetadata: { knowledgeSources?: typeof knowledgeSources; suggestedActions?: typeof suggestedActions } = {}
+  if (knowledgeSources.length > 0) messageMetadata.knowledgeSources = knowledgeSources
+  if (suggestedActions.length > 0) messageMetadata.suggestedActions = suggestedActions
+
   await store.save(
     conversationId,
     message,
     finalReply,
-    { ...bookingState, state: nextState },
+    nextBookingState,
     nextState,
     totalTokens,
-    nextStatus
+    nextStatus,
+    Object.keys(messageMetadata).length > 0 ? messageMetadata : undefined,
   )
+
+  // Очищаем live_status — AI закончила, клиент увидит финальный reply
+  updateLiveStatus(supabase, conversationId, null)
+
+  // Fire-and-forget: пересчитать summary если диалог длинный и summary устарел.
+  // +2 — учли что мы только что сохранили user + assistant сообщение
+  const newTotalCount = (totalMessageCount ?? history.length) + 2
+  void maybeRecomputeSummary(store, conversationId, newTotalCount, summaryUpToCount ?? 0)
+    .catch(err => console.error('[summarizer] background error:', err))
 
   return {
     reply: finalReply,
@@ -270,7 +447,50 @@ export async function runAdministrator(
     conversationState: nextState,
     action: actionType,
     actionData,
+    knowledgeSources: knowledgeSources.length > 0 ? knowledgeSources : undefined,
+    suggestedActions: suggestedActions.length > 0 ? suggestedActions : undefined,
   }
+}
+
+/**
+ * Detect medical/personal health triggers in user message.
+ * If matched — force request_human_handoff tool. Belt-and-suspenders for cases when
+ * the LLM writes an empathic message but forgets to call the tool.
+ *
+ * NOTE: We avoid \b word boundary because in JS regex \b only sees ASCII letters as
+ * "word characters" — кириллица проваливается через словарные границы. Используем
+ * substring matching на корни слов.
+ */
+function detectMedicalQuery(text: string): boolean {
+  const lower = text.toLowerCase().replace(/ё/g, 'е')
+  const triggers = [
+    // Symptoms / skin issues (substrings — будут совпадать с любой формой)
+    'сыпь', 'сыпью', 'прыщ', 'зуд', 'чеш',
+    'шелуш', 'раздражен', 'покрасне', 'воспал',
+    'отек', 'нарост на', 'пятна на кож', 'корочк',
+    // Diagnoses
+    'угрев', 'акне', 'комедон', 'псориаз', 'экзем',
+    'розацеа', 'купероз', 'меланом', 'герпес',
+    'грибок', 'лишай', 'папиллом', 'бородав',
+    // Reactions / allergies
+    'аллерги', 'непереносим', 'анафилакси', 'осложне', 'не зажил',
+    'реакция на', 'реакции на', 'плохо отреагир',
+    // Pregnancy / medical state
+    'беремен', 'кормлю груд', 'лактаци', 'после родов',
+    'после операц', 'химиотерапи', 'диабет', 'гипертони',
+    'онкологи', 'щитовидк',
+    // Medications
+    'принимаю таблет', 'пью таблет', 'пью гормонал',
+    'гормональные препар', 'ретиноид', 'антибиотик', 'кроворазжижа',
+    // Direct medical questions
+    'у меня сыпь', 'у меня прыщ', 'у меня зуд',
+    'у меня аллерги', 'у меня воспал', 'у меня болит',
+    'у меня появил', 'у меня чеш', 'у меня покрасн', 'у меня отек',
+    'мне нельзя', 'подойдет ли мне', 'подходит ли мне',
+    'какое лекарство', 'что выпить', 'что мазать', 'как лечить',
+    'можно ли мне при', 'можно ли беремен', 'можно ли кормящ',
+  ]
+  return triggers.some(t => lower.includes(t))
 }
 
 function buildUserMessage(

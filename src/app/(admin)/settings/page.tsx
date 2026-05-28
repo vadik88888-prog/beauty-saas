@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Save, Crown, AlertTriangle, Bot, ExternalLink, CheckCircle2 } from 'lucide-react'
+import { Save, Crown, AlertTriangle, Bot, ExternalLink, CheckCircle2, Bell } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -20,6 +20,7 @@ type TenantSettings = {
   description: string | null
   slug: string | null
   telegram_bot_token: string | null
+  telegram_channel_id: string | null
   subscription_status: string | null
   subscription_plan: string | null
   trial_ends_at: string | null
@@ -48,6 +49,10 @@ export default function SettingsPage() {
   const [savingBot, setSavingBot] = useState(false)
   const [botUsername, setBotUsername] = useState('')
   const [botStatus, setBotStatus] = useState<'idle' | 'saved' | 'localhost'>('idle')
+  const [channelId, setChannelId] = useState('')
+  const [savingChannel, setSavingChannel] = useState(false)
+  const [channelStatus, setChannelStatus] = useState<'idle' | 'saved' | 'error'>('idle')
+  const [channelError, setChannelError] = useState('')
 
   useEffect(() => {
     fetch('/api/admin/settings')
@@ -56,6 +61,7 @@ export default function SettingsPage() {
         if (data) {
           setSettings(data)
           setBotToken(data.telegram_bot_token ?? '')
+          setChannelId(data.telegram_channel_id ?? '')
         }
       })
       .finally(() => setIsLoading(false))
@@ -72,6 +78,33 @@ export default function SettingsPage() {
     })
     if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 2000) }
     setSaving(false)
+  }
+
+  async function handleSaveChannel(e: React.FormEvent) {
+    e.preventDefault()
+    setSavingChannel(true)
+    setChannelStatus('idle')
+    setChannelError('')
+    try {
+      const res = await fetch('/api/admin/settings/channel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel_id: channelId.trim() }),
+      })
+      const json = await res.json() as { ok: boolean; error?: string; cleared?: boolean }
+      if (!json.ok) {
+        setChannelStatus('error')
+        setChannelError(json.error ?? 'Не удалось сохранить')
+        toast.error(json.error ?? 'Ошибка')
+        return
+      }
+      setChannelStatus('saved')
+      setSettings(s => s ? { ...s, telegram_channel_id: channelId.trim() || null } : s)
+      if (json.cleared) toast.success('Канал уведомлений очищен')
+      else toast.success('Канал подтверждён — тестовое сообщение отправлено')
+    } finally {
+      setSavingChannel(false)
+    }
   }
 
   async function handleSaveBot(e: React.FormEvent) {
@@ -302,6 +335,76 @@ export default function SettingsPage() {
             <Button type="submit" disabled={savingBot} className="gap-2 px-6">
               <Save className="w-4 h-4" />
               {savingBot ? 'Проверяем...' : 'Сохранить бота'}
+            </Button>
+          </div>
+        </Card>
+      </form>
+
+      {/* Admin notifications channel */}
+      <form onSubmit={handleSaveChannel}>
+        <Card className="p-6 flex flex-col gap-5">
+          <div className="flex items-center gap-3">
+            <Bell className="w-5 h-5 text-primary" />
+            <h2 className="font-semibold">Уведомления администратору</h2>
+          </div>
+
+          <p className="text-sm text-muted-foreground">
+            Сюда будут приходить уведомления, когда клиент:
+            попросит человека (🩺 медицина, ⏰ поздняя отмена, 😤 недоволен и т.п.).
+            Можно выбрать личный чат с ботом или Telegram-группу команды салона.
+          </p>
+
+          <div className="rounded-xl bg-muted p-4 text-sm text-muted-foreground flex flex-col gap-1.5">
+            <p className="font-medium text-foreground">Как получить ID чата:</p>
+            <ol className="list-decimal list-inside space-y-1">
+              <li>Создайте Telegram-группу (если хотите принимать в команде)</li>
+              <li>Добавьте своего бота в эту группу <strong>как администратора</strong> (с правом отправлять сообщения)</li>
+              <li>В этой группе напишите команду <span className="font-mono">/id</span></li>
+              <li>Бот ответит: <em>«ID этой группы: -100…»</em> — скопируйте число <strong>вместе с минусом</strong></li>
+              <li>Вставьте ниже и нажмите «Сохранить и проверить» — бот пришлёт тестовое сообщение</li>
+            </ol>
+            <p className="text-xs mt-2">
+              Для личных уведомлений: напишите боту <span className="font-mono">/id</span> в личке — получите свой chat ID.
+            </p>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">ID чата / группы</label>
+            <Input
+              value={channelId}
+              onChange={e => setChannelId(e.target.value)}
+              placeholder="-1001234567890 или 123456789"
+              className="font-mono text-sm"
+              disabled={!settings?.telegram_bot_token}
+            />
+            {!settings?.telegram_bot_token && (
+              <p className="text-xs text-yellow-700 mt-1">
+                ⚠️ Сначала настройте бот выше — без него нельзя отправить тест
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground mt-1">
+              Группы и каналы начинаются с минуса (например <span className="font-mono">-1001234567890</span>),
+              личные чаты — обычное число
+            </p>
+          </div>
+
+          {channelStatus === 'saved' && (
+            <div className="flex items-center gap-1.5 text-sm text-green-600">
+              <CheckCircle2 className="w-4 h-4" />
+              Канал подтверждён — тестовое сообщение доставлено
+            </div>
+          )}
+          {channelStatus === 'error' && (
+            <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-800 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>{channelError}</span>
+            </div>
+          )}
+
+          <div className="flex justify-end">
+            <Button type="submit" disabled={savingChannel || !settings?.telegram_bot_token} className="gap-2 px-6">
+              <Save className="w-4 h-4" />
+              {savingChannel ? 'Проверяем...' : 'Сохранить и проверить'}
             </Button>
           </div>
         </Card>

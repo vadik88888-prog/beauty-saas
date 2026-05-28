@@ -7,8 +7,16 @@ import type { ApiResponse, TelegramAuthResponse } from '@/types/api'
 
 const RequestSchema = z.object({
   initData: z.string().min(1),
-  tenantSlug: z.string().min(1),
+  tenantSlug: z.string().optional().nullable(),
 })
+
+type TenantRow = {
+  id: string
+  slug: string
+  telegram_bot_token: string | null
+  subscription_status: string | null
+  trial_ends_at: string | null
+}
 
 export async function POST(req: NextRequest): Promise<NextResponse<ApiResponse<TelegramAuthResponse>>> {
   try {
@@ -22,19 +30,77 @@ export async function POST(req: NextRequest): Promise<NextResponse<ApiResponse<T
     const { initData, tenantSlug } = parsed.data
     const supabase = createAdminClient()
 
-    // 1. Find tenant
-    const { data: tenant, error: tenantError } = await supabase
-      .from('tenants')
-      .select('id, telegram_bot_token, subscription_status, trial_ends_at')
-      .eq('slug', tenantSlug)
-      .single()
+    let tenant: TenantRow | null = null
 
-    if (tenantError || !tenant) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
+    // 1a. Try direct lookup by slug if provided
+    if (tenantSlug) {
+      const { data } = await supabase
+        .from('tenants')
+        .select('id, slug, telegram_bot_token, subscription_status, trial_ends_at')
+        .eq('slug', tenantSlug)
+        .single()
+      tenant = (data as TenantRow | null) ?? null
+
+      // Verify HMAC matches this tenant's bot token
+      if (tenant) {
+        const botToken = tenant.telegram_bot_token ?? process.env.TELEGRAM_BOT_TOKEN
+        if (!botToken) {
+          tenant = null  // No way to validate, fall through to discovery
+        } else {
+          try {
+            validateTelegramInitData(initData, botToken)
+            // matched ✓
+          } catch {
+            // HMAC mismatch — slug точит на чужого тенанта (e.g. stale sessionStorage).
+            // Fall through to bot-token discovery below.
+            console.warn(`[auth/telegram] slug "${tenantSlug}" matched tenant but HMAC failed — searching by bot_token`)
+            tenant = null
+          }
+        }
+      }
     }
 
-    // 2. Validate Telegram initData
-    // Use platform bot token if tenant hasn't configured their own
+    // 1b. Discovery: brute-force initData against all tenants' bot tokens
+    if (!tenant) {
+      const { data: allTenants } = await supabase
+        .from('tenants')
+        .select('id, slug, telegram_bot_token, subscription_status, trial_ends_at')
+        .not('telegram_bot_token', 'is', null)
+      const candidates = (allTenants as TenantRow[] | null) ?? []
+      for (const t of candidates) {
+        if (!t.telegram_bot_token) continue
+        try {
+          validateTelegramInitData(initData, t.telegram_bot_token)
+          tenant = t
+          console.log(`[auth/telegram] discovered tenant by bot_token: ${t.slug}`)
+          break
+        } catch {
+          // try next
+        }
+      }
+    }
+
+    // 1c. Last resort: platform bot
+    if (!tenant && process.env.TELEGRAM_BOT_TOKEN) {
+      try {
+        validateTelegramInitData(initData, process.env.TELEGRAM_BOT_TOKEN)
+        const defaultSlug = process.env.TELEGRAM_DEFAULT_TENANT_SLUG
+        if (defaultSlug) {
+          const { data } = await supabase
+            .from('tenants')
+            .select('id, slug, telegram_bot_token, subscription_status, trial_ends_at')
+            .eq('slug', defaultSlug)
+            .single()
+          tenant = (data as TenantRow | null) ?? null
+        }
+      } catch { /* not platform bot */ }
+    }
+
+    if (!tenant) {
+      return NextResponse.json({ error: 'Cannot identify tenant from initData' }, { status: 404 })
+    }
+
+    // 2. Re-parse (validated above already)
     const botToken = tenant.telegram_bot_token ?? process.env.TELEGRAM_BOT_TOKEN!
     const tgData = validateTelegramInitData(initData, botToken)
     const tgUser = tgData.user
@@ -84,6 +150,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ApiResponse<T
     return NextResponse.json({
       data: {
         token,
+        tenantSlug: tenant.slug,
         client: {
           id: c.id,
           first_name: c.first_name,

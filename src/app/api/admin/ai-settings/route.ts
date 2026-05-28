@@ -14,6 +14,8 @@ async function getOwnerContext(): Promise<{ tenantId: string; role: string } | n
   return { tenantId: d.tenant_id, role: d.role }
 }
 
+const AI_GOAL_KEYS = ['more_bookings', 'less_no_show', 'upsell', 'returning'] as const
+
 const AiSettingsSchema = z.object({
   admin_name: z.string().min(1).max(100),
   tone_of_voice: z.enum(['friendly', 'formal', 'playful']),
@@ -23,8 +25,15 @@ const AiSettingsSchema = z.object({
   faq_enabled: z.boolean(),
   booking_enabled: z.boolean(),
   max_messages_day: z.number().int().min(1).max(500),
-  model: z.enum(['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo']),
+  model: z.enum([
+    'gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'o1-mini', 'o3-mini',
+    'gpt-5.2', 'gpt-5.2-codex', 'gpt-5.5', 'gpt-5.5-pro',
+  ]),
   language: z.string().default('ru'),
+  // AI Goals — high-level business steering picked by owner
+  ai_goals: z.array(z.enum(AI_GOAL_KEYS)).max(4).optional(),
+  // Self-service cancel threshold
+  min_cancel_hours: z.number().int().min(0).max(72).optional(),
   // Knowledge base settings
   knowledge_enabled: z.boolean().optional(),
   knowledge_max_results: z.number().int().min(1).max(10).optional(),
@@ -32,6 +41,11 @@ const AiSettingsSchema = z.object({
   knowledge_smart_search: z.boolean().optional(),
   knowledge_context_messages: z.number().int().min(1).max(10).optional(),
   knowledge_rerank: z.boolean().optional(),
+  // Anti-no-show automations (Phase 4)
+  send_24h_reminder: z.boolean().optional(),
+  send_post_visit_feedback: z.boolean().optional(),
+  // Voice messages (Phase 3)
+  voice_enabled: z.boolean().optional(),
 })
 
 export async function GET() {

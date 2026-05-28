@@ -2,10 +2,19 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, User, Star } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
+import { toast } from 'sonner'
 import { Skeleton } from '@/components/ui/skeleton'
+import { BookingSteps } from '@/components/shared/BookingSteps'
+import { AiQuickPickCard } from '@/components/shared/AiQuickPickCard'
+import { MasterCard } from '@/components/shared/MasterCard'
+import { TrustStrip } from '@/components/shared/TrustStrip'
+import { Stagger, StaggerItem } from '@/components/motion/Stagger'
+import { FadeInUp } from '@/components/motion/FadeInUp'
 import { useBookingStore } from '@/stores/bookingStore'
-import Image from 'next/image'
+import { waitForTmaToken, getTenantSlug } from '@/lib/tma-token'
+import type { TimeSlot } from '@/types/api'
+import type { Master } from '@/types/database'
 
 type MasterItem = {
   id: string
@@ -17,9 +26,10 @@ type MasterItem = {
 
 export default function MastersPage() {
   const router = useRouter()
-  const { service, setMaster } = useBookingStore()
+  const { service, setMaster, setSlot } = useBookingStore()
   const [masters, setMasters] = useState<MasterItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isQuickPicking, setIsQuickPicking] = useState(false)
 
   useEffect(() => {
     if (!service) {
@@ -29,17 +39,22 @@ export default function MastersPage() {
 
     const serviceId = service.id
     async function loadMasters() {
-      const token = sessionStorage.getItem('tma_token')
-      const slug = sessionStorage.getItem('tenant_slug') ||
-        new URLSearchParams(window.location.search).get('slug') || ''
+      const token = await waitForTmaToken()
+      const slug = getTenantSlug()
 
       let res = token
-        ? await fetch(`/api/masters?serviceId=${serviceId}`, { headers: { Authorization: `Bearer ${token}` } })
-        : await fetch(`/api/masters?serviceId=${serviceId}&slug=${encodeURIComponent(slug)}`)
+        ? await fetch(`/api/masters?serviceId=${serviceId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+        : await fetch(
+            `/api/masters?serviceId=${serviceId}&slug=${encodeURIComponent(slug)}`
+          )
 
       if (res.status === 401 && token) {
         sessionStorage.removeItem('tma_token')
-        res = await fetch(`/api/masters?serviceId=${serviceId}&slug=${encodeURIComponent(slug)}`)
+        res = await fetch(
+          `/api/masters?serviceId=${serviceId}&slug=${encodeURIComponent(slug)}`
+        )
       }
 
       const { data } = await res.json()
@@ -55,137 +70,142 @@ export default function MastersPage() {
     router.push('/booking/slots')
   }
 
+  /**
+   * Quick pick — find the nearest available slot across all masters
+   * and jump straight to /booking/confirm, skipping the slots page.
+   */
+  async function handleQuickPick() {
+    if (!service || isQuickPicking) return
+    window.Telegram?.WebApp.HapticFeedback?.impactOccurred('light')
+    setIsQuickPicking(true)
+
+    try {
+      const token = await waitForTmaToken()
+      const slug = getTenantSlug()
+      const today = new Date()
+      const end = new Date(today)
+      end.setDate(end.getDate() + 14)
+
+      const params = new URLSearchParams({
+        serviceId: service.id,
+        dateFrom: today.toISOString().slice(0, 10),
+        dateTo: end.toISOString().slice(0, 10),
+      })
+      if (!token && slug) params.set('slug', slug)
+
+      const res = await fetch(`/api/slots?${params}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+
+      if (!res.ok) {
+        toast.error('Не удалось найти свободное окно. Попробуйте выбрать мастера.')
+        return
+      }
+
+      const { data } = await res.json()
+      const slots = (data ?? []) as TimeSlot[]
+      const nearest = slots[0]
+
+      if (!nearest) {
+        toast.error('Нет свободных окон в ближайшие 14 дней.')
+        return
+      }
+
+      // Find matching master object for confirm page
+      const matchedMaster =
+        masters.find(m => m.id === nearest.masterId) ?? null
+
+      setMaster(matchedMaster as Master | null)
+      setSlot({
+        datetime: nearest.datetime,
+        masterId: nearest.masterId,
+        masterName: nearest.masterName,
+      })
+      router.push('/booking/confirm')
+    } catch {
+      toast.error('Ошибка. Попробуйте ещё раз.')
+    } finally {
+      setIsQuickPicking(false)
+    }
+  }
+
   return (
-    <div className="flex flex-col min-h-screen">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-tg-bg px-4 pt-4 pb-3 border-b border-border">
-        <div className="flex items-center gap-3 mb-3">
+    <div className="flex flex-col min-h-screen pb-6 safe-bottom">
+      {/* Sticky header with back, title, booking steps */}
+      <div className="sticky top-0 z-10 bg-background px-5 pt-4 pb-4 border-b border-line">
+        <div className="flex items-start gap-3 mb-4">
           <button
+            type="button"
             onClick={() => router.back()}
-            className="w-9 h-9 flex items-center justify-center rounded-xl bg-tg-secondary"
+            aria-label="Назад"
+            className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-xl bg-cream border border-line text-ink hover:bg-cream-2 transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="min-w-0">
-            <h1 className="text-lg font-bold text-tg-text">Выберите мастера</h1>
-            {service && (
-              <p className="text-xs text-tg-hint truncate">{service.name}</p>
-            )}
+          <div className="min-w-0 flex-1">
+            <h1 className="text-serif-h2 text-ink line-clamp-1">
+              {service?.name ?? 'Выберите мастера'}
+            </h1>
+            <p className="text-[12px] text-muted-foreground mt-0.5">
+              Подберём мастера и лучшее время для записи
+            </p>
           </div>
         </div>
-
-        {/* Progress */}
-        <div className="flex gap-1.5">
-          {[1, 2, 3, 4].map(step => (
-            <div
-              key={step}
-              className="h-1 flex-1 rounded-full"
-              style={{ background: step <= 2 ? 'var(--tg-button)' : 'var(--tg-secondary-bg)' }}
-            />
-          ))}
-        </div>
-        <p className="text-xs text-tg-hint mt-1.5">Шаг 2 из 4</p>
+        <BookingSteps current={2} />
       </div>
 
-      <div className="px-4 pt-4 pb-4 flex flex-col gap-3">
+      <div className="flex flex-col gap-3 px-5 pt-4">
+        {/* Quick Pick — auto select nearest slot, skip slots page */}
+        <FadeInUp delay={0.05}>
+          <AiQuickPickCard
+            flameLabel="Без выбора времени"
+            loading={isQuickPicking}
+            onClick={handleQuickPick}
+          />
+        </FadeInUp>
+
+        {/* Section label */}
+        <div className="text-[12px] text-muted-foreground mt-1">
+          Или выберите мастера
+        </div>
+
+        {/* Master list */}
         {isLoading ? (
           <MastersSkeleton />
+        ) : masters.length === 0 ? (
+          <p className="text-center text-muted-foreground py-8 text-sm">
+            Нет доступных мастеров для этой услуги
+          </p>
         ) : (
-          <>
-            {/* Any available master option */}
-            <AnyMasterCard onSelect={() => handleSelect(null)} />
-
-            {masters.map(master => (
-              <MasterCard
-                key={master.id}
-                master={master}
-                onSelect={() => handleSelect(master)}
-              />
+          <Stagger className="flex flex-col gap-2" staggerChildren={0.05}>
+            {masters.map((master) => (
+              <StaggerItem key={master.id}>
+                <MasterCard
+                  name={master.name}
+                  speciality={master.speciality}
+                  bio={master.bio}
+                  photoSrc={master.photo_url}
+                  onClick={() => handleSelect(master)}
+                />
+              </StaggerItem>
             ))}
-
-            {masters.length === 0 && (
-              <p className="text-center text-tg-hint py-8 text-sm">
-                Нет доступных мастеров для этой услуги
-              </p>
-            )}
-          </>
+          </Stagger>
         )}
+
+        {/* Trust footer */}
+        <FadeInUp delay={0.2} className="mt-4">
+          <TrustStrip />
+        </FadeInUp>
       </div>
     </div>
   )
 }
 
-function AnyMasterCard({ onSelect }: { onSelect: () => void }) {
-  return (
-    <button
-      onClick={onSelect}
-      className="w-full text-left flex items-center gap-4 p-4 rounded-2xl bg-tg-secondary active:scale-[0.99] transition-transform border-2"
-      style={{ borderColor: 'var(--tg-button)' }}
-    >
-      <div
-        className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
-        style={{ background: 'color-mix(in srgb, var(--tg-button) 15%, transparent)' }}
-      >
-        <Star className="w-6 h-6" style={{ color: 'var(--tg-button)' }} />
-      </div>
-      <div className="min-w-0">
-        <p className="font-bold text-tg-text text-sm">Любой свободный мастер</p>
-        <p className="text-xs text-tg-hint mt-0.5">
-          Выберем ближайшее доступное время
-        </p>
-      </div>
-    </button>
-  )
-}
-
-function MasterCard({
-  master,
-  onSelect,
-}: {
-  master: MasterItem
-  onSelect: () => void
-}) {
-  return (
-    <button
-      onClick={onSelect}
-      className="w-full text-left flex items-center gap-4 p-4 rounded-2xl bg-tg-secondary active:scale-[0.99] transition-transform"
-    >
-      <div className="w-14 h-14 rounded-2xl overflow-hidden bg-tg-bg shrink-0">
-        {master.photo_url ? (
-          <Image
-            src={master.photo_url}
-            alt={master.name}
-            width={56}
-            height={56}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <User className="w-6 h-6 text-tg-hint" />
-          </div>
-        )}
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <p className="font-semibold text-tg-text text-sm">{master.name}</p>
-        {master.speciality && (
-          <p className="text-xs text-tg-hint mt-0.5">{master.speciality}</p>
-        )}
-        {master.bio && (
-          <p className="text-xs text-tg-hint mt-1 line-clamp-2 leading-relaxed">
-            {master.bio}
-          </p>
-        )}
-      </div>
-    </button>
-  )
-}
-
 function MastersSkeleton() {
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-2">
       {Array.from({ length: 4 }).map((_, i) => (
-        <Skeleton key={i} className="h-24 w-full rounded-2xl" />
+        <Skeleton key={i} tone="cream" className="h-20 w-full rounded-2xl" />
       ))}
     </div>
   )

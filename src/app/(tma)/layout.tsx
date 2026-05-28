@@ -5,6 +5,7 @@ import { TmaProviders } from '@/components/tma/TmaProviders'
 import { BottomNav } from '@/components/tma/BottomNav'
 import { useTmaAuth } from '@/hooks/useTmaAuth'
 import { RegistrationModal } from '@/components/tma/RegistrationModal'
+import { DebugOverlay } from '@/components/tma/DebugOverlay'
 
 function TmaInner({ children }: { children: React.ReactNode }) {
   const { client, isLoading } = useTmaAuth()
@@ -20,10 +21,11 @@ function TmaInner({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <div className="tma-root min-h-screen bg-tg-bg text-tg-text pb-16">
+      <div className="tma-root min-h-screen bg-background text-foreground pb-16">
         {children}
       </div>
       <BottomNav />
+      <DebugOverlay />
       {needsRegistration && client && (
         <RegistrationModal
           initialFirstName={client.first_name}

@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
     supabase
       .from('appointments')
       .select(`
-        id, starts_at, ends_at, status, price, notes,
+        id, starts_at, ends_at, status, price, notes, source,
         client:clients(first_name, last_name, phone, telegram_id, telegram_username),
         master:masters(id, name),
         service:services(name, duration_min)

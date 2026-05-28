@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Tag } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
+import { waitForTmaToken, getTenantSlug } from '@/lib/tma-token'
 
 type Promotion = {
   id: string
@@ -22,15 +23,19 @@ export default function PromotionsPage() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    const token = sessionStorage.getItem('tma_token')
-    const slug = sessionStorage.getItem('tenant_slug') ?? ''
-    const url = token ? '/api/promotions' : `/api/promotions?slug=${encodeURIComponent(slug)}`
-    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
+    let cancelled = false
+    waitForTmaToken().then(token => {
+      if (cancelled) return
+      const slug = getTenantSlug()
+      const url = token ? '/api/promotions' : `/api/promotions?slug=${encodeURIComponent(slug)}`
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
 
-    fetch(url, { headers })
-      .then(r => r.json())
-      .then(({ data }) => setPromotions(data ?? []))
-      .finally(() => setIsLoading(false))
+      fetch(url, { headers })
+        .then(r => r.json())
+        .then(({ data }) => setPromotions(data ?? []))
+        .finally(() => setIsLoading(false))
+    })
+    return () => { cancelled = true }
   }, [])
 
   return (

@@ -53,21 +53,58 @@ export async function PATCH(req: NextRequest) {
 
   if (error || !data) return NextResponse.json({ error: 'Server error' }, { status: 500 })
 
-  // Register webhook
+  // Register webhook with tenant-specific secret_token (= tenant UUID)
+  // Telegram sends this in `x-telegram-bot-api-secret-token` header → our handler
+  // uses it to identify which tenant this bot belongs to. CRITICAL for multi-tenant routing.
   const appUrl = process.env.NEXT_PUBLIC_APP_URL
   if (appUrl) {
-    const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET!
-    await fetch(
+    // Need tenant slug for menu button URL
+    const { data: tenantRow } = await supabase
+      .from('tenants').select('slug').eq('id', ctx.tenantId).single()
+    const slug = (tenantRow as { slug: string } | null)?.slug ?? ''
+
+    const setWebhookRes = await fetch(
       `https://api.telegram.org/bot${parsed.data.telegram_bot_token}/setWebhook`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          url: `${appUrl}/api/webhooks/telegram?secret=${webhookSecret}`,
+          url: `${appUrl}/api/webhooks/telegram`,
+          secret_token: ctx.tenantId,
           allowed_updates: ['message', 'callback_query'],
+          drop_pending_updates: true,
         }),
       }
     )
+    const setWebhookData = await setWebhookRes.json() as { ok: boolean; description?: string }
+    if (!setWebhookData.ok) {
+      console.error('Webhook registration failed:', setWebhookData.description)
+    }
+
+    // CRITICAL multi-tenant: set Menu Button URL to include slug. Without this,
+    // Telegram's persistent "Открыть приложение" button opens TMA without ?slug=
+    // → TMA falls back to stale sessionStorage / env default → wrong tenant.
+    if (slug) {
+      const menuUrl = `${appUrl}/?slug=${encodeURIComponent(slug)}`
+      const menuRes = await fetch(
+        `https://api.telegram.org/bot${parsed.data.telegram_bot_token}/setChatMenuButton`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            menu_button: {
+              type: 'web_app',
+              text: 'Открыть',
+              web_app: { url: menuUrl },
+            },
+          }),
+        }
+      )
+      const menuData = await menuRes.json() as { ok: boolean; description?: string }
+      if (!menuData.ok) {
+        console.error('Menu button registration failed:', menuData.description)
+      }
+    }
   }
 
   // Mark step complete

@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
 
       const tenant = data as { id: string; slug: string; telegram_bot_token: string | null } | null
       if (tenant?.telegram_bot_token) {
-        const handler = getTenantBotHandler(tenant.telegram_bot_token, tenant.slug)
+        const handler = getTenantBotHandler(tenant.telegram_bot_token, tenant.slug, tenant.id)
         return await handler(req)
       }
     } catch (err) {

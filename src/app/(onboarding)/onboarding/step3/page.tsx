@@ -3,9 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { OnboardingShell } from '@/components/onboarding/OnboardingShell'
-import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Check, Plus, X } from 'lucide-react'
+import { Check, Plus, X, ArrowRight } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 type ServiceTemplate = {
   name: string
@@ -83,26 +82,24 @@ export default function OnboardingStep3() {
   }
 
   return (
-    <OnboardingShell currentStep={3}>
-      <Card className="p-6 sm:p-8">
-        <div className="mb-6">
-          <h2 className="text-xl font-bold">Услуги</h2>
-          <p className="text-muted-foreground text-sm mt-1">
-            Выберите готовые шаблоны или пропустите — добавите вручную позже
-          </p>
-        </div>
-
+    <OnboardingShell
+      currentStep={3}
+      title="Добавьте услуги"
+      description="Выберите готовые шаблоны или пропустите — добавите вручную в админке"
+    >
+      <div className="card-elevated p-5 md:p-6 flex flex-col gap-5">
         {/* Category picker */}
-        <div className="flex flex-wrap gap-2 mb-5">
+        <div className="flex flex-wrap gap-2">
           {Object.keys(TEMPLATES).map(cat => (
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat === selectedCategory ? null : cat)}
-              className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+              className={cn(
+                'h-9 px-3.5 rounded-xl text-[12px] font-medium transition-colors',
                 selectedCategory === cat
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted hover:bg-muted/80'
-              }`}
+                  ? 'bg-foreground text-background'
+                  : 'bg-surface-sunken text-muted-foreground hover:bg-muted'
+              )}
             >
               {cat}
             </button>
@@ -110,24 +107,33 @@ export default function OnboardingStep3() {
         </div>
 
         {selectedCategory && (
-          <div className="flex flex-col gap-2 mb-6">
-            <p className="text-sm font-semibold text-muted-foreground mb-1">{selectedCategory}</p>
+          <div className="flex flex-col gap-2">
             {TEMPLATES[selectedCategory].map(service => {
               const isSelected = selected.has(service.name)
               return (
                 <button
                   key={service.name}
                   onClick={() => toggleService(service.name)}
-                  className={`w-full flex items-center justify-between p-3 rounded-xl border-2 transition-all text-left ${
-                    isSelected ? 'border-primary bg-primary/5' : 'border-border hover:border-muted-foreground/40'
-                  }`}
+                  className={cn(
+                    'w-full flex items-center justify-between p-3.5 rounded-2xl border transition-colors text-left',
+                    isSelected
+                      ? 'border-ai-border bg-ai-soft'
+                      : 'border-border bg-surface-elevated hover:bg-surface-sunken'
+                  )}
                 >
                   <div>
-                    <p className="text-sm font-medium">{service.name}</p>
-                    <p className="text-xs text-muted-foreground">{service.duration_min} мин · {service.price} {service.currency}</p>
+                    <p className={cn('text-[13px] font-medium', isSelected ? 'text-ai-foreground' : 'text-foreground')}>
+                      {service.name}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {service.duration_min} мин · {service.price} {service.currency}
+                    </p>
                   </div>
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${isSelected ? 'bg-primary' : 'bg-muted'}`}>
-                    {isSelected ? <Check className="w-3.5 h-3.5 text-white" /> : <Plus className="w-3.5 h-3.5 text-muted-foreground" />}
+                  <div className={cn(
+                    'w-6 h-6 rounded-full flex items-center justify-center shrink-0',
+                    isSelected ? 'bg-ai text-white' : 'bg-surface-sunken text-muted-foreground'
+                  )}>
+                    {isSelected ? <Check className="w-3.5 h-3.5" strokeWidth={2.5} /> : <Plus className="w-3.5 h-3.5" />}
                   </div>
                 </button>
               )
@@ -136,29 +142,53 @@ export default function OnboardingStep3() {
         )}
 
         {selected.size > 0 && (
-          <div className="bg-primary/5 rounded-xl p-3 mb-6">
-            <p className="text-sm font-medium mb-2">Выбрано услуг: {selected.size}</p>
+          <div className="bg-ai-soft border border-ai-border rounded-2xl p-3.5">
+            <p className="text-[12px] font-medium text-ai-foreground mb-2">
+              Выбрано: {selected.size} {pluralize(selected.size, ['услуга', 'услуги', 'услуг'])}
+            </p>
             <div className="flex flex-wrap gap-1.5">
               {[...selected].map(name => (
                 <span
                   key={name}
-                  className="flex items-center gap-1 text-xs bg-primary/10 text-primary rounded-lg px-2 py-0.5"
+                  className="inline-flex items-center gap-1 text-[11px] bg-surface-elevated border border-ai-border text-ai-foreground rounded-full px-2 py-0.5"
                 >
                   {name}
-                  <button onClick={() => toggleService(name)}><X className="w-3 h-3" /></button>
+                  <button onClick={() => toggleService(name)} className="hover:text-foreground">
+                    <X className="w-2.5 h-2.5" />
+                  </button>
                 </span>
               ))}
             </div>
           </div>
         )}
 
-        <div className="flex justify-between pt-2">
-          <Button variant="ghost" onClick={() => router.push('/onboarding/step4')}>Пропустить</Button>
-          <Button onClick={handleNext} disabled={saving} className="px-8">
-            {saving ? 'Сохраняем...' : selected.size > 0 ? `Добавить ${selected.size} услуг →` : 'Далее →'}
-          </Button>
+        <div className="flex items-center justify-between pt-2">
+          <button
+            type="button"
+            onClick={() => router.push('/onboarding/step4')}
+            className="px-4 h-11 rounded-xl text-muted-foreground hover:bg-muted text-[13px] font-medium transition-colors"
+          >
+            Пропустить
+          </button>
+          <button
+            onClick={handleNext}
+            disabled={saving}
+            className="px-5 h-11 rounded-xl bg-foreground text-background text-[14px] font-medium hover:opacity-90 transition-opacity disabled:opacity-40 inline-flex items-center gap-2"
+          >
+            {saving ? 'Сохраняем...' : selected.size > 0 ? `Добавить ${selected.size}` : 'Далее'}
+            {!saving && <ArrowRight className="w-4 h-4" />}
+          </button>
         </div>
-      </Card>
+      </div>
     </OnboardingShell>
   )
+}
+
+function pluralize(n: number, forms: [string, string, string]): string {
+  const abs = Math.abs(n) % 100
+  const last = abs % 10
+  if (abs > 10 && abs < 20) return forms[2]
+  if (last > 1 && last < 5) return forms[1]
+  if (last === 1) return forms[0]
+  return forms[2]
 }

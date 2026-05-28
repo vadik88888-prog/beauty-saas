@@ -4,6 +4,44 @@ import type { ChatCompletionTool, ChatCompletionMessageParam } from 'openai/reso
 // Tenant configuration (loaded per-request)
 // ─────────────────────────────────────────────
 
+export type AiGoalKey = 'more_bookings' | 'less_no_show' | 'upsell' | 'returning'
+
+// Live snapshot of salon's current state (services / masters / promos)
+// Loaded once per AI request, injected into system prompt
+export interface SalonServiceLite {
+  id: string
+  name: string
+  categoryName?: string
+  durationMin: number
+  price: number | null
+  priceFrom: number | null
+  currency: string
+}
+
+export interface SalonMasterLite {
+  id: string
+  name: string
+  speciality?: string
+  serviceIds: string[]  // ids of services this master can do
+}
+
+export interface SalonPromoLite {
+  id: string
+  title: string
+  description?: string
+  discountType: 'percent' | 'fixed' | null
+  discountValue: number | null
+  startsAt: string | null  // ISO
+  endsAt: string | null    // ISO
+}
+
+export interface SalonSnapshot {
+  services: SalonServiceLite[]
+  masters: SalonMasterLite[]
+  activePromotions: SalonPromoLite[]
+  loadedAt: string  // ISO timestamp — для контекста "today" в промпте
+}
+
 export interface TenantAiConfig {
   tenantId: string
   salonName: string
@@ -15,6 +53,9 @@ export interface TenantAiConfig {
   workingHours: { open: string; close: string; days: number[] }
   cancellationPolicy: string
   customInstructions?: string
+  aiGoals?: AiGoalKey[]
+  minCancelHours: number  // настройка для self-service cancel/reschedule
+  snapshot: SalonSnapshot  // live данные салона
 }
 
 // ─────────────────────────────────────────────
@@ -143,6 +184,9 @@ export interface ConversationData {
   history: LLMMessage[]
   bookingState: BookingFlowState
   conversationState: ConversationState
+  summary?: string                  // LLM-сжатый контекст старых messages (Phase 6)
+  summaryUpToCount?: number         // сколько messages уже включено в summary
+  totalMessageCount?: number        // общее число messages в conversation
 }
 
 // ─────────────────────────────────────────────
@@ -180,10 +224,22 @@ export interface AdministratorInput {
   attachments?: AttachmentInput[]
 }
 
+export interface KnowledgeSource {
+  title: string
+  relevance_pct: number
+}
+
+export interface SuggestedAction {
+  label: string
+  message: string
+}
+
 export interface AdministratorResult {
   reply: string
   conversationId: string
   conversationState: ConversationState
   action?: 'handoff' | 'booking_created'
   actionData?: Record<string, unknown>
+  knowledgeSources?: KnowledgeSource[]
+  suggestedActions?: SuggestedAction[]
 }

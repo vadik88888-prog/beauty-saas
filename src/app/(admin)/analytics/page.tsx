@@ -1,9 +1,16 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { TrendingUp, Users, DollarSign, AlertCircle, Bot, BarChart2 } from 'lucide-react'
-import { Card } from '@/components/ui/card'
+import {
+  TrendingUp, Users, Wallet, AlertCircle, Sparkles, BarChart3,
+  Clock, MessageSquare, Target, Receipt, Tag,
+} from 'lucide-react'
 import { formatPrice } from '@/lib/utils/format'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { SectionTitle } from '@/components/shared/SectionTitle'
+import { MetricCard } from '@/components/shared/MetricCard'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { cn } from '@/lib/utils'
 
 type Summary = {
   totalRevenue: number
@@ -12,6 +19,15 @@ type Summary = {
   noShowRate: number
   aiCost: number
   aiTokens: number
+}
+
+type AiSection = {
+  bookings: number
+  revenue: number
+  conversations: number
+  messages: number
+  savedHours: number
+  conversionRate: number
 }
 
 type DailyRow = {
@@ -23,10 +39,19 @@ type DailyRow = {
 }
 
 type ServiceRow = { name: string; count: number; revenue: number }
-type MasterRow = { name: string; count: number; noShow: number }
+type MasterRow = { name: string; count: number; closed: number; noShow: number }
+
+type PromoSection = {
+  bookings: number
+  eligible: number
+  activationRate: number
+  discountTotal: number
+}
 
 type AnalyticsData = {
   summary: Summary
+  ai: AiSection
+  promo: PromoSection
   daily: DailyRow[]
   byService: ServiceRow[]
   byMaster: MasterRow[]
@@ -55,123 +80,252 @@ export default function AnalyticsPage() {
   const maxRevenue = data ? Math.max(...data.daily.map(d => d.revenue), 1) : 1
 
   return (
-    <div className="p-6 flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Аналитика</h1>
-        <div className="flex gap-1">
-          {PERIODS.map(p => (
-            <button
-              key={p.value}
-              onClick={() => setPeriod(p.value)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${period === p.value ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80'}`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-      </div>
+    <div className="p-5 md:p-8 max-w-5xl mx-auto flex flex-col gap-8">
+      <PageHeader
+        title="Аналитика"
+        description="Бизнес-показатели и эффективность AI"
+        actions={
+          <div className="flex gap-1 bg-surface-sunken rounded-xl p-1">
+            {PERIODS.map(p => (
+              <button
+                key={p.value}
+                onClick={() => setPeriod(p.value)}
+                className={cn(
+                  'px-3 h-8 rounded-lg text-[12px] font-medium transition-colors',
+                  period === p.value
+                    ? 'bg-foreground text-background'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        }
+      />
 
       {isLoading ? (
         <div className="text-muted-foreground text-sm">Загрузка...</div>
       ) : data && (
         <>
-          {/* Summary cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-            <SummaryCard icon={<DollarSign className="w-5 h-5 text-green-500" />} label="Выручка" value={formatPrice(data.summary.totalRevenue, 'BYN')} sub={`${data.summary.completedCount} завершённых`} />
-            <SummaryCard icon={<Users className="w-5 h-5 text-blue-500" />} label="Записей" value={data.summary.totalBookings} sub={`за ${data.period} дней`} />
-            <SummaryCard icon={<AlertCircle className="w-5 h-5 text-red-500" />} label="No-show" value={`${data.summary.noShowRate}%`} sub="Процент неявок" />
-            <SummaryCard icon={<TrendingUp className="w-5 h-5 text-purple-500" />} label="Конверсия" value={data.summary.totalBookings > 0 ? `${Math.round((data.summary.completedCount / data.summary.totalBookings) * 100)}%` : '0%'} sub="Завершено из всех" />
-            <SummaryCard icon={<Bot className="w-5 h-5 text-orange-500" />} label="AI расходы" value={`$${data.summary.aiCost.toFixed(3)}`} sub={`${(data.summary.aiTokens / 1000).toFixed(1)}k токенов`} />
-            <SummaryCard icon={<BarChart2 className="w-5 h-5 text-cyan-500" />} label="Средний чек" value={data.summary.completedCount > 0 ? formatPrice(data.summary.totalRevenue / data.summary.completedCount, 'BYN') : '—'} sub="За завершённую запись" />
-          </div>
+          {/* AI ROI section */}
+          <section>
+            <SectionTitle
+              title="Эффективность AI"
+              description={`За ${data.period} ${pluralize(data.period, ['день', 'дня', 'дней'])}`}
+            />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <MetricCard
+                isAi
+                label="Записей через AI"
+                value={data.ai.bookings}
+                icon={Sparkles}
+                hint={data.ai.bookings > 0 ? `${formatPrice(data.ai.revenue, 'BYN')} выручки` : 'пока 0'}
+              />
+              <MetricCard
+                isAi
+                label="Диалоги"
+                value={data.ai.conversations}
+                icon={MessageSquare}
+                hint={`${data.ai.messages} сообщений`}
+              />
+              <MetricCard
+                isAi
+                label="Сэкономлено"
+                value={data.ai.savedHours > 0 ? `~${data.ai.savedHours}ч` : '0ч'}
+                icon={Clock}
+                hint="вашего времени"
+              />
+              <MetricCard
+                isAi
+                label="Конверсия AI"
+                value={`${data.ai.conversionRate}%`}
+                icon={Target}
+                hint="диалогов → запись"
+              />
+            </div>
 
-          {/* Revenue chart (CSS bars) */}
-          <Card className="p-5">
-            <h2 className="text-sm font-semibold mb-4">Выручка по дням</h2>
-            {data.daily.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">Нет данных за период</p>
-            ) : (
-              <div className="flex items-end gap-1 h-32 overflow-x-auto pb-2">
-                {data.daily.map(day => {
-                  const height = maxRevenue > 0 ? Math.max((day.revenue / maxRevenue) * 100, day.bookings > 0 ? 4 : 0) : 0
-                  return (
-                    <div key={day.date} className="flex flex-col items-center gap-1 min-w-[24px] group relative">
-                      <div
-                        className="w-5 rounded-t-sm bg-primary/70 hover:bg-primary transition-colors cursor-default"
-                        style={{ height: `${height}%`, minHeight: day.bookings > 0 ? '4px' : '0' }}
-                      />
-                      {/* Tooltip */}
-                      <div className="absolute bottom-full mb-1 hidden group-hover:block bg-foreground text-background text-xs rounded px-2 py-1 whitespace-nowrap z-10">
-                        {new Date(day.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}<br />
-                        {formatPrice(day.revenue, 'BYN')} · {day.bookings} записей
-                      </div>
-                    </div>
-                  )
-                })}
+            {/* AI ROI summary card */}
+            {data.ai.revenue > 0 && data.summary.aiCost > 0 && (
+              <div className="mt-4 p-5 rounded-2xl border border-ai-border bg-ai-soft flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl bg-ai flex items-center justify-center shrink-0">
+                  <TrendingUp className="w-4 h-4 text-white" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-semibold text-ai-foreground">
+                    AI принесла {formatPrice(data.ai.revenue, 'BYN')} выручки и стоила ${data.summary.aiCost.toFixed(2)}
+                  </p>
+                  <p className="text-[11px] text-ai-foreground/70 mt-0.5">
+                    ROI ≈ {Math.round((data.ai.revenue / Math.max(data.summary.aiCost * 3, 0.01))).toLocaleString('ru-RU')}× · окупает себя в десятки раз
+                  </p>
+                </div>
               </div>
             )}
-          </Card>
+          </section>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* By service */}
-            <Card className="p-5">
-              <h2 className="text-sm font-semibold mb-4">Топ услуг</h2>
-              {data.byService.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Нет данных</p>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {data.byService.map(s => (
-                    <div key={s.name} className="flex items-center justify-between text-sm">
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium">{s.name}</p>
-                        <p className="text-xs text-muted-foreground">{s.count} записей</p>
-                      </div>
-                      <p className="font-semibold ml-3 shrink-0">{formatPrice(s.revenue, 'BYN')}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
+          {/* Business summary */}
+          <section>
+            <SectionTitle title="Бизнес-показатели" />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <MetricCard
+                label="Выручка"
+                value={formatPrice(data.summary.totalRevenue, 'BYN')}
+                icon={Wallet}
+                hint={`${data.summary.completedCount} завершено`}
+              />
+              <MetricCard
+                label="Всего записей"
+                value={data.summary.totalBookings}
+                icon={Users}
+              />
+              <MetricCard
+                label="No-show"
+                value={`${data.summary.noShowRate}%`}
+                icon={AlertCircle}
+                hint="процент неявок"
+              />
+              <MetricCard
+                label="Средний чек"
+                value={data.summary.completedCount > 0 ? formatPrice(data.summary.totalRevenue / data.summary.completedCount, 'BYN') : '—'}
+                icon={Receipt}
+              />
+            </div>
+          </section>
 
-            {/* By master */}
-            <Card className="p-5">
-              <h2 className="text-sm font-semibold mb-4">Мастера</h2>
-              {data.byMaster.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Нет данных</p>
+          {/* Promo activation */}
+          <section>
+            <SectionTitle
+              title="Активация акций"
+              description="Сколько записей создано с применённой скидкой"
+            />
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+              <MetricCard
+                label="Записей с акцией"
+                value={`${data.promo.activationRate}%`}
+                icon={Tag}
+                hint={data.promo.eligible > 0
+                  ? `${data.promo.bookings} из ${data.promo.eligible}`
+                  : 'нет активных записей'}
+              />
+              <MetricCard
+                label="Скидок на сумму"
+                value={data.promo.discountTotal > 0 ? formatPrice(data.promo.discountTotal, 'BYN') : '—'}
+                icon={Receipt}
+                hint="суммарно за период"
+              />
+            </div>
+          </section>
+
+          {/* Revenue chart */}
+          <section>
+            <SectionTitle title="Выручка по дням" />
+            <div className="card-elevated p-5">
+              {data.daily.length === 0 ? (
+                <EmptyState
+                  icon={BarChart3}
+                  title="Нет данных за период"
+                  description="Когда появятся завершённые записи, здесь появится график"
+                />
               ) : (
-                <div className="flex flex-col gap-2">
-                  {data.byMaster.map(m => {
-                    const rate = m.count > 0 ? Math.round((m.noShow / m.count) * 100) : 0
+                <div className="flex items-end gap-1.5 h-40 overflow-x-auto pb-2">
+                  {data.daily.map(day => {
+                    const height = maxRevenue > 0 ? Math.max((day.revenue / maxRevenue) * 100, day.bookings > 0 ? 4 : 0) : 0
+                    const hasAi = day.bookings > 0
                     return (
-                      <div key={m.name} className="flex items-center justify-between text-sm">
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate font-medium">{m.name}</p>
-                          <p className="text-xs text-muted-foreground">{m.count} записей</p>
-                        </div>
-                        <div className="text-right ml-3 shrink-0">
-                          <p className={`text-xs font-medium ${rate > 20 ? 'text-red-500' : 'text-muted-foreground'}`}>
-                            no-show: {rate}%
-                          </p>
+                      <div key={day.date} className="flex flex-col items-center gap-1 min-w-[28px] group relative">
+                        <div
+                          className={cn(
+                            'w-full rounded-t-lg transition-all',
+                            hasAi ? 'bg-ai/80 hover:bg-ai' : 'bg-muted'
+                          )}
+                          style={{ height: `${height}%`, minHeight: day.bookings > 0 ? '4px' : '2px' }}
+                        />
+                        {/* Tooltip */}
+                        <div className="absolute bottom-full mb-1 hidden group-hover:block bg-foreground text-background text-[11px] rounded-lg px-2 py-1 whitespace-nowrap z-10 shadow-md">
+                          <div className="font-semibold">{new Date(day.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}</div>
+                          <div>{formatPrice(day.revenue, 'BYN')} · {day.bookings} {pluralize(day.bookings, ['запись', 'записи', 'записей'])}</div>
                         </div>
                       </div>
                     )
                   })}
                 </div>
               )}
-            </Card>
+            </div>
+          </section>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* By service */}
+            <section>
+              <SectionTitle title="Топ услуг" />
+              <div className="card-elevated p-5">
+                {data.byService.length === 0 ? (
+                  <p className="text-[12px] text-muted-foreground text-center py-2">Нет данных</p>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {data.byService.map(s => (
+                      <div key={s.name} className="flex items-center justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[13px] font-medium text-foreground truncate">{s.name}</p>
+                          <p className="text-[11px] text-muted-foreground">{s.count} {pluralize(s.count, ['запись', 'записи', 'записей'])}</p>
+                        </div>
+                        <p className="text-[13px] font-semibold text-foreground shrink-0">{formatPrice(s.revenue, 'BYN')}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* By master */}
+            <section>
+              <SectionTitle title="Мастера" />
+              <div className="card-elevated p-5">
+                {data.byMaster.length === 0 ? (
+                  <p className="text-[12px] text-muted-foreground text-center py-2">Нет данных</p>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {data.byMaster.map(m => {
+                      // % неявок считаем только от закончившихся записей (completed+no_show),
+                      // иначе будущие confirmed разбавляют процент.
+                      const rate = m.closed > 0 ? Math.round((m.noShow / m.closed) * 100) : 0
+                      return (
+                        <div key={m.name} className="flex items-center justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[13px] font-medium text-foreground truncate">{m.name}</p>
+                            <p className="text-[11px] text-muted-foreground">{m.count} {pluralize(m.count, ['запись', 'записи', 'записей'])}</p>
+                          </div>
+                          <span className={cn(
+                            'text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0',
+                            rate > 20 ? 'bg-destructive-soft text-destructive' : 'bg-muted text-muted-foreground'
+                          )}>
+                            no-show {rate}%
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </section>
           </div>
+
+          {/* AI cost footer */}
+          {data.summary.aiCost > 0 && (
+            <p className="text-[11px] text-muted-foreground text-center">
+              Расход на AI: ${data.summary.aiCost.toFixed(3)} · {(data.summary.aiTokens / 1000).toFixed(1)}k токенов
+            </p>
+          )}
         </>
       )}
     </div>
   )
 }
 
-function SummaryCard({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: string | number; sub: string }) {
-  return (
-    <Card className="p-4">
-      <div className="flex items-center gap-2 mb-2">{icon}<span className="text-sm text-muted-foreground">{label}</span></div>
-      <p className="text-2xl font-bold">{value}</p>
-      <p className="text-xs text-muted-foreground mt-1">{sub}</p>
-    </Card>
-  )
+function pluralize(n: number, forms: [string, string, string]): string {
+  const abs = Math.abs(n) % 100
+  const last = abs % 10
+  if (abs > 10 && abs < 20) return forms[2]
+  if (last > 1 && last < 5) return forms[1]
+  if (last === 1) return forms[0]
+  return forms[2]
 }

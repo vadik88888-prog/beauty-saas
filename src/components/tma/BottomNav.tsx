@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Home, Calendar, ClipboardList, MessageCircle, User } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 const TABS = [
   { href: '/home', icon: Home, label: 'Главная' },
@@ -20,10 +21,9 @@ export function BottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 safe-bottom"
-      style={{ background: 'var(--tg-secondary-bg, #f0f0f0)', borderTop: '1px solid rgba(0,0,0,0.08)' }}
+      className="fixed bottom-0 left-0 right-0 z-50 safe-bottom border-t border-border bg-background/85 backdrop-blur-xl"
     >
-      <div className="flex items-stretch h-16">
+      <div className="flex items-stretch h-16 px-1">
         {TABS.map(tab => {
           const isActive = tab.href === '/home'
             ? (pathname === '/' || pathname === '/home')
@@ -32,11 +32,26 @@ export function BottomNav() {
             <Link
               key={tab.href}
               href={tab.href}
-              className="flex-1 flex flex-col items-center justify-center gap-0.5 transition-opacity"
-              style={{ color: isActive ? 'var(--tg-button, #3b82f6)' : 'var(--tg-hint, #9ca3af)' }}
+              className="flex-1 relative flex flex-col items-center justify-center gap-0.5 transition-colors"
             >
-              <tab.icon className="w-5 h-5" strokeWidth={isActive ? 2.5 : 1.75} />
-              <span className="text-[10px] font-medium">{tab.label}</span>
+              <tab.icon
+                className={cn(
+                  'w-5 h-5 transition-colors',
+                  isActive ? 'text-ai-foreground' : 'text-muted-foreground'
+                )}
+                strokeWidth={isActive ? 2.2 : 1.7}
+              />
+              <span
+                className={cn(
+                  'text-[10px] font-medium transition-colors',
+                  isActive ? 'text-foreground' : 'text-muted-foreground'
+                )}
+              >
+                {tab.label}
+              </span>
+              {isActive && (
+                <span className="absolute bottom-1 w-1 h-1 rounded-full bg-ai" />
+              )}
             </Link>
           )
         })}

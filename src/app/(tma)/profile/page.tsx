@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { MessageCircle, ClipboardList, Star, ChevronRight } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
+import { waitForTmaToken, getTenantSlug } from '@/lib/tma-token'
 
 type Client = {
   id: string
@@ -29,23 +30,30 @@ export default function ProfilePage() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    const token = sessionStorage.getItem('tma_token')
-    const slug = sessionStorage.getItem('tenant_slug') ?? ''
+    let cancelled = false
+    waitForTmaToken().then(token => {
+      if (cancelled) return
+      const slug = getTenantSlug()
 
-    const clientFetch = fetch('/api/auth/me', {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }).then(r => r.json())
+      const clientFetch = fetch('/api/auth/me', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      }).then(r => r.json())
 
-    const tenantUrl = token ? '/api/tenant' : `/api/tenant?slug=${encodeURIComponent(slug)}`
-    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
-    const tenantFetch = fetch(tenantUrl, { headers }).then(r => r.json())
+      const tenantUrl = token ? '/api/tenant' : `/api/tenant?slug=${encodeURIComponent(slug)}`
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
+      const tenantFetch = fetch(tenantUrl, { headers }).then(r => r.json())
 
-    Promise.all([clientFetch, tenantFetch])
-      .then(([clientData, tenantData]) => {
-        if (clientData.client) setClient(clientData.client)
-        if (tenantData.data) setTenant(tenantData.data)
-      })
-      .finally(() => setIsLoading(false))
+      Promise.all([clientFetch, tenantFetch])
+        .then(([clientData, tenantData]) => {
+          if (cancelled) return
+          if (clientData.client) setClient(clientData.client)
+          if (tenantData.data) setTenant(tenantData.data)
+        })
+        .finally(() => {
+          if (!cancelled) setIsLoading(false)
+        })
+    })
+    return () => { cancelled = true }
   }, [])
 
   const fullName = client

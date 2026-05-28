@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { jwtVerify } from 'jose'
-import { createAdminClient } from '@/lib/supabase/admin'
+import { cancelAppointment, rescheduleAppointment } from '@/lib/booking/manage-appointment'
 
 const PatchSchema = z.object({
-  status: z.enum(['cancelled']).optional(),
+  action: z.enum(['cancel', 'reschedule']),
   reason: z.string().max(500).optional(),
   newStartsAt: z.string().datetime().optional(),
 })
@@ -39,92 +39,53 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   }
 
-  const supabase = createAdminClient()
+  const { action, reason, newStartsAt } = parsed.data
+  // Clients can only manage own appointments; admin/staff role bypasses time check
+  const isClient = role === 'client'
+  const clientIdScope = isClient ? clientId : undefined
 
-  // Verify appointment belongs to this client/tenant
-  const { data: appt } = await supabase
-    .from('appointments')
-    .select('id, status, starts_at, service_id, master_id, services(duration_min)')
-    .eq('id', id)
-    .eq('tenant_id', tenantId)
-    .single()
-
-  if (!appt) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-
-  const apptData = appt as unknown as {
-    id: string; status: string; starts_at: string
-    service_id: string; master_id: string
-    services: { duration_min: number } | { duration_min: number }[] | null
-  }
-  const serviceData = Array.isArray(apptData.services) ? apptData.services[0] : apptData.services
-
-  // Clients can only cancel their own appointments
-  if (role === 'client') {
-    const { data: clientAppt } = await supabase
-      .from('appointments')
-      .select('id')
-      .eq('id', id)
-      .eq('client_id', clientId)
-      .single()
-    if (!clientAppt) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
-
-  if (!['pending', 'confirmed'].includes(apptData.status)) {
-    return NextResponse.json({ error: 'Cannot modify this appointment' }, { status: 400 })
-  }
-
-  const { status, reason, newStartsAt } = parsed.data
-
-  if (status === 'cancelled') {
-    const { error } = await supabase
-      .from('appointments')
-      .update({
-        status: 'cancelled',
-        cancelled_at: new Date().toISOString(),
-        cancel_reason: reason ?? 'Отменено',
-      })
-      .eq('id', id)
-
-    if (error) return NextResponse.json({ error: 'Update failed' }, { status: 500 })
-    return NextResponse.json({ data: { success: true } })
-  }
-
-  if (newStartsAt) {
-    const durationMin = serviceData?.duration_min ?? 60
-    const newStart = new Date(newStartsAt)
-    const newEnd = new Date(newStart.getTime() + durationMin * 60_000)
-
-    // Check for overlap with other appointments of the same master
-    const { data: overlapping } = await supabase
-      .from('appointments')
-      .select('id')
-      .eq('master_id', apptData.master_id)
-      .eq('tenant_id', tenantId)
-      .neq('id', id)
-      .in('status', ['pending', 'confirmed'])
-      .lt('starts_at', newEnd.toISOString())
-      .gt('ends_at', newStart.toISOString())
-      .limit(1)
-
-    if (overlapping && overlapping.length > 0) {
-      return NextResponse.json({ error: 'Time slot is already taken' }, { status: 409 })
+  if (action === 'cancel') {
+    const result = await cancelAppointment({
+      appointmentId: id,
+      tenantId,
+      clientId: clientIdScope,
+      reason,
+      bypassTimeCheck: !isClient,
+    })
+    if (!result.success) {
+      return NextResponse.json({ error: result.error, code: result.code, hint: result.hint }, { status: errorStatus(result.code) })
     }
-
-    const { data: updated, error } = await supabase
-      .from('appointments')
-      .update({
-        starts_at: newStart.toISOString(),
-        ends_at: newEnd.toISOString(),
-        status: 'confirmed',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .select('id, starts_at, ends_at, status')
-      .single()
-
-    if (error) return NextResponse.json({ error: 'Update failed' }, { status: 500 })
-    return NextResponse.json({ data: updated })
+    return NextResponse.json({ data: result.data })
   }
 
-  return NextResponse.json({ error: 'No action specified' }, { status: 400 })
+  if (action === 'reschedule') {
+    if (!newStartsAt) {
+      return NextResponse.json({ error: 'newStartsAt required for reschedule' }, { status: 400 })
+    }
+    const result = await rescheduleAppointment({
+      appointmentId: id,
+      tenantId,
+      clientId: clientIdScope,
+      newStartsAt,
+      bypassTimeCheck: !isClient,
+    })
+    if (!result.success) {
+      return NextResponse.json({ error: result.error, code: result.code, hint: result.hint }, { status: errorStatus(result.code) })
+    }
+    return NextResponse.json({ data: result.data })
+  }
+
+  return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
+}
+
+function errorStatus(code: string): number {
+  switch (code) {
+    case 'not_found': return 404
+    case 'forbidden': return 403
+    case 'slot_taken': return 409
+    case 'too_late':
+    case 'wrong_status':
+    case 'invalid_date': return 400
+    default: return 500
+  }
 }

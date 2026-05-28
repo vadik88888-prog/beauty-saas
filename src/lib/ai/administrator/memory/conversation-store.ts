@@ -10,6 +10,11 @@ import { DEFAULT_BOOKING_STATE } from '@/lib/ai/administrator/types'
 // Max messages kept in context window per conversation
 const MAX_HISTORY_MESSAGES = 20
 
+// Порог, после которого начинаем держать summary старых сообщений вместо обрезания
+export const SUMMARY_THRESHOLD = 20
+// Сколько последних сообщений всегда оставляем "as is" в истории (остальные → в summary)
+export const KEEP_RECENT_MESSAGES = 15
+
 export class ConversationStore {
   private supabase = createAdminClient()
 
@@ -26,7 +31,7 @@ export class ConversationStore {
       // Try to find an active conversation for this client
       const { data: existing } = await this.supabase
         .from('conversations')
-        .select('id, booking_flow_state, conversation_state')
+        .select('id, booking_flow_state, conversation_state, summary, summary_up_to_count')
         .eq('tenant_id', tenantId)
         .eq('client_id', clientId)
         .eq('status', 'active')
@@ -35,16 +40,23 @@ export class ConversationStore {
         .single()
 
       if (existing) {
-        convId = (existing as { id: string }).id
-        const bfs = (existing as { booking_flow_state: BookingFlowState | null }).booking_flow_state
-        const cs = (existing as { conversation_state: string }).conversation_state as ConversationState
-
-        const history = await this.loadHistory(convId)
+        const row = existing as {
+          id: string
+          booking_flow_state: BookingFlowState | null
+          conversation_state: string
+          summary: string | null
+          summary_up_to_count: number | null
+        }
+        convId = row.id
+        const { history, totalCount } = await this.loadHistoryWithCount(convId)
         return {
           conversationId: convId,
           history,
-          bookingState: { ...DEFAULT_BOOKING_STATE, ...(bfs ?? {}) },
-          conversationState: cs ?? 'IDLE',
+          bookingState: { ...DEFAULT_BOOKING_STATE, ...(row.booking_flow_state ?? {}) },
+          conversationState: (row.conversation_state ?? 'IDLE') as ConversationState,
+          summary: row.summary ?? undefined,
+          summaryUpToCount: row.summary_up_to_count ?? 0,
+          totalMessageCount: totalCount,
         }
       }
 
@@ -69,41 +81,60 @@ export class ConversationStore {
         history: [],
         bookingState: DEFAULT_BOOKING_STATE,
         conversationState: 'IDLE',
+        totalMessageCount: 0,
       }
     }
 
     // Load existing conversation by ID
     const { data: conv } = await this.supabase
       .from('conversations')
-      .select('booking_flow_state, conversation_state')
+      .select('booking_flow_state, conversation_state, summary, summary_up_to_count')
       .eq('id', convId)
       .single()
 
-    const bfs = (conv as { booking_flow_state: BookingFlowState | null } | null)?.booking_flow_state
-    const cs = (conv as { conversation_state: string } | null)?.conversation_state as ConversationState
+    const row = conv as {
+      booking_flow_state: BookingFlowState | null
+      conversation_state: string
+      summary: string | null
+      summary_up_to_count: number | null
+    } | null
 
-    const history = await this.loadHistory(convId)
+    const { history, totalCount } = await this.loadHistoryWithCount(convId)
     return {
       conversationId: convId,
       history,
-      bookingState: { ...DEFAULT_BOOKING_STATE, ...(bfs ?? {}) },
-      conversationState: cs ?? 'IDLE',
+      bookingState: { ...DEFAULT_BOOKING_STATE, ...(row?.booking_flow_state ?? {}) },
+      conversationState: (row?.conversation_state ?? 'IDLE') as ConversationState,
+      summary: row?.summary ?? undefined,
+      summaryUpToCount: row?.summary_up_to_count ?? 0,
+      totalMessageCount: totalCount,
     }
   }
 
-  private async loadHistory(conversationId: string): Promise<LLMMessage[]> {
+  // Берёт **последние** N сообщений (desc by created_at, потом reverse). Также возвращает
+  // total count чтобы знать когда пересжимать summary. Раньше .limit без desc брал первые N
+  // и AI терял свежий контекст — баг исправлен.
+  private async loadHistoryWithCount(conversationId: string): Promise<{ history: LLMMessage[]; totalCount: number }> {
     type MsgRow = { role: string; content: string }
-    const { data } = await this.supabase
-      .from('messages')
-      .select('role, content')
-      .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true })
-      .limit(MAX_HISTORY_MESSAGES)
+    const [recentRes, countRes] = await Promise.all([
+      this.supabase
+        .from('messages')
+        .select('role, content')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: false })
+        .limit(MAX_HISTORY_MESSAGES),
+      this.supabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('conversation_id', conversationId),
+    ])
 
-    return ((data ?? []) as MsgRow[]).map(m => ({
+    const desc = ((recentRes.data ?? []) as MsgRow[]).map(m => ({
       role: m.role as 'user' | 'assistant',
       content: m.content,
     }))
+    // Reverse to chronological order
+    return { history: desc.reverse(), totalCount: countRes.count ?? desc.length }
   }
 
   async save(
@@ -113,10 +144,14 @@ export class ConversationStore {
     bookingState: BookingFlowState,
     conversationState: ConversationState,
     totalTokens: number,
-    status?: 'active' | 'resolved' | 'handed_off'
+    status?: 'active' | 'resolved' | 'handed_off',
+    metadata?: {
+      knowledgeSources?: { title: string; relevance_pct: number }[]
+      suggestedActions?: { label: string; message: string }[]
+    }
   ): Promise<void> {
-    await Promise.all([
-      // Save both messages
+    const [, convUpdate] = await Promise.all([
+      // Save both messages (no metadata dependency — always works)
       this.supabase.from('messages').insert([
         { conversation_id: conversationId, role: 'user', content: userMessage },
         {
@@ -137,12 +172,58 @@ export class ConversationStore {
         })
         .eq('id', conversationId),
     ])
+
+    // Best-effort: save metadata on assistant message (requires migration 010)
+    if (metadata) {
+      try {
+        const { data: lastMsg } = await this.supabase
+          .from('messages')
+          .select('id')
+          .eq('conversation_id', conversationId)
+          .eq('role', 'assistant')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single()
+        if (lastMsg) {
+          await this.supabase
+            .from('messages')
+            .update({ metadata })
+            .eq('id', (lastMsg as { id: string }).id)
+        }
+      } catch {
+        // Column doesn't exist yet — safe to ignore until migration 010 is applied
+      }
+    }
+
+    void convUpdate
   }
 
   async markHandedOff(conversationId: string): Promise<void> {
     await this.supabase
       .from('conversations')
       .update({ status: 'handed_off', conversation_state: 'HUMAN_HANDOFF' })
+      .eq('id', conversationId)
+  }
+
+  // Загрузить все messages начиная с offset (для пересчёта summary)
+  async loadOldMessages(conversationId: string, limit: number): Promise<Array<{ role: string; content: string }>> {
+    const { data } = await this.supabase
+      .from('messages')
+      .select('role, content')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true })
+      .limit(limit)
+    return (data ?? []) as Array<{ role: string; content: string }>
+  }
+
+  async updateSummary(conversationId: string, summary: string, upToCount: number): Promise<void> {
+    await this.supabase
+      .from('conversations')
+      .update({
+        summary,
+        summary_up_to_count: upToCount,
+        summary_updated_at: new Date().toISOString(),
+      })
       .eq('id', conversationId)
   }
 }
