@@ -39,6 +39,7 @@ export function TmaHomePage() {
   const [recommendation, setRecommendation] = useState<Service | null>(null)
   const [topPromo, setTopPromo] = useState<Promotion | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isPrivateLoading, setIsPrivateLoading] = useState(true)
 
   useEffect(() => {
     let cancelled = false
@@ -103,7 +104,14 @@ export function TmaHomePage() {
       if (name && name !== 'Администратор') setAiName(name)
       if (json?.client) setClient(json.client as ClientInfo)
       if (json?.usual) setUsual(json.usual as UsualBooking)
+      if (!cancelled) setIsPrivateLoading(false)
     }
+
+    // Safety timeout — give up showing the auth skeleton after 10s if useTmaAuth
+    // never produces a token (e.g. opened in a browser without bot context).
+    const privateGiveup = window.setTimeout(() => {
+      if (!cancelled) setIsPrivateLoading(false)
+    }, 10000)
 
     loadPublic()
 
@@ -121,6 +129,7 @@ export function TmaHomePage() {
     return () => {
       cancelled = true
       window.removeEventListener('tma:auth-ready', onAuthReady)
+      window.clearTimeout(privateGiveup)
     }
   }, [])
 
@@ -152,19 +161,19 @@ export function TmaHomePage() {
       </header>
 
       <Stagger className="flex flex-col gap-5 px-5" staggerChildren={0.08}>
-        {/* Greeting */}
+        {/* Greeting — keep skeleton while waiting for client info to avoid flicker */}
         <StaggerItem>
           <p className="text-[13px] text-muted-foreground">{greeting}</p>
-          <h1 className="text-serif-h1 text-ink mt-0.5">
-            {clientName ? (
-              <>
-                <span style={{ color: 'var(--gold)' }}>{clientName}</span>
-                <span className="ml-2">✨</span>
-              </>
-            ) : (
-              'Добро пожаловать ✨'
-            )}
-          </h1>
+          {clientName ? (
+            <h1 className="text-serif-h1 text-ink mt-0.5">
+              <span style={{ color: 'var(--gold)' }}>{clientName}</span>
+              <span className="ml-2">✨</span>
+            </h1>
+          ) : isPrivateLoading ? (
+            <Skeleton tone="cream" className="h-9 w-44 mt-1" />
+          ) : (
+            <h1 className="text-serif-h1 text-ink mt-0.5">Добро пожаловать ✨</h1>
+          )}
         </StaggerItem>
 
         {/* AI Hero Card — whole card clickable → /chat */}
@@ -178,6 +187,13 @@ export function TmaHomePage() {
             onClick={() => router.push('/chat')}
           />
         </StaggerItem>
+
+        {/* Next appointment — skeleton while auth resolves to keep layout stable */}
+        {!nextAppointment && isPrivateLoading && (
+          <StaggerItem>
+            <Skeleton tone="cream" className="h-32 w-full rounded-2xl" />
+          </StaggerItem>
+        )}
 
         {/* Next appointment (if exists) */}
         {nextAppointment && (

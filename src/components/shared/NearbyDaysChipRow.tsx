@@ -57,46 +57,37 @@ export function NearbyDaysChipRow({
   const reduce = useReducedMotion()
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const hasOverflow = days.length > 2
-  const [hintVisible, setHintVisible] = useState<boolean>(hasOverflow)
 
-  // Native scroll-affordance: nudge the chip row slightly so users see it scrolls.
+  // Native scroll-affordance — nudge the row twice so the user clearly sees
+  // it scrolls horizontally. Skips if the user already touched it.
   useEffect(() => {
     if (!hasOverflow || reduce) return
     const node = scrollRef.current
     if (!node) return
-    let cancelled = false
-    const t1 = window.setTimeout(() => {
-      if (cancelled) return
-      node.scrollTo({ left: 28, behavior: 'smooth' })
-    }, 700)
-    const t2 = window.setTimeout(() => {
-      if (cancelled) return
-      node.scrollTo({ left: 0, behavior: 'smooth' })
-    }, 1400)
+    let userTouched = false
+    const markTouched = () => {
+      if ((node.scrollLeft ?? 0) > 60) userTouched = true
+    }
+    node.addEventListener('scroll', markTouched, { passive: true })
+
+    const seq: Array<[number, number]> = [
+      [600, 36],
+      [1200, 0],
+      [1900, 36],
+      [2500, 0],
+    ]
+    const timers = seq.map(([ms, target]) =>
+      window.setTimeout(() => {
+        if (userTouched) return
+        node.scrollTo({ left: target, behavior: 'smooth' })
+      }, ms)
+    )
+
     return () => {
-      cancelled = true
-      window.clearTimeout(t1)
-      window.clearTimeout(t2)
+      node.removeEventListener('scroll', markTouched)
+      timers.forEach(t => window.clearTimeout(t))
     }
   }, [hasOverflow, reduce])
-
-  // Hide caption when user actually scrolls or after 7s
-  useEffect(() => {
-    if (!hintVisible) return
-    const node = scrollRef.current
-    const hide = () => setHintVisible(false)
-    const onScroll = () => {
-      // Ignore the auto-nudge scroll: it returns to 0; we only hide on
-      // user-initiated scroll past the nudge offset.
-      if ((node?.scrollLeft ?? 0) > 40) hide()
-    }
-    node?.addEventListener('scroll', onScroll, { passive: true })
-    const timer = window.setTimeout(hide, 7000)
-    return () => {
-      node?.removeEventListener('scroll', onScroll)
-      window.clearTimeout(timer)
-    }
-  }, [hintVisible])
 
   return (
     <div className={`relative ${className}`}>
@@ -170,18 +161,6 @@ export function NearbyDaysChipRow({
         )}
       </div>
 
-      {/* Caption hint — small, muted, disappears after first real scroll */}
-      {hintVisible && (
-        <motion.p
-          className="text-[10px] text-muted-2 text-center mt-1.5"
-          initial={reduce ? false : { opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.3, delay: 0.2 }}
-        >
-          ← Листайте, чтобы выбрать другой день →
-        </motion.p>
-      )}
     </div>
   )
 }
