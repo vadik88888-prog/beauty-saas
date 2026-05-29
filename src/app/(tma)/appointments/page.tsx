@@ -7,6 +7,7 @@ import {
   Bell,
   Calendar,
   CalendarDays,
+  ChevronDown,
   Clock,
   MessageCircle,
   RefreshCcw,
@@ -431,6 +432,7 @@ export default function AppointmentsPage() {
 const RU_DAYS = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
 const RU_MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря']
 const DAYS_AHEAD = 14
+const VISIBLE_DAYS = 2 // inline day groups before «Показать ещё дни»
 
 function slotTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
@@ -467,6 +469,7 @@ function RescheduleSheet({
   const [submitting, setSubmitting] = useState(false)
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [loadingFar, setLoadingFar] = useState(false)
+  const [showAllDays, setShowAllDays] = useState(false)
 
   const targetId = target?.id ?? null
   const serviceId = target?.service_id ?? null
@@ -480,6 +483,7 @@ function RescheduleSheet({
     setSelected(null)
     setMessage('')
     setCalendarOpen(false)
+    setShowAllDays(false)
 
     async function load() {
       try {
@@ -530,6 +534,7 @@ function RescheduleSheet({
   }, [slots])
 
   const days = useMemo(() => Object.keys(slotsByDate).sort(), [slotsByDate])
+  const shownDays = showAllDays ? days : days.slice(0, VISIBLE_DAYS)
   const recommended = slots[0] ?? null
 
   function isSel(s: TimeSlot): boolean {
@@ -685,7 +690,7 @@ function RescheduleSheet({
                     </div>
 
                     <div className="flex flex-col gap-4">
-                      {days.map(date => (
+                      {shownDays.map(date => (
                         <div key={date}>
                           <p className="text-[12px] text-muted-foreground mb-2">{longDate(date)}</p>
                           <div className="flex flex-wrap gap-2">
@@ -709,6 +714,21 @@ function RescheduleSheet({
                       ))}
                       {loadingFar && (
                         <p className="text-center text-[12px] text-muted-foreground">Загружаем окна…</p>
+                      )}
+
+                      {/* Show-more affordance with a bouncing down arrow */}
+                      {!showAllDays && days.length > VISIBLE_DAYS && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            window.Telegram?.WebApp.HapticFeedback?.selectionChanged()
+                            setShowAllDays(true)
+                          }}
+                          className="inline-flex flex-col items-center gap-0.5 self-center text-[12px] text-sage font-medium hover:text-sage-2 transition-colors pt-1"
+                        >
+                          Показать ещё дни
+                          <ChevronDown className="w-4 h-4 animate-bounce" strokeWidth={2} />
+                        </button>
                       )}
                     </div>
                   </div>

@@ -13,6 +13,8 @@ type QuickAction = {
 type AlinaHeroCardProps = {
   variant?: 'full' | 'mini'
   name?: string
+  /** AI manager photo (admin-uploaded). Falls back to the name initial. */
+  avatarSrc?: string | null
   status?: string
   welcome?: ReactNode
   /** For variant=full: 3 mini-CTAs in a row (optional — if absent, card is clickable as a whole) */
@@ -37,6 +39,7 @@ type AlinaHeroCardProps = {
 export function AlinaHeroCard({
   variant = 'full',
   name = 'Алина',
+  avatarSrc,
   status = 'AI-администратор · online',
   welcome,
   actions = [],
@@ -57,7 +60,7 @@ export function AlinaHeroCard({
         }}
       >
         <div className="flex items-start gap-3">
-          <PortraitAvatar name={name} size="sm" />
+          <PortraitAvatar name={name} src={avatarSrc} size="sm" />
           <div className="flex-1 min-w-0">
             <div className="font-serif text-base text-ink leading-tight">
               {name}
@@ -111,7 +114,7 @@ export function AlinaHeroCard({
       />
 
       <div className="relative flex items-start gap-4">
-        <PortraitAvatar name={name} size="lg" breathing />
+        <PortraitAvatar name={name} src={avatarSrc} size="lg" breathing />
         <div className="flex-1 min-w-0 pt-1">
           <div className="font-serif text-xl text-ink leading-tight">{name}</div>
           <div className="text-sm text-ink-2 flex items-center gap-1.5 mt-1">
