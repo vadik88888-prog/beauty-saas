@@ -77,18 +77,18 @@ export default function ChatPage() {
   const [welcomeText, setWelcomeText] = useState(DEFAULT_WELCOME)
   const [messages, setMessages] = useState<Message[]>([])
 
-  // iOS keyboard fix — bind the chat height to window.visualViewport, which DOES
-  // shrink when the on-screen keyboard opens (Telegram's viewportHeight does not,
-  // because the OS keyboard just overlays the webview). Fallback to Telegram's
-  // viewport, then 100dvh.
-  const [viewportH, setViewportH] = useState<number | null>(null)
+  // iOS keyboard fix — pin the chat to window.visualViewport. On iOS the keyboard
+  // both shrinks the visual viewport (height) AND scrolls the layout up (offsetTop);
+  // we render the chat as a fixed panel sized to `height` and shifted by `offsetTop`,
+  // so the input always sits right above the keyboard. Fallback to Telegram viewport / 100dvh.
+  const [vp, setVp] = useState<{ height: number; offsetTop: number } | null>(null)
   useEffect(() => {
     const tg = (window.Telegram?.WebApp ?? null) as unknown as TgViewport | null
     tg?.expand?.()
 
     const vv = window.visualViewport
     if (vv) {
-      const update = () => setViewportH(vv.height)
+      const update = () => setVp({ height: vv.height, offsetTop: vv.offsetTop })
       update()
       vv.addEventListener('resize', update)
       vv.addEventListener('scroll', update)
@@ -98,7 +98,7 @@ export default function ChatPage() {
       }
     }
     if (tg) {
-      const update = () => setViewportH(tg.viewportHeight ?? null)
+      const update = () => setVp(tg.viewportHeight ? { height: tg.viewportHeight, offsetTop: 0 } : null)
       update()
       tg.onEvent?.('viewportChanged', update)
       return () => tg.offEvent?.('viewportChanged', update)
@@ -518,8 +518,12 @@ export default function ChatPage() {
 
   return (
     <div
-      className="flex flex-col bg-background overflow-hidden"
-      style={{ height: viewportH ? `${viewportH}px` : '100dvh' }}
+      className="fixed inset-x-0 top-0 z-40 flex flex-col bg-background overflow-hidden"
+      style={
+        vp
+          ? { height: `${vp.height}px`, transform: `translateY(${vp.offsetTop}px)` }
+          : { height: '100dvh' }
+      }
     >
       {/* Header */}
       <header className="flex items-center gap-3 px-5 py-3 border-b border-line bg-background/95 backdrop-blur-md safe-top shrink-0">
