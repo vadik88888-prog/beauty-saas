@@ -5,10 +5,11 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import {
   LayoutGrid, Calendar, Users, Scissors, UserCheck, Megaphone,
-  Bot, BarChart2, Settings, LogOut, Menu, X, MessageSquare, Sparkles, ChevronRight,
+  Bot, BarChart2, Settings, LogOut, Menu, X, MessageSquare, Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
+import { AlinaSymbol } from '@/components/admin/AlinaSymbol'
 
 type NavItem = { href: string; icon: typeof LayoutGrid; label: string }
 
@@ -20,7 +21,7 @@ const NAV: NavItem[] = [
   { href: '/services', icon: Scissors, label: 'Услуги' },
   { href: '/masters', icon: UserCheck, label: 'Мастера' },
   { href: '/promo', icon: Megaphone, label: 'Маркетинг' },
-  { href: '/ai-settings', icon: Bot, label: 'Настройки AI' },
+  { href: '/ai-settings', icon: Bot, label: 'Настройки Алины' },
   { href: '/analytics', icon: BarChart2, label: 'Аналитика' },
   { href: '/settings', icon: Settings, label: 'Настройки' },
 ]
@@ -133,19 +134,21 @@ export function AdminSidebar({ role }: { role: string }) {
         })}
       </nav>
 
-      {/* AI tip → settings */}
+      {/* Alina identity card */}
       <div className="px-3 pb-2">
         <Link
           href="/ai-settings"
-          className="block rounded-2xl border border-sage-soft bg-sage-tint p-3 hover:bg-sage-soft transition-colors group"
+          className="flex items-center gap-3 rounded-2xl border border-sage-soft bg-sage-tint p-3 hover:bg-[#dce8d8] transition-colors"
         >
-          <p className="text-[12px] text-ink-2 leading-snug mb-2">
-            Настройте Алину — тон общения, цели и что она умеет.
-          </p>
-          <span className="inline-flex items-center gap-1 text-[12px] font-medium text-sage">
-            Настроить Алину
-            <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-          </span>
+          <div className="relative shrink-0">
+            <AlinaSymbol size={42} />
+            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-[#4ade80] border-[1.5px] border-cream animate-online-pulse" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-ink leading-tight">Алина</p>
+            <p className="text-[11px] text-ink-2 leading-tight mt-0.5">AI-администратор салона</p>
+            <p className="text-[11px] text-sage mt-0.5 font-medium">Онлайн 24/7</p>
+          </div>
         </Link>
       </div>
 

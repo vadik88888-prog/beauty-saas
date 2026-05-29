@@ -26,7 +26,7 @@ export interface AiStats {
     tomorrow_appts: number
   }
   handed_off_count: number
-  recent_activity: Array<{ time: string; type: 'booking' | 'message' | 'handoff'; text: string }>
+  recent_activity: Array<{ time: string; type: 'booking' | 'message' | 'handoff'; text: string; subtitle?: string }>
   smart_tip: SmartTip | null
 }
 
@@ -146,22 +146,39 @@ export async function getAiStats(tenantId: string): Promise<AiStats> {
   const conversionToday         = conversations_today > 0 ? Math.round((bookings_today / conversations_today) * 100) : 0
 
   // Recent activity
-  type ActivityItem = { time: string; type: 'booking' | 'message' | 'handoff'; text: string; ts: number }
+  type ActivityItem = { time: string; type: 'booking' | 'message' | 'handoff'; text: string; subtitle?: string; ts: number }
   const activities: ActivityItem[] = []
 
-  type AiBkRow = { id: string; starts_at: string; service: { name: string } | null; client: { first_name: string | null; last_name: string | null } | null; master: { name: string } | null }
+  type AiBkRow = { id: string; starts_at: string; created_at?: string; service: { name: string } | null; client: { first_name: string | null; last_name: string | null } | null; master: { name: string } | null }
   for (const b of ((aiBookings ?? []) as unknown as AiBkRow[])) {
-    const clientName = [b.client?.first_name, b.client?.last_name].filter(Boolean).join(' ') || 'клиента'
-    activities.push({ time: b.starts_at, type: 'booking', text: `Записала ${clientName} на «${b.service?.name ?? 'услугу'}» к ${b.master?.name ?? '—'}`, ts: new Date(b.starts_at).getTime() })
+    const clientName = [b.client?.first_name, b.client?.last_name].filter(Boolean).join(' ') || 'Клиент'
+    const apptDate = fmtActivityDate(b.starts_at)
+    activities.push({
+      time: b.created_at ?? b.starts_at,
+      type: 'booking',
+      text: `Записала на «${b.service?.name ?? 'услугу'}»`,
+      subtitle: [clientName, apptDate, b.master?.name].filter(Boolean).join(' • '),
+      ts: new Date(b.created_at ?? b.starts_at).getTime(),
+    })
   }
   type HoRow = { id: string; updated_at: string; client: { first_name: string | null; telegram_username: string | null } | null }
   for (const h of ((handoffs ?? []) as unknown as HoRow[])) {
-    const who = h.client?.first_name ?? (h.client?.telegram_username ? `@${h.client.telegram_username}` : 'клиента')
-    activities.push({ time: h.updated_at, type: 'handoff', text: `Передала диалог с ${who} администратору`, ts: new Date(h.updated_at).getTime() })
+    const who = h.client?.first_name ?? (h.client?.telegram_username ? `@${h.client.telegram_username}` : 'Клиент')
+    activities.push({
+      time: h.updated_at, type: 'handoff',
+      text: `Передала диалог администратору`,
+      subtitle: who,
+      ts: new Date(h.updated_at).getTime(),
+    })
   }
   for (const m of msgs.filter(m => (m.metadata?.knowledgeSources?.length ?? 0) > 0).slice(0, 3)) {
     const src = m.metadata?.knowledgeSources?.[0]?.title ?? '—'
-    activities.push({ time: m.created_at, type: 'message', text: `Ответила, используя «${src}»`, ts: new Date(m.created_at).getTime() })
+    activities.push({
+      time: m.created_at, type: 'message',
+      text: `Ответила на вопрос`,
+      subtitle: `Используя «${src}»`,
+      ts: new Date(m.created_at).getTime(),
+    })
   }
   activities.sort((a, b) => b.ts - a.ts)
   const recent_activity = activities.slice(0, 8).map(({ ts: _ts, ...rest }) => rest)
@@ -210,7 +227,16 @@ function buildSmartTip(p: { tomorrow_appts: number; no_shows_today: number; retu
       action: 'Создать акцию', href: '/promo',
     }
   }
-  return null
+  return {
+    text: 'Поделитесь ботом с клиентами — Алина начнёт записывать автоматически и сэкономит вам часы работы.',
+    action: 'Настроить', href: '/ai-settings',
+  }
+}
+
+function fmtActivityDate(iso: string): string {
+  const d = new Date(iso)
+  const months = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек']
+  return `${d.getDate()} ${months[d.getMonth()]}, ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`
 }
 
 function pl(n: number, f: [string, string, string]): string {
