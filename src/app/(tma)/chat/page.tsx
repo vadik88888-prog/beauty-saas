@@ -2,11 +2,29 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Send, Loader2, Paperclip, X, Sparkles, BookOpen, Mic, Square } from 'lucide-react'
+import {
+  ArrowLeft,
+  BookOpen,
+  CheckCheck,
+  Loader2,
+  Lock,
+  Mic,
+  Paperclip,
+  Percent,
+  RefreshCcw,
+  Search,
+  Send,
+  Sparkles,
+  Square,
+  Tag,
+  UserRound,
+  X,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { formatTime } from '@/lib/utils/date'
+import { formatTime, formatDate } from '@/lib/utils/date'
 import { toast } from 'sonner'
-import { AiActivityDot } from '@/components/shared/AiActivityDot'
+import { PortraitAvatar } from '@/components/shared/PortraitAvatar'
+import { OnlineDot } from '@/components/motion/OnlineDot'
 import type { AttachmentInput } from '@/lib/ai/administrator/types'
 import { waitForTmaToken } from '@/lib/tma-token'
 
@@ -31,22 +49,42 @@ interface Message {
   suggestedActions?: SuggestedAction[]
 }
 
+const QUICK_CHIPS: { label: string; icon: typeof Tag; message: string }[] = [
+  { label: 'Узнать цены', icon: Tag, message: 'Расскажи про цены и услуги' },
+  { label: 'Найти запись', icon: Search, message: 'Покажи мои записи' },
+  { label: 'Подобрать мастера', icon: UserRound, message: 'Помоги подобрать мастера' },
+  { label: 'Перенести запись', icon: RefreshCcw, message: 'Хочу перенести запись' },
+  { label: 'Акции и скидки', icon: Percent, message: 'Какие сейчас есть акции?' },
+]
+
+const DEFAULT_WELCOME = 'Я проконсультирую по всем вашим вопросам.'
+
+// Minimal view of the Telegram WebApp viewport API (keeps us off the global type).
+type TgViewport = {
+  viewportHeight?: number
+  expand?: () => void
+  onEvent?: (event: string, cb: () => void) => void
+  offEvent?: (event: string, cb: () => void) => void
+}
+
 export default function ChatPage() {
   const router = useRouter()
   const [aiName, setAiName] = useState('Алина')
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content: 'Привет! Помогу выбрать услугу, подобрать мастера и записать на удобное время. С чего начнём?',
-      timestamp: new Date(),
-      suggestedActions: [
-        { label: '✨ Записаться', message: 'Хочу записаться' },
-        { label: 'Цены', message: 'Расскажи про цены и услуги' },
-        { label: 'Мои записи', message: 'Покажи мои записи' },
-      ],
-    },
-  ])
+  const [welcomeText, setWelcomeText] = useState(DEFAULT_WELCOME)
+  const [messages, setMessages] = useState<Message[]>([])
+
+  // iOS keyboard fix — bind the chat height to Telegram's live viewport so the
+  // input stays above the keyboard (h-screen / 100vh doesn't shrink on iOS).
+  const [viewportH, setViewportH] = useState<number | null>(null)
+  useEffect(() => {
+    const tg = (window.Telegram?.WebApp ?? null) as unknown as TgViewport | null
+    if (!tg) return
+    tg.expand?.()
+    const update = () => setViewportH(tg.viewportHeight ?? null)
+    update()
+    tg.onEvent?.('viewportChanged', update)
+    return () => tg.offEvent?.('viewportChanged', update)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -58,14 +96,7 @@ export default function ChatPage() {
           const welcome = json?.aiSettings?.welcome_message
           const name = json?.aiSettings?.admin_name
           if (name && name !== 'Администратор') setAiName(name)
-          if (welcome) {
-            setMessages(prev => {
-              if (prev.length === 1 && prev[0].id === 'welcome') {
-                return [{ ...prev[0], content: welcome }]
-              }
-              return prev
-            })
-          }
+          if (welcome) setWelcomeText(welcome)
         })
         .catch(() => null)
     })
@@ -101,11 +132,8 @@ export default function ChatPage() {
         }))
         setMessages([...historyMsgs])
 
-        // Detect handoff state from history: any admin message → admin connected
         const hasAdminReply = historyMsgs.some(m => m.role === 'admin')
-        if (hasAdminReply) {
-          setHandoffState('admin_connected')
-        }
+        if (hasAdminReply) setHandoffState('admin_connected')
       })
       .catch(() => null)
     })
@@ -138,8 +166,7 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isSending])
 
-  // Polling history когда conversation в handoff state — иначе клиент не увидит
-  // admin reply пока не перезагрузит TMA. Раз в 4 сек, только пока handoff активен.
+  // Poll history while in handoff so the client sees admin replies without reload.
   useEffect(() => {
     if (handoffState === 'none') return
     const convId = conversationIdRef.current
@@ -156,10 +183,8 @@ export default function ChatPage() {
         const fresh = json.data ?? []
         if (fresh.length === 0) return
 
-        // Если последнее серверное сообщение admin — апдейтим UI и переключаем banner
         const lastServer = fresh[fresh.length - 1]
         setMessages(prev => {
-          // Достраиваем только новые server messages (по timestamp > последнего)
           const lastLocalTs = prev.length > 0 ? prev[prev.length - 1].timestamp.getTime() : 0
           const newOnes = fresh
             .filter(m => new Date(m.created_at).getTime() > lastLocalTs)
@@ -185,7 +210,7 @@ export default function ChatPage() {
     return () => clearInterval(timer)
   }, [handoffState])
 
-  // Polling live_status пока AI печатает — показывает что AI делает (вызывает tool calls)
+  // Poll live_status while the AI is "thinking" (shows current tool-call step).
   useEffect(() => {
     if (!isSending) {
       if (liveStatusTimerRef.current) {
@@ -275,7 +300,7 @@ export default function ChatPage() {
       recordTimerRef.current = setInterval(() => {
         setRecordSeconds(s => {
           const next = s + 1
-          if (next >= 60) stopRecording()  // auto-stop at 60s — Whisper лимит хватает
+          if (next >= 60) stopRecording()
           return next
         })
       }, 1000)
@@ -326,7 +351,6 @@ export default function ChatPage() {
         toast.error('Не услышала ни слова. Попробуйте ещё раз.')
         return
       }
-      // Отправляем как обычное сообщение
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
         role: 'user',
@@ -452,11 +476,6 @@ export default function ChatPage() {
     }
   }
 
-  const aiInitial = aiName.charAt(0).toUpperCase()
-
-  // Suggested actions appear only under the LAST assistant message
-  const lastAssistantId = [...messages].reverse().find(m => m.role === 'assistant' && !m.isLoading)?.id
-
   function handleSmartAction(text: string) {
     if (isSending) {
       messageQueueRef.current = [...messageQueueRef.current, text]
@@ -472,39 +491,44 @@ export default function ChatPage() {
     callApi(text)
   }
 
+  // Suggested actions appear only under the LAST assistant message
+  const lastAssistantId = [...messages].reverse().find(m => m.role === 'assistant' && !m.isLoading)?.id
+  const visibleMessages = messages.filter(m => !m.isLoading)
+  const dividerLabel = visibleMessages.length > 0 ? formatDate(visibleMessages[0].timestamp.toISOString()) : null
+
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div
+      className="flex flex-col bg-background"
+      style={{ height: viewportH ? `${viewportH}px` : '100dvh' }}
+    >
       {/* Header */}
-      <header className="flex items-center gap-3 px-4 py-3 border-b border-border bg-background/95 backdrop-blur-md safe-top">
+      <header className="flex items-center gap-3 px-5 py-3 border-b border-line bg-background/95 backdrop-blur-md safe-top shrink-0">
         <button
           onClick={() => router.back()}
-          className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-muted transition-colors"
+          aria-label="Назад"
+          className="w-9 h-9 flex items-center justify-center rounded-xl bg-cream border border-line text-ink hover:bg-cream-2 transition-colors"
         >
-          <ArrowLeft className="w-5 h-5 text-foreground" strokeWidth={1.8} />
+          <ArrowLeft className="w-5 h-5" strokeWidth={1.8} />
         </button>
-        <div className="flex items-center gap-2.5 flex-1 min-w-0">
-          <div className="relative shrink-0">
-            <div className="w-9 h-9 rounded-full bg-ai flex items-center justify-center text-white font-semibold text-sm">
-              {aiInitial}
-            </div>
-            <AiActivityDot className="absolute -bottom-0.5 -right-0.5 scale-75 bg-background rounded-full p-0.5" />
+        <PortraitAvatar name={aiName} size="md" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <p className="font-serif text-[17px] text-ink leading-tight">{aiName}</p>
+            <span className="inline-flex items-center gap-1 text-[11px] text-sage">
+              <OnlineDot size={6} /> Онлайн
+            </span>
           </div>
-          <div className="min-w-0">
-            <p className="font-semibold text-foreground text-[14px] leading-tight">{aiName}</p>
-            <p className="text-[11px] text-ai-foreground/80 leading-tight mt-0.5">
-              AI-администратор · онлайн
-            </p>
-          </div>
+          <p className="text-[11px] text-muted-foreground leading-tight">Ваш AI-администратор</p>
         </div>
       </header>
 
       {/* Handoff banner */}
       {handoffState !== 'none' && (
         <div className={cn(
-          'mx-4 mt-3 p-3 rounded-2xl border text-[12px] flex items-start gap-2',
+          'mx-5 mt-3 p-3 rounded-2xl border text-[12px] flex items-start gap-2 shrink-0',
           handoffState === 'awaiting'
-            ? 'bg-warning-soft border-warning/30 text-foreground'
-            : 'bg-ai-soft border-ai-border text-ai-foreground'
+            ? 'bg-peach/25 border-peach/40 text-ink-2'
+            : 'bg-sage-tint border-sage-soft text-ink-2'
         )}>
           <span className="text-[14px] leading-none mt-0.5">
             {handoffState === 'awaiting' ? '⏳' : '✓'}
@@ -518,30 +542,61 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
-        {messages.filter(m => !m.isLoading).map(msg => (
+      {/* Messages (scrollable) */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 flex flex-col gap-3">
+        {/* Welcome hero */}
+        <div className="flex flex-col items-center text-center pt-2 pb-1">
+          <span className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-sage-tint border border-sage-soft mb-3">
+            <Sparkles className="w-5 h-5 text-sage" strokeWidth={1.8} />
+          </span>
+          <p className="font-serif text-[18px] text-ink leading-snug max-w-[18rem]">{welcomeText}</p>
+          <p className="text-[12px] text-muted-foreground mt-1.5 max-w-[18rem]">
+            Цены, услуги, мастера, записи, акции и многое другое. Просто напишите, что вас интересует.
+          </p>
+          <div className="flex flex-wrap justify-center gap-2 mt-3.5">
+            {QUICK_CHIPS.map(chip => (
+              <button
+                key={chip.label}
+                type="button"
+                onClick={() => handleSmartAction(chip.message)}
+                disabled={isSending}
+                className="inline-flex items-center gap-1.5 rounded-full bg-cream border border-line px-3 py-1.5 text-[12px] text-ink-2 hover:bg-cream-2 transition-colors disabled:opacity-50"
+              >
+                <chip.icon className="w-3.5 h-3.5 text-sage" strokeWidth={1.8} />
+                {chip.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {dividerLabel && (
+          <div className="flex items-center gap-3 my-1">
+            <span className="flex-1 h-px bg-line" />
+            <span className="text-[11px] text-muted-2">{dividerLabel}</span>
+            <span className="flex-1 h-px bg-line" />
+          </div>
+        )}
+
+        {visibleMessages.map(msg => (
           <ChatBubble
             key={msg.id}
             message={msg}
-            aiInitial={aiInitial}
+            aiName={aiName}
             isLastAssistant={msg.id === lastAssistantId}
             isSending={isSending}
             onSmartAction={handleSmartAction}
           />
         ))}
 
-        {/* Typing indicator — показывает live_status (текущий шаг tool calls) если есть */}
+        {/* Typing indicator — shows live_status (current tool-call step) if present */}
         {isSending && (
           <div className="flex items-end gap-2">
-            <div className="w-7 h-7 rounded-full bg-ai flex items-center justify-center text-white text-[11px] font-semibold shrink-0">
-              {aiInitial}
-            </div>
-            <div className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl rounded-bl-md bg-ai-soft border border-ai-border max-w-[82%]">
-              <span className="w-1.5 h-1.5 rounded-full bg-ai animate-bounce [animation-delay:0ms]" />
-              <span className="w-1.5 h-1.5 rounded-full bg-ai animate-bounce [animation-delay:150ms]" />
-              <span className="w-1.5 h-1.5 rounded-full bg-ai animate-bounce [animation-delay:300ms]" />
-              <span className="text-[11px] text-ai-foreground ml-1 transition-opacity">
+            <PortraitAvatar name={aiName} size="xs" />
+            <div className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl rounded-bl-md bg-cream border border-line max-w-[82%]">
+              <span className="w-1.5 h-1.5 rounded-full bg-sage animate-bounce [animation-delay:0ms]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-sage animate-bounce [animation-delay:150ms]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-sage animate-bounce [animation-delay:300ms]" />
+              <span className="text-[11px] text-muted-foreground ml-1">
                 {liveStatus ?? `${aiName} печатает`}
               </span>
             </div>
@@ -553,18 +608,14 @@ export default function ChatPage() {
 
       {/* Attachment previews */}
       {attachmentPreviews.length > 0 && (
-        <div className="px-4 pb-2 flex gap-2 overflow-x-auto scrollbar-hide">
+        <div className="px-5 pb-2 flex gap-2 overflow-x-auto scrollbar-hide shrink-0">
           {attachmentPreviews.map((src, i) => (
             <div key={i} className="relative shrink-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={src}
-                alt="Вложение"
-                className="w-16 h-16 rounded-xl object-cover border border-border"
-              />
+              <img src={src} alt="Вложение" className="w-16 h-16 rounded-xl object-cover border border-line" />
               <button
                 onClick={() => removeAttachment(i)}
-                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive flex items-center justify-center"
+                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#ef4444] flex items-center justify-center"
               >
                 <X className="w-3 h-3 text-white" />
               </button>
@@ -573,8 +624,16 @@ export default function ChatPage() {
         </div>
       )}
 
+      {/* Privacy note */}
+      <div className="px-5 shrink-0">
+        <p className="flex items-center justify-center gap-1.5 text-[10px] text-muted-2 pb-1.5">
+          <Lock className="w-3 h-3" strokeWidth={1.8} />
+          Данные защищены и используются только для вашего удобства
+        </p>
+      </div>
+
       {/* Input */}
-      <div className="px-4 pb-4 safe-bottom pt-2 border-t border-border bg-background">
+      <div className="px-5 pb-[max(env(safe-area-inset-bottom,12px),12px)] pt-2 border-t border-line bg-background shrink-0">
         <div className="flex items-center gap-2">
           <input
             ref={fileInputRef}
@@ -588,7 +647,8 @@ export default function ChatPage() {
           <button
             onClick={handleAttachClick}
             disabled={isSending || pendingAttachments.length >= 3}
-            className="w-11 h-11 rounded-2xl flex items-center justify-center bg-surface-sunken text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-40"
+            aria-label="Прикрепить фото"
+            className="w-11 h-11 rounded-2xl flex items-center justify-center bg-cream border border-line text-muted-foreground hover:text-ink hover:bg-cream-2 transition-colors disabled:opacity-40"
           >
             <Paperclip className="w-5 h-5" strokeWidth={1.8} />
           </button>
@@ -599,17 +659,18 @@ export default function ChatPage() {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
+            onFocus={() => setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 250)}
             placeholder={
               isRecording ? `🔴 Запись... ${recordSeconds}с`
               : isTranscribing ? 'Распознаю голос...'
               : isSending ? 'Подождите ответа...'
-              : `Написать ${aiName}...`
+              : 'Напишите сообщение…'
             }
             disabled={isRecording || isTranscribing}
-            className="flex-1 px-4 py-3 rounded-2xl bg-surface-sunken text-foreground text-[14px] outline-none placeholder:text-muted-foreground/70 border border-border focus:border-ai-border transition-colors disabled:opacity-60"
+            className="flex-1 px-4 py-3 rounded-2xl bg-cream text-ink text-[14px] outline-none placeholder:text-muted-2 border border-line focus:border-sage transition-colors disabled:opacity-60"
             autoComplete="off"
           />
-          {/* Mic / Send button — голос когда input пустой, иначе send */}
+
           {!input.trim() && !pendingAttachments.length ? (
             <button
               onClick={isRecording ? stopRecording : startRecording}
@@ -617,9 +678,7 @@ export default function ChatPage() {
               aria-label={isRecording ? 'Остановить запись' : 'Записать голос'}
               className={cn(
                 'w-11 h-11 rounded-2xl flex items-center justify-center transition-all disabled:opacity-40 active:scale-95',
-                isRecording
-                  ? 'bg-destructive text-white animate-pulse'
-                  : 'bg-foreground text-background'
+                isRecording ? 'bg-[#ef4444] text-white animate-pulse' : 'bg-sage text-page'
               )}
             >
               {isTranscribing ? (
@@ -634,26 +693,26 @@ export default function ChatPage() {
             <button
               onClick={handleSend}
               disabled={(!input.trim() && !pendingAttachments.length) || isSending}
-              className="w-11 h-11 rounded-2xl flex items-center justify-center bg-foreground text-background transition-opacity disabled:opacity-40 active:scale-95"
+              aria-label="Отправить"
+              className="w-11 h-11 rounded-2xl flex items-center justify-center bg-sage text-page transition-opacity disabled:opacity-40 active:scale-95"
             >
-              {isSending ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <Send className="w-5 h-5" strokeWidth={1.8} />
-              )}
+              {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" strokeWidth={1.8} />}
             </button>
           )}
         </div>
+        <p className="text-[10px] text-muted-2 text-center mt-1.5">
+          {aiName} поймёт ваши записи и предпочтения ✨
+        </p>
       </div>
     </div>
   )
 }
 
 function ChatBubble({
-  message, aiInitial, isLastAssistant, isSending, onSmartAction,
+  message, aiName, isLastAssistant, isSending, onSmartAction,
 }: {
   message: Message
-  aiInitial: string
+  aiName: string
   isLastAssistant?: boolean
   isSending?: boolean
   onSmartAction?: (text: string) => void
@@ -663,19 +722,16 @@ function ChatBubble({
   if (isUser) {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[82%] rounded-2xl rounded-br-md bg-foreground text-background overflow-hidden">
+        <div className="max-w-[82%] rounded-2xl rounded-br-md bg-cream-2 border border-line overflow-hidden">
           {message.imageUrl && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={message.imageUrl}
-              alt="Фото"
-              className="w-full max-w-[240px] object-cover"
-            />
+            <img src={message.imageUrl} alt="Фото" className="w-full max-w-[240px] object-cover" />
           )}
           <div className="px-4 py-2.5">
-            <p className="whitespace-pre-wrap leading-relaxed text-[14px]">{message.content}</p>
-            <p className="text-[10px] text-background/60 mt-1">
+            <p className="whitespace-pre-wrap leading-relaxed text-[14px] text-ink">{message.content}</p>
+            <p className="flex items-center justify-end gap-1 text-[10px] text-muted-2 mt-1">
               {formatTime(message.timestamp.toISOString())}
+              <CheckCheck className="w-3 h-3 text-sage" strokeWidth={2} />
             </p>
           </div>
         </div>
@@ -687,29 +743,27 @@ function ChatBubble({
 
   return (
     <div className="flex items-end gap-2">
-      <div className={cn(
-        'w-7 h-7 rounded-full flex items-center justify-center text-white text-[11px] font-semibold shrink-0 mb-1',
-        isAdmin ? 'bg-foreground' : 'bg-ai'
-      )}>
-        {isAdmin ? '👤' : aiInitial}
-      </div>
+      {isAdmin ? (
+        <span className="w-7 h-7 rounded-full bg-ink flex items-center justify-center text-page text-[11px] shrink-0 mb-1">
+          👤
+        </span>
+      ) : (
+        <span className="shrink-0 mb-1">
+          <PortraitAvatar name={aiName} size="xs" />
+        </span>
+      )}
       <div className="max-w-[82%] flex flex-col gap-1.5">
         <div className={cn(
           'rounded-2xl rounded-bl-md border px-4 py-2.5',
-          isAdmin
-            ? 'bg-surface-sunken border-border'
-            : 'bg-ai-soft border-ai-border'
+          isAdmin ? 'bg-cream-2 border-line' : 'bg-cream border-line'
         )}>
           {isAdmin && (
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
               Администратор
             </p>
           )}
-          <p className="whitespace-pre-wrap leading-relaxed text-[14px] text-foreground">{message.content}</p>
-          <p className={cn(
-            'text-[10px] mt-1',
-            isAdmin ? 'text-muted-foreground' : 'text-ai-foreground/60'
-          )}>
+          <p className="whitespace-pre-wrap leading-relaxed text-[14px] text-ink">{message.content}</p>
+          <p className="text-[10px] mt-1 text-muted-2">
             {formatTime(message.timestamp.toISOString())}
           </p>
         </div>
@@ -718,24 +772,23 @@ function ChatBubble({
             {message.knowledgeSources.map((s, i) => (
               <span
                 key={i}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-surface-elevated border border-ai-border text-[10px] text-ai-foreground font-medium"
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-sage-tint border border-sage-soft text-[10px] text-sage font-medium"
               >
                 <BookOpen className="w-2.5 h-2.5" strokeWidth={2.2} />
                 {s.title}
-                <span className="text-ai-foreground/60">·</span>
-                <span className="text-ai-foreground/70">{s.relevance_pct}%</span>
+                <span className="text-sage/60">·</span>
+                <span className="text-sage/70">{s.relevance_pct}%</span>
               </span>
             ))}
           </div>
         )}
-        {/* Smart actions — only under the last AI message, hidden while AI is responding */}
         {isLastAssistant && !isSending && message.suggestedActions && message.suggestedActions.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-0.5">
             {message.suggestedActions.map((a, i) => (
               <button
                 key={i}
                 onClick={() => onSmartAction?.(a.message)}
-                className="px-3.5 py-1.5 rounded-full bg-surface-elevated text-ai-foreground border border-ai-border text-[12px] font-medium hover:bg-ai-soft transition-colors active:scale-95"
+                className="px-3.5 py-1.5 rounded-full bg-cream text-ink-2 border border-line text-[12px] font-medium hover:bg-cream-2 transition-colors active:scale-95"
               >
                 {a.label}
               </button>
@@ -746,8 +799,6 @@ function ChatBubble({
     </div>
   )
 }
-
-void Sparkles
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
