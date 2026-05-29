@@ -38,14 +38,6 @@ function dateLong(iso: string): string {
   return `${d.getDate()} ${RU_MONTHS_GEN[d.getMonth()]} ${d.getFullYear()}`
 }
 
-function visitsWord(n: number): string {
-  const m10 = n % 10
-  const m100 = n % 100
-  if (m10 === 1 && m100 !== 11) return 'визит'
-  if ([2, 3, 4].includes(m10) && ![12, 13, 14].includes(m100)) return 'визита'
-  return 'визитов'
-}
-
 type Client = {
   id: string
   first_name: string | null
@@ -139,8 +131,7 @@ export default function ProfilePage() {
                 {isRegular ? 'Постоянный клиент' : 'Клиент салона'}
               </span>
               <p className="text-[12px] text-muted-foreground mt-1.5">
-                Клиент с {monthYear(client.created_at)} · {client.total_visits}{' '}
-                {visitsWord(client.total_visits)}
+                Клиент с {monthYear(client.created_at)}
               </p>
             </div>
           </div>
@@ -160,10 +151,9 @@ export default function ProfilePage() {
         {(stats.firstVisitAt || stats.lastVisitAt) && (
           <StaggerItem>
             <SectionTitle icon={Calendar}>Ваша история</SectionTitle>
-            <div className="rounded-2xl bg-cream border border-line p-4 grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-2xl bg-cream border border-line p-4 grid grid-cols-2 gap-2 text-center">
               <HistoryCell label="Первый визит" value={stats.firstVisitAt ? dateLong(stats.firstVisitAt) : '—'} />
               <HistoryCell label="Последний визит" value={stats.lastVisitAt ? dateLong(stats.lastVisitAt) : '—'} />
-              <HistoryCell label="Всего посещений" value={String(client.total_visits)} />
             </div>
           </StaggerItem>
         )}
