@@ -107,17 +107,24 @@ export function TmaHomePage() {
       if (!cancelled) setIsPrivateLoading(false)
     }
 
-    // Safety timeout — give up showing the auth skeleton after 10s if useTmaAuth
-    // never produces a token (e.g. opened in a browser without bot context).
+    // Safety timeout — give up showing the auth skeleton after 8s if useTmaAuth
+    // never produces a token (e.g. cold-start auth hangs).
     const privateGiveup = window.setTimeout(() => {
       if (!cancelled) setIsPrivateLoading(false)
-    }, 10000)
+    }, 8000)
 
     loadPublic()
 
     // Try right away if token already in storage (returning visit).
     const existing = sessionStorage.getItem('tma_token')
-    if (existing) loadPrivate(existing)
+    if (existing) {
+      loadPrivate(existing)
+    } else if (!window.Telegram?.WebApp?.initData) {
+      // Opened outside Telegram (browser/desktop) with no stored session —
+      // private data will never arrive, so don't hold the skeleton. Reveal the
+      // public home immediately with the generic greeting.
+      setIsPrivateLoading(false)
+    }
 
     // Listen forever (until unmount) — handles slow cold-start auth.
     const onAuthReady = () => {
@@ -133,7 +140,11 @@ export function TmaHomePage() {
     }
   }, [])
 
-  if (isLoading) return <HomePageSkeleton />
+  // Hold the skeleton until BOTH public and private data are ready, so the home
+  // reveals fully personalized in one shot — no intermediate "public-only" paint
+  // that then re-flows when /api/auth/me lands (the old flicker). isPrivateLoading
+  // is force-resolved early for non-Telegram contexts and via the 8s giveup.
+  if (isLoading || isPrivateLoading) return <HomePageSkeleton />
   if (!tenant) return null
 
   const greeting = getGreeting()
@@ -161,7 +172,7 @@ export function TmaHomePage() {
       </header>
 
       <Stagger className="flex flex-col gap-5 px-5" staggerChildren={0.08}>
-        {/* Greeting — keep skeleton while waiting for client info to avoid flicker */}
+        {/* Greeting — data is fully resolved before this renders (see gate above) */}
         <StaggerItem>
           <p className="text-[13px] text-muted-foreground">{greeting}</p>
           {clientName ? (
@@ -169,8 +180,6 @@ export function TmaHomePage() {
               <span style={{ color: 'var(--gold)' }}>{clientName}</span>
               <span className="ml-2">✨</span>
             </h1>
-          ) : isPrivateLoading ? (
-            <Skeleton tone="cream" className="h-9 w-44 mt-1" />
           ) : (
             <h1 className="text-serif-h1 text-ink mt-0.5">Добро пожаловать ✨</h1>
           )}
@@ -182,27 +191,11 @@ export function TmaHomePage() {
             variant="full"
             name={aiName}
             status="AI-администратор · online"
-            welcome={
-              isPrivateLoading ? (
-                <>
-                  <span className="block h-3.5 w-full rounded bg-cream/80 animate-pulse" />
-                  <span className="block h-3.5 w-2/3 rounded bg-cream/80 animate-pulse mt-1.5" />
-                </>
-              ) : (
-                welcome
-              )
-            }
+            welcome={welcome}
             hint="Написать"
             onClick={() => router.push('/chat')}
           />
         </StaggerItem>
-
-        {/* Next appointment — skeleton while auth resolves to keep layout stable */}
-        {!nextAppointment && isPrivateLoading && (
-          <StaggerItem>
-            <Skeleton tone="cream" className="h-32 w-full rounded-2xl" />
-          </StaggerItem>
-        )}
 
         {/* Next appointment (if exists) */}
         {nextAppointment && (
