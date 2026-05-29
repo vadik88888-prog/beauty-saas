@@ -2,20 +2,17 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import {
   ArrowLeft,
   Bell,
   Calendar,
   CalendarDays,
   Clock,
-  Lock,
   MessageCircle,
   RefreshCcw,
   RotateCcw,
   Star,
   Trash2,
-  X,
   XCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -422,11 +419,6 @@ export default function AppointmentsPage() {
                 Нет, оставить запись
               </button>
             </div>
-
-            <p className="mt-3 inline-flex items-center gap-1.5 text-[11px] text-muted-2">
-              <Lock className="w-3 h-3" strokeWidth={1.8} />
-              Ничего не будет списано. Запись просто удалится.
-            </p>
           </div>
         </DialogContent>
       </Dialog>
@@ -468,7 +460,6 @@ function RescheduleSheet({
   onClose: () => void
   onRescheduled: (id: string, newStartsAt: string) => void
 }) {
-  const reduce = useReducedMotion()
   const [slots, setSlots] = useState<TimeSlot[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [selected, setSelected] = useState<TimeSlot | null>(null)
@@ -610,49 +601,19 @@ function RescheduleSheet({
   const open = !!target
 
   return (
-    <AnimatePresence>
-      {open && (
-        <div className="fixed inset-0 z-[60]">
-          {/* Backdrop */}
-          <motion.div
-            className="absolute inset-0 bg-black/30"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            onClick={onClose}
-          />
+    <>
+      <Dialog open={open} onOpenChange={o => !o && onClose()}>
+        <DialogContent className="rounded-3xl p-0 gap-0 max-h-[88vh] flex flex-col overflow-hidden">
+          {/* Header */}
+          <div className="shrink-0 px-5 pt-5 pb-3 border-b border-line">
+            <h2 className="font-serif text-xl text-ink pr-8">Перенести запись</h2>
+            <p className="text-[12px] text-muted-foreground mt-0.5 line-clamp-1">
+              {target?.service.name} · {target?.master.name}
+            </p>
+          </div>
 
-          {/* Sheet */}
-          <motion.div
-            className="absolute inset-x-0 bottom-0 flex flex-col max-h-[92vh] rounded-t-3xl bg-background border-t border-line shadow-2xl"
-            initial={reduce ? { opacity: 0 } : { y: '100%' }}
-            animate={reduce ? { opacity: 1 } : { y: 0 }}
-            exit={reduce ? { opacity: 0 } : { y: '100%' }}
-            transition={reduce ? { duration: 0.15 } : { type: 'spring', damping: 34, stiffness: 340 }}
-          >
-            {/* Header */}
-            <div className="shrink-0 px-5 pt-4 pb-3 border-b border-line">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h2 className="font-serif text-xl text-ink">Перенести запись</h2>
-                  <p className="text-[12px] text-muted-foreground mt-0.5 line-clamp-1">
-                    {target?.service.name} · {target?.master.name}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  aria-label="Закрыть"
-                  className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-cream transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Scrollable content */}
-            <div className="flex-1 overflow-y-auto px-5 py-4">
+          {/* Scrollable content */}
+          <div className="flex-1 overflow-y-auto px-5 py-4">
               {isLoading ? (
                 <div className="flex flex-col gap-4">
                   <Skeleton tone="cream" className="h-12 w-full rounded-2xl" />
@@ -766,60 +727,41 @@ function RescheduleSheet({
               )}
             </div>
 
-            {/* Footer */}
-            {!isLoading && days.length > 0 && (
-              <div className="shrink-0 border-t border-line bg-background px-5 pt-3 pb-[max(env(safe-area-inset-bottom,16px),16px)]">
-                <button
-                  type="button"
-                  onClick={confirm}
-                  disabled={!selected || submitting}
-                  className="w-full inline-flex items-center justify-center rounded-2xl bg-ink text-page font-medium py-3.5 text-sm hover:bg-ink-2 transition-colors disabled:opacity-50"
-                >
-                  {submitting ? 'Переносим…' : 'Подтвердить перенос'}
-                </button>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="w-full mt-1.5 inline-flex items-center justify-center text-[12px] text-muted-foreground hover:text-ink py-2 transition-colors"
-                >
-                  Отмена
-                </button>
-              </div>
-            )}
+          {/* Footer */}
+          {!isLoading && days.length > 0 && (
+            <div className="shrink-0 border-t border-line bg-background px-5 py-3">
+              <button
+                type="button"
+                onClick={confirm}
+                disabled={!selected || submitting}
+                className="w-full inline-flex items-center justify-center rounded-2xl bg-ink text-page font-medium py-3.5 text-sm hover:bg-ink-2 transition-colors disabled:opacity-50"
+              >
+                {submitting ? 'Переносим…' : 'Подтвердить перенос'}
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full mt-1.5 inline-flex items-center justify-center text-[12px] text-muted-foreground hover:text-ink py-2 transition-colors"
+              >
+                Отмена
+              </button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
-            {/* Full-month calendar overlay (above the sheet) */}
-            <AnimatePresence>
-              {calendarOpen && (
-                <>
-                  <motion.div
-                    className="absolute inset-0 z-[65] bg-black/30"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.15 }}
-                    onClick={() => setCalendarOpen(false)}
-                  />
-                  <motion.div
-                    className="absolute inset-x-4 top-[12%] z-[70] rounded-3xl bg-background border border-line p-5 max-h-[72vh] overflow-y-auto shadow-2xl"
-                    initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: 8 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: 8 }}
-                    transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-                  >
-                    <h3 className="font-serif text-lg text-ink mb-3">Выберите дату</h3>
-                    <MonthCalendar
-                      selectedDate={selected?.datetime.slice(0, 10)}
-                      slotsCountByDate={Object.fromEntries(days.map(d => [d, slotsByDate[d].length]))}
-                      onSelect={handleCalendarSelect}
-                    />
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
+      {/* Full-month calendar */}
+      <Dialog open={calendarOpen} onOpenChange={o => !o && setCalendarOpen(false)}>
+        <DialogContent className="rounded-3xl p-5 max-w-md">
+          <h3 className="font-serif text-lg text-ink mb-3">Выберите дату</h3>
+          <MonthCalendar
+            selectedDate={selected?.datetime.slice(0, 10)}
+            slotsCountByDate={Object.fromEntries(days.map(d => [d, slotsByDate[d].length]))}
+            onSelect={handleCalendarSelect}
+          />
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
