@@ -182,7 +182,16 @@ export function TmaHomePage() {
             variant="full"
             name={aiName}
             status="AI-администратор · online"
-            welcome={welcome}
+            welcome={
+              isPrivateLoading ? (
+                <>
+                  <span className="block h-3.5 w-full rounded bg-cream/80 animate-pulse" />
+                  <span className="block h-3.5 w-2/3 rounded bg-cream/80 animate-pulse mt-1.5" />
+                </>
+              ) : (
+                welcome
+              )
+            }
             hint="Написать"
             onClick={() => router.push('/chat')}
           />
@@ -203,7 +212,7 @@ export function TmaHomePage() {
               serviceName={nextAppointment.service.name}
               masterName={nextAppointment.master.name}
               startsAt={nextAppointment.starts_at}
-              photoSrc={nextAppointment.service.image_url ?? nextAppointment.master.photo_url ?? null}
+              photoSrc={nextAppointment.service.image_url ?? null}
               onClick={() => router.push('/appointments')}
               actions={
                 <ActionRow

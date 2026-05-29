@@ -81,7 +81,7 @@ export default function ConfirmPage() {
         details={bookedDetails}
         onHome={() => {
           reset()
-          router.replace('/')
+          router.replace('/home')
         }}
         onReschedule={() => {
           if (!bookedDetails.appointmentId) {
@@ -143,7 +143,7 @@ export default function ConfirmPage() {
       const json = await res.json()
       window.Telegram?.WebApp.HapticFeedback?.notificationOccurred?.('success')
       setBookedDetails({
-        appointmentId: json?.data?.id ?? null,
+        appointmentId: json?.data?.appointmentId ?? null,
         serviceName: service.name,
         masterName: selectedSlot.masterName,
         datetime: selectedSlot.datetime,
@@ -285,7 +285,7 @@ export default function ConfirmPage() {
           type="button"
           onClick={() => {
             reset()
-            router.replace('/')
+            router.replace('/home')
           }}
           className="w-full mt-1.5 inline-flex items-center justify-center text-[12px] text-muted-foreground hover:text-ink py-2 transition-colors"
         >
