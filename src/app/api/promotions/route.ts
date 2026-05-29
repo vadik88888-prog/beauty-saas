@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabase
     .from('promotions')
-    .select('id, title, description, discount_type, discount_value, service_ids, starts_at, ends_at')
+    .select('id, title, description, discount_type, discount_value, service_ids, starts_at, ends_at, image_url')
     .eq('tenant_id', tenantId)
     .eq('is_active', true)
     .or(`ends_at.is.null,ends_at.gt.${now}`)

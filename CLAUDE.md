@@ -150,7 +150,7 @@ If a master has no `working_hours` rows → default Mon–Sat 9:00–18:00 (in `
 | `(tma)/booking/confirm` + Success v2 | ✓ redesigned (sticky CTA, confetti, .ics) | 3.3c |
 | `(tma)/appointments` | ✓ redesigned (tabs + ChipRow + Reschedule sheet + Cancel dialog) | 3.5 |
 | `(tma)/chat` | legacy | 3.4 (after keyboard fix) |
-| `(tma)/promotions` | legacy | 3.5+ |
+| `(tma)/promotions` | ✓ redesigned (real discount/savings, image_url, unified CTA) | 3.5+ |
 | `(tma)/profile` | ✓ redesigned (`/api/profile` stats, edit dialog) | 3.6 |
 | All admin pages | legacy | 4 |
 
@@ -184,9 +184,9 @@ Component library (Phase 2) — all 27 components in `src/components/{motion,sha
 - 017 conversation_summary
 - 018 voice_messages (voice_enabled toggle)
 - 019 live_status (multi-step thinking visible)
-- 020 promotion_image (`promotions.image_url` for «Акции» photo) — ⚠️ **NOT yet applied in prod**; apply before deploying the «Акции» page (the promotions query selects `image_url`).
+- 020 promotion_image (`promotions.image_url` for «Акции» photo; admin upload UI in Phase 4)
 
-Migrations 001-009 — see `supabase/migrations/`. 001-019 applied in prod Supabase; 020 pending.
+Migrations 001-009 — see `supabase/migrations/`. All 20 applied in prod Supabase.
 
 ---
 
@@ -213,7 +213,7 @@ Migrations 001-009 — see `supabase/migrations/`. 001-019 applied in prod Supab
 ### Phase 3 redesign continuation
 - **3.4 chat** — BEFORE redesign: fix keyboard viewport bug on iOS (sticky input, `viewportChanged` event, flex min-h-0). See [memory](C:\Users\Вадим\.claude\projects\c--Users-------Desktop--LAUDE-KOSMETOLOG\memory\project_phase34_chat_todo.md). Then TypingWave + MessageReveal + BreathingGlow + SuccessRipple after booking.
 - ~~3.5 appointments~~ ✅ done: segmented Предстоящие/История tabs, ChipRow filter (Все/Завершённые/Отменённые — «Перенесены» dropped, no such status), BookCard next/list/history, EmptyDashedCard, RatingStars on completed (added `rating` to GET /api/appointments + AppointmentWithRelations type), Reschedule bottom-sheet with real slot picker, Cancel dialog (peach + 3D calendar SVG), «Записаться снова», Напоминания block. `?reschedule=<id>` deep-link opens the sheet.
-- **3.5 promotions** — visual refresh (next). Real data only: photo from `promotions.image_url` (placeholder otherwise), discount/savings from `discount_type`/`discount_value` + service prices, unified «Записаться по акции» CTA. Drop fabricated badges «Популярно»/«Специально для вас».
+- ~~3.5 promotions~~ ✅ done: hero, real cards (photo from `image_url` / Gift placeholder, discount + computed «экономия до X» from service prices, «Действует до»), unified «Записаться по акции» CTA (preselects service → /booking/masters). Migration 020 `promotions.image_url` applied in prod. Fabricated badges dropped.
 - ~~3.6 profile~~ ✅ done: header card (avatar + «Постоянный клиент» + «клиент с …»), «Ваши отношения» (visits + computed favorite master/service), «Ваша история» (first/last visit), quick actions, Личные данные edit dialog, Связаться с салоном. New `/api/profile` computes favorites/first-visit. Dropped fabricated «10% на следующий визит» banner + «Уведомления» settings (no backend).
 
 ### Phase 4 admin (after Phase 3 done)

@@ -1,25 +1,44 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Tag } from 'lucide-react'
+import Image from 'next/image'
+import { ArrowLeft, Bell, Calendar, Gift } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
+import { EmptyDashedCard } from '@/components/shared/EmptyDashedCard'
+import { Stagger, StaggerItem } from '@/components/motion/Stagger'
+import { useBookingStore } from '@/stores/bookingStore'
+import type { Service } from '@/types/database'
 import { waitForTmaToken, getTenantSlug } from '@/lib/tma-token'
+import { formatPrice } from '@/lib/utils/format'
 
 type Promotion = {
   id: string
   title: string
   description: string | null
-  discount_type: string | null
+  discount_type: 'percent' | 'fixed' | null
   discount_value: number | null
   service_ids: string[] | null
   starts_at: string | null
   ends_at: string | null
+  image_url: string | null
+}
+
+const RU_MONTHS_GEN = [
+  'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
+]
+
+function formatEndsAt(iso: string): string {
+  const d = new Date(iso)
+  return `${d.getDate()} ${RU_MONTHS_GEN[d.getMonth()]}`
 }
 
 export default function PromotionsPage() {
   const router = useRouter()
+  const setBookingService = useBookingStore(s => s.setService)
   const [promotions, setPromotions] = useState<Promotion[]>([])
+  const [services, setServices] = useState<Service[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -27,97 +46,215 @@ export default function PromotionsPage() {
     waitForTmaToken().then(token => {
       if (cancelled) return
       const slug = getTenantSlug()
-      const url = token ? '/api/promotions' : `/api/promotions?slug=${encodeURIComponent(slug)}`
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
+      const promoUrl = token ? '/api/promotions' : `/api/promotions?slug=${encodeURIComponent(slug)}`
+      const servicesUrl = `/api/services?slug=${encodeURIComponent(slug)}`
 
-      fetch(url, { headers })
-        .then(r => r.json())
-        .then(({ data }) => setPromotions(data ?? []))
-        .finally(() => setIsLoading(false))
+      Promise.all([
+        fetch(promoUrl, { headers }).then(r => (r.ok ? r.json() : { data: [] })),
+        fetch(servicesUrl).then(r => (r.ok ? r.json() : { data: [] })),
+      ])
+        .then(([promoRes, servicesRes]) => {
+          if (cancelled) return
+          setPromotions((promoRes.data ?? []) as Promotion[])
+          setServices((servicesRes.data ?? []) as Service[])
+        })
+        .finally(() => !cancelled && setIsLoading(false))
     })
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [])
 
+  const serviceMap = useMemo(() => {
+    const m = new Map<string, Service>()
+    for (const s of services) m.set(s.id, s)
+    return m
+  }, [services])
+
+  function handleBook(promo: Promotion) {
+    window.Telegram?.WebApp.HapticFeedback?.impactOccurred('light')
+    const first = promo.service_ids?.map(id => serviceMap.get(id)).find(Boolean)
+    if (first) {
+      setBookingService(first)
+      router.push('/booking/masters')
+    } else {
+      router.push('/booking/services')
+    }
+  }
+
   return (
-    <div className="flex flex-col min-h-screen">
-      {/* Header */}
-      <div className="sticky top-0 z-10 px-4 pt-4 pb-4 border-b border-border" style={{ background: 'var(--tg-bg)' }}>
+    <div className="flex flex-col min-h-screen safe-bottom">
+      {/* Sticky header */}
+      <div className="sticky top-0 z-10 bg-background px-5 pt-4 pb-3 border-b border-line safe-top">
         <div className="flex items-center gap-3">
-          <button onClick={() => router.back()} className="w-9 h-9 flex items-center justify-center rounded-xl" style={{ background: 'var(--tg-secondary-bg)' }}>
+          <button
+            type="button"
+            onClick={() => router.back()}
+            aria-label="Назад"
+            className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-xl bg-cream border border-line text-ink hover:bg-cream-2 transition-colors"
+          >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-lg font-bold text-tg-text">Акции</h1>
+          <h1 className="text-serif-h2 text-ink">Акции</h1>
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 px-4 pt-4 pb-6">
-        {isLoading ? (
-          Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-2xl" />)
-        ) : promotions.length === 0 ? (
-          <div className="flex flex-col items-center text-center py-16 gap-3">
-            <p className="text-5xl">🎁</p>
-            <p className="font-semibold text-tg-text">Акций пока нет</p>
-            <p className="text-sm text-tg-hint">Следите за обновлениями — скоро появятся выгодные предложения</p>
+      <div className="flex flex-col gap-4 px-5 pt-4 pb-6">
+        {/* Hero */}
+        <div
+          className="rounded-2xl p-4 flex items-center gap-3 border border-sage-soft"
+          style={{ background: 'linear-gradient(135deg, var(--sage-tint) 0%, var(--cream-2) 220%)' }}
+        >
+          <span className="flex-shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-cream">
+            <Gift className="w-5 h-5 text-sage" strokeWidth={1.8} />
+          </span>
+          <div className="min-w-0">
+            <div className="font-serif text-[16px] text-ink leading-tight">Акции и предложения</div>
+            <p className="text-[12px] text-muted-foreground mt-0.5">
+              Специальные предложения для клиентов салона
+            </p>
           </div>
+        </div>
+
+        {isLoading ? (
+          <div className="flex flex-col gap-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} tone="cream" className="h-36 w-full rounded-2xl" />
+            ))}
+          </div>
+        ) : promotions.length === 0 ? (
+          <EmptyDashedCard
+            title="Акций пока нет"
+            description="Загляните позже — салон регулярно запускает выгодные предложения."
+            cta={{ label: 'Записаться', onClick: () => router.push('/booking/services') }}
+          />
         ) : (
-          promotions.map(promo => (
-            <PromotionCard
-              key={promo.id}
-              promo={promo}
-              onBook={promo.service_ids?.length ? () => router.push('/booking/services') : undefined}
-            />
-          ))
+          <>
+            <h2 className="text-[15px] font-semibold text-ink">Актуальные акции</h2>
+            <Stagger className="flex flex-col gap-3" staggerChildren={0.06}>
+              {promotions.map(promo => (
+                <StaggerItem key={promo.id}>
+                  <PromotionCard promo={promo} serviceMap={serviceMap} onBook={() => handleBook(promo)} />
+                </StaggerItem>
+              ))}
+
+              {/* Reassurance (no CTA — each card already has one) */}
+              <StaggerItem>
+                <div className="flex items-center gap-3 rounded-2xl bg-cream border border-line p-3">
+                  <span className="flex-shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full bg-sage-tint">
+                    <Bell className="w-4 h-4 text-sage" strokeWidth={1.8} />
+                  </span>
+                  <p className="text-[12px] text-ink-2 leading-snug">
+                    Мы регулярно запускаем выгодные акции — заглядывайте, чтобы не пропустить 🌿
+                  </p>
+                </div>
+              </StaggerItem>
+            </Stagger>
+          </>
         )}
       </div>
     </div>
   )
 }
 
-function PromotionCard({ promo, onBook }: { promo: Promotion; onBook?: () => void }) {
-  const discountLabel = promo.discount_value
-    ? promo.discount_type === 'percent'
-      ? `−${promo.discount_value}%`
-      : `−${promo.discount_value} руб.`
-    : null
+function PromotionCard({
+  promo,
+  serviceMap,
+  onBook,
+}: {
+  promo: Promotion
+  serviceMap: Map<string, Service>
+  onBook: () => void
+}) {
+  // Applicable services: those listed, or all if the promo targets everything.
+  const applicable: Service[] = promo.service_ids?.length
+    ? promo.service_ids.map(id => serviceMap.get(id)).filter((s): s is Service => !!s)
+    : [...serviceMap.values()]
 
-  const endsAt = promo.ends_at ? new Date(promo.ends_at) : null
-  const daysLeft = endsAt ? Math.max(0, Math.ceil((endsAt.getTime() - Date.now()) / 86400000)) : null
+  const currency = applicable[0]?.currency ?? '₽'
+  const maxPrice = applicable.reduce((m, s) => Math.max(m, s.price ?? 0), 0)
+
+  const discountLabel =
+    promo.discount_value == null
+      ? null
+      : promo.discount_type === 'percent'
+        ? `−${promo.discount_value}%`
+        : `−${formatPrice(promo.discount_value, currency)}`
+
+  // Savings: for percent, max applicable price × percent; for fixed, the amount itself.
+  let savings: number | null = null
+  if (promo.discount_value != null) {
+    if (promo.discount_type === 'percent' && maxPrice > 0) {
+      savings = Math.round((maxPrice * promo.discount_value) / 100)
+    } else if (promo.discount_type === 'fixed') {
+      savings = promo.discount_value
+    }
+  }
 
   return (
-    <div className="rounded-2xl p-4 flex flex-col gap-3" style={{ background: 'var(--tg-secondary-bg)' }}>
-      <div className="flex items-start justify-between gap-2">
-        <p className="font-semibold text-tg-text text-sm leading-snug">{promo.title}</p>
-        {discountLabel && (
-          <span
-            className="shrink-0 text-sm font-bold px-2.5 py-1 rounded-lg text-white"
-            style={{ background: 'var(--tg-button)' }}
-          >
-            {discountLabel}
-          </span>
-        )}
+    <div className="rounded-2xl bg-cream border border-line overflow-hidden">
+      <div className="flex gap-3 p-3">
+        {/* Photo / placeholder */}
+        <div className="flex-shrink-0 w-[88px] h-[88px] rounded-xl overflow-hidden relative bg-sage-tint">
+          {promo.image_url ? (
+            <Image
+              src={promo.image_url}
+              alt={promo.title}
+              width={88}
+              height={88}
+              className="object-cover w-full h-full"
+            />
+          ) : (
+            <span className="absolute inset-0 flex items-center justify-center">
+              <Gift className="w-7 h-7 text-sage" strokeWidth={1.6} />
+            </span>
+          )}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="font-semibold text-[14px] text-ink leading-tight line-clamp-2">
+              {promo.title}
+            </h3>
+            {discountLabel && (
+              <span className="flex-shrink-0 inline-flex items-center rounded-lg bg-ink text-page text-[12px] font-semibold px-2 py-0.5">
+                {discountLabel}
+              </span>
+            )}
+          </div>
+
+          {promo.description && (
+            <p className="text-[12px] text-muted-foreground leading-snug mt-1 line-clamp-2">
+              {promo.description}
+            </p>
+          )}
+
+          <div className="flex items-center justify-between gap-2 mt-2">
+            {promo.ends_at ? (
+              <span className="inline-flex items-center gap-1 text-[11px] text-muted-2">
+                <Calendar className="w-3.5 h-3.5 text-peach" strokeWidth={2} />
+                Действует до {formatEndsAt(promo.ends_at)}
+              </span>
+            ) : (
+              <span />
+            )}
+            {savings != null && savings > 0 && (
+              <span className="text-[11px] font-medium text-sage">
+                экономия до {formatPrice(savings, currency)}
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
-      {promo.description && (
-        <p className="text-xs text-tg-hint leading-relaxed">{promo.description}</p>
-      )}
-
-      <div className="flex items-center justify-between mt-1">
-        {daysLeft !== null && (
-          <span className="flex items-center gap-1 text-xs text-tg-hint">
-            <Tag className="w-3 h-3" />
-            {daysLeft === 0 ? 'Заканчивается сегодня' : `Ещё ${daysLeft} дн.`}
-          </span>
-        )}
-        {onBook && (
-          <button
-            onClick={onBook}
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg"
-            style={{ background: 'var(--tg-button)', color: 'var(--tg-button-text, #fff)' }}
-          >
-            Записаться
-          </button>
-        )}
-      </div>
+      <button
+        type="button"
+        onClick={onBook}
+        className="w-full inline-flex items-center justify-center gap-1.5 border-t border-line bg-sage-tint text-sage text-[13px] font-medium py-2.5 hover:bg-sage-soft transition-colors"
+      >
+        Записаться по акции
+      </button>
     </div>
   )
 }
