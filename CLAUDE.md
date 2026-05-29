@@ -969,6 +969,44 @@ Polling каждые 200ms иногда не успевал на cold-start serv
 - При выборе дальней даты (>14 дней) — отдельный one-day fetch к `/api/slots?dateFrom=X&dateTo=X`, результат merge'ится в `slots[]` (dedupe by datetime+masterId), `selectedDate` обновляется. Loading state «Загружаем свободные окна…».
 - На `<NearbyDaysChipRow>` добавлен **swipe hint**: справа маленький sage round chevron с infinite `x: [0, 4, 0]` motion + gradient mask. Скрывается при первом скролле или через 5 сек (или сразу если `useReducedMotion`).
 
+### Phase 3.3c Confirm + Success v2 (2026-05-29, deployed)
+
+**Confirm page** (`(tma)/booking/confirm/page.tsx`):
+- Cormorant header «Подтверждение записи» + service subtitle + `<BookingSteps current={4}>`
+- Hero card «Вы почти записаны!» с sage check icon
+- `<AppointmentDetailsList>` (новый shared) с 6 rows (услуга/мастер/дата/время/длительность/стоимость) + footnote «Оплата в салоне». Эмфаза на price row (16px bold)
+- Sage focus glow на comment textarea
+- `<Button variant='serif-cta' size='xl'>` Подтвердить запись с subtitle «Вы получите уведомление в Telegram»
+- Outline «Отмена» secondary
+
+**Success screen v2** (in-place, на маршруте `/booking/confirm`, **без редиректа на главную**):
+- `<ConfettiBurst>` (новый microinteraction) — 28 частиц разлетаются с центра при mount
+- `<SuccessRipple size=96>` — большой центральный check + 2 ripples + 6 sparks
+- Cormorant «Вы записаны ✨» + greeting «{Master} будет ждать вас в салоне»
+- Master + service summary card с `<PortraitAvatar size='lg'>`
+- `<AppointmentDetailsList>` полная сводка
+- `<AiTipBubble>` (новый shared) — sage banner с robot mascot: «Я напомню вам о визите за день и за 3 часа до записи 🔔» + hint
+- Primary CTA `<Button variant='serif-cta'>` «📅 Добавить в календарь» → `downloadIcs()` (client-side .ics generator)
+- Secondary row 2-col: «🔗 Поделиться» (navigator.share + clipboard fallback) и «✏️ Изменить» → `/appointments?reschedule=<id>`
+- Tertiary: muted «🏠 На главную» link (вручную)
+- Stagger entry с `delayChildren: 0.7s` — confetti играет первый
+
+**Новая инфра:**
+- `src/lib/ics.ts` — `buildIcs()` + `downloadIcs()` helpers. RFC-5545 текстовая генерация + Blob download. Работает внутри Telegram WebView (revoke через 1с чтобы дать WebView подхватить link).
+- Microinteraction `<ConfettiBurst count={28} radius={180}>` — useReducedMotion-safe (рендерит null).
+- `<AppointmentDetailsList rows={DetailRow[]} footnote?>` — переиспользуется на Success + Confirm.
+- `<AiTipBubble message hint>` — переиспользуется (можно использовать в чате, на /appointments, в push notification preview).
+
+**Поведенческое изменение:** после `POST /api/appointments` пользователь **остаётся** на Success screen. Раньше через `router.replace('/home')` уходил. Теперь либо «Добавить в календарь», либо «Поделиться», либо «Изменить» (→ reschedule modal на /appointments), либо вручную «На главную».
+
+**Что НЕ тронуто:** POST `/api/appointments` (body shape, headers, response). `useBookingStore.reset()` вызывается только при уходе на главную/изменить. Haptic notification('success') при booking.
+
+Smoke 12/12 ✓.
+
+**Следующее:** Phase 3.5 — `(tma)/appointments/page.tsx` (Предстоящие/История + Reschedule sheet + Cancel dialog с 3D calendar SVG + ChipRow фильтра + Записаться снова + блок Напоминания).
+
+---
+
 **TODO Phase 4 — waitlist push-notifications:**
 - Миграция `appointment_waitlist` table (см. Phase 3.3b TODO):
   ```sql

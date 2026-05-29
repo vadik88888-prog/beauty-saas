@@ -30,7 +30,6 @@ import { useBookingStore } from '@/stores/bookingStore'
 import { formatDuration } from '@/lib/utils/date'
 import { formatPrice } from '@/lib/utils/format'
 import { waitForTmaToken } from '@/lib/tma-token'
-import { downloadIcs } from '@/lib/ics'
 
 const RU_DAYS = [
   'воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота',
@@ -162,15 +161,15 @@ export default function ConfirmPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen pb-6 safe-bottom">
+    <div className="flex flex-col min-h-screen">
       {/* Sticky header */}
-      <div className="sticky top-0 z-10 bg-background px-5 pt-4 pb-4 border-b border-line">
-        <div className="flex items-start gap-3 mb-4">
+      <div className="sticky top-0 z-10 bg-background px-5 pt-4 pb-3 border-b border-line">
+        <div className="flex items-start gap-3 mb-3">
           <button
             type="button"
             onClick={() => router.back()}
             aria-label="Назад"
-            className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-xl bg-cream border border-line text-ink hover:bg-cream-2 transition-colors"
+            className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-xl bg-cream border border-line text-ink hover:bg-cream-2 transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -184,39 +183,38 @@ export default function ConfirmPage() {
         <BookingSteps current={4} />
       </div>
 
+      {/* Scrollable content — pb keeps the last item above the sticky CTA */}
       <Stagger
-        className="flex flex-col gap-4 px-5 pt-4"
-        staggerChildren={0.07}
+        className="flex flex-col gap-3 px-5 pt-3 pb-40"
+        staggerChildren={0.06}
       >
-        {/* Hero «Вы почти записаны» */}
+        {/* Compact hero «Вы почти записаны» */}
         <StaggerItem>
           <div
-            className="relative overflow-hidden rounded-2xl p-4 border border-sage-soft"
+            className="flex items-center gap-3 rounded-2xl p-3 border border-sage-soft"
             style={{
               background:
                 'linear-gradient(135deg, var(--sage-tint) 0%, var(--cream-2) 220%)',
             }}
           >
-            <div className="flex items-start gap-3">
-              <span className="flex-shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-full bg-cream">
-                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
-                  <path
-                    d="M5 12.5l4 4 10-10"
-                    stroke="var(--sage)"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </span>
-              <div className="min-w-0">
-                <div className="font-serif text-[16px] text-ink leading-tight">
-                  Вы почти записаны!
-                </div>
-                <p className="text-[12px] text-muted-foreground mt-0.5">
-                  Проверьте детали и подтвердите запись
-                </p>
+            <span className="flex-shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full bg-cream">
+              <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none">
+                <path
+                  d="M5 12.5l4 4 10-10"
+                  stroke="var(--sage)"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+            <div className="min-w-0">
+              <div className="font-serif text-[15px] text-ink leading-tight">
+                Вы почти записаны
               </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Проверьте детали и подтвердите запись
+              </p>
             </div>
           </div>
         </StaggerItem>
@@ -242,52 +240,58 @@ export default function ConfirmPage() {
           />
         </StaggerItem>
 
-        {/* Notes */}
+        {/* Notes — compact 2 rows */}
         <StaggerItem>
           <label className="block">
-            <span className="text-[12px] font-medium text-muted-foreground mb-1.5 block">
+            <span className="text-[11px] font-medium text-muted-foreground mb-1 block">
               Комментарий (необязательно)
             </span>
             <textarea
               value={notes}
               onChange={e => setNotes(e.target.value)}
-              placeholder="Например: первый визит, аллергия на латекс, особые пожелания…"
+              placeholder="Например: первый визит, аллергия на латекс…"
               maxLength={300}
-              rows={3}
-              className="w-full px-3.5 py-2.5 rounded-2xl bg-cream text-ink text-[13px] resize-none border border-line outline-none placeholder:text-muted-2 focus-visible:border-sage focus-visible:ring-2 focus-visible:ring-sage-glow/40"
+              rows={2}
+              className="w-full px-3 py-2 rounded-2xl bg-cream text-ink text-[13px] resize-none border border-line outline-none placeholder:text-muted-2 focus-visible:border-sage focus-visible:ring-2 focus-visible:ring-sage-glow/40"
             />
           </label>
         </StaggerItem>
-
-        {/* CTAs */}
-        <StaggerItem>
-          <Button
-            variant="serif-cta"
-            size="xl"
-            disabled={isSubmitting}
-            onClick={handleConfirm}
-            className="w-full flex-col items-start py-3 px-5 gap-0.5 h-auto"
-          >
-            <span className="inline-flex items-center gap-2 text-base font-serif">
-              <Lock className="w-4 h-4" strokeWidth={1.8} />
-              {isSubmitting ? 'Записываем…' : 'Подтвердить запись'}
-            </span>
-            <span className="text-[11px] font-sans tracking-normal opacity-80">
-              Вы получите уведомление в Telegram
-            </span>
-          </Button>
-          <button
-            type="button"
-            onClick={() => {
-              reset()
-              router.replace('/')
-            }}
-            className="w-full mt-2 inline-flex items-center justify-center rounded-2xl border border-line bg-cream text-ink text-[13px] font-medium py-3 hover:bg-cream-2 transition-colors"
-          >
-            Отмена
-          </button>
-        </StaggerItem>
       </Stagger>
+
+      {/* Sticky bottom CTA — always visible, no scroll needed */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-20 px-5 pt-3 pb-[max(env(safe-area-inset-bottom,12px),12px)]"
+        style={{
+          background:
+            'linear-gradient(180deg, transparent 0%, var(--background) 30%)',
+        }}
+      >
+        <Button
+          variant="serif-cta"
+          size="xl"
+          disabled={isSubmitting}
+          onClick={handleConfirm}
+          className="w-full flex-col items-center py-3 px-5 gap-0.5 h-auto"
+        >
+          <span className="inline-flex items-center gap-2 text-base font-serif">
+            <Lock className="w-4 h-4" strokeWidth={1.8} />
+            {isSubmitting ? 'Записываем…' : 'Подтвердить запись'}
+          </span>
+          <span className="text-[11px] font-sans tracking-normal opacity-80">
+            Вы получите уведомление в Telegram
+          </span>
+        </Button>
+        <button
+          type="button"
+          onClick={() => {
+            reset()
+            router.replace('/')
+          }}
+          className="w-full mt-1.5 inline-flex items-center justify-center text-[12px] text-muted-foreground hover:text-ink py-2 transition-colors"
+        >
+          Отмена
+        </button>
+      </div>
     </div>
   )
 }
@@ -301,14 +305,28 @@ function SuccessScreen({
   onHome: () => void
   onReschedule: () => void
 }) {
-  function handleAddToCalendar() {
+  async function handleAddToCalendar() {
     window.Telegram?.WebApp.HapticFeedback?.selectionChanged()
-    downloadIcs({
-      title: details.serviceName,
-      startsAt: details.datetime,
-      durationMin: details.durationMin,
-      description: `Мастер: ${details.masterName}${details.notes ? `\nКомментарий: ${details.notes}` : ''}`,
-    })
+    if (!details.appointmentId) {
+      toast.error('Идентификатор записи не найден')
+      return
+    }
+    const token = await waitForTmaToken()
+    if (!token) {
+      toast.error('Сессия истекла. Откройте приложение через бот заново.')
+      return
+    }
+    const url = `${window.location.origin}/api/appointments/${details.appointmentId}/ics?token=${encodeURIComponent(token)}`
+    // Prefer Telegram openLink — opens system browser which can download .ics.
+    // Fallback to window.open if older WebApp version doesn't support it.
+    const tg = window.Telegram?.WebApp as
+      | { openLink?: (u: string) => void }
+      | undefined
+    if (tg?.openLink) {
+      tg.openLink(url)
+    } else {
+      window.open(url, '_blank')
+    }
   }
 
   function handleShare() {
@@ -326,39 +344,39 @@ function SuccessScreen({
   }
 
   return (
-    <div className="flex flex-col min-h-screen pb-6 safe-bottom safe-top">
-      {/* Hero check + confetti */}
-      <div className="relative flex flex-col items-center text-center pt-10 pb-6 px-5">
+    <div className="flex flex-col min-h-screen pb-6 safe-bottom">
+      {/* Compact hero check + confetti */}
+      <div className="relative flex flex-col items-center text-center pt-5 pb-3 px-5">
         <ConfettiBurst />
         <FadeInUp delay={0.05}>
-          <SuccessRipple size={96} />
+          <SuccessRipple size={72} />
         </FadeInUp>
-        <FadeInUp delay={0.5} className="mt-4">
-          <h1 className="text-serif-h1 text-ink">
+        <FadeInUp delay={0.4} className="mt-2">
+          <h1 className="text-serif-h2 text-ink">
             Вы записаны! <span className="inline-block">✨</span>
           </h1>
         </FadeInUp>
-        <FadeInUp delay={0.6} className="mt-1">
-          <p className="text-[13px] text-muted-foreground">
+        <FadeInUp delay={0.5} className="mt-0.5">
+          <p className="text-[12px] text-muted-foreground">
             {details.masterName.split(' ')[0]} будет ждать вас в салоне
           </p>
         </FadeInUp>
       </div>
 
       <Stagger
-        className="flex flex-col gap-3 px-5"
-        staggerChildren={0.06}
-        delayChildren={0.7}
+        className="flex flex-col gap-2.5 px-5"
+        staggerChildren={0.05}
+        delayChildren={0.6}
       >
-        {/* Master + service summary card */}
+        {/* Master + service summary card (compact) */}
         <StaggerItem>
-          <div className="bg-cream border border-line rounded-2xl p-4 flex items-center gap-3">
-            <PortraitAvatar name={details.masterName} size="lg" />
+          <div className="bg-cream border border-line rounded-2xl p-2.5 flex items-center gap-3">
+            <PortraitAvatar name={details.masterName} size="md" />
             <div className="min-w-0">
-              <div className="font-semibold text-[14px] text-ink leading-tight">
+              <div className="font-semibold text-[13px] text-ink leading-tight">
                 {details.masterName}
               </div>
-              <div className="text-[12px] text-muted-foreground line-clamp-1">
+              <div className="text-[11px] text-muted-foreground line-clamp-1">
                 {details.serviceName}
               </div>
             </div>
@@ -369,7 +387,6 @@ function SuccessScreen({
         <StaggerItem>
           <AppointmentDetailsList
             rows={[
-              { id: 'service', icon: Scissors, label: 'Услуга', value: details.serviceName },
               { id: 'date', icon: Calendar, label: 'Дата', value: formatHumanDate(details.datetime) },
               { id: 'time', icon: Clock, label: 'Время', value: formatHumanTime(details.datetime) },
               { id: 'dur', icon: Hourglass, label: 'Длительность', value: formatDuration(details.durationMin) },
@@ -382,11 +399,10 @@ function SuccessScreen({
         <StaggerItem>
           <AiTipBubble
             message="Я напомню вам о визите за день и за 3 часа до записи 🔔"
-            hint="Если планы изменятся — помогу перенести запись в 2 клика"
           />
         </StaggerItem>
 
-        {/* Actions — primary: Add to calendar */}
+        {/* Primary: Add to calendar */}
         <StaggerItem>
           <Button
             variant="serif-cta"
@@ -399,13 +415,13 @@ function SuccessScreen({
           </Button>
         </StaggerItem>
 
-        {/* Secondary actions in 2 columns */}
+        {/* Secondary 2 cols */}
         <StaggerItem>
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={handleShare}
-              className="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-line bg-cream text-ink text-[13px] font-medium py-3 hover:bg-cream-2 transition-colors"
+              className="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-line bg-cream text-ink text-[13px] font-medium py-2.5 hover:bg-cream-2 transition-colors"
             >
               <Share2 className="w-4 h-4" strokeWidth={1.8} />
               Поделиться
@@ -413,7 +429,7 @@ function SuccessScreen({
             <button
               type="button"
               onClick={onReschedule}
-              className="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-line bg-cream text-ink text-[13px] font-medium py-3 hover:bg-cream-2 transition-colors"
+              className="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-line bg-cream text-ink text-[13px] font-medium py-2.5 hover:bg-cream-2 transition-colors"
             >
               <Edit3 className="w-4 h-4" strokeWidth={1.8} />
               Изменить
@@ -426,9 +442,9 @@ function SuccessScreen({
           <button
             type="button"
             onClick={onHome}
-            className="w-full inline-flex items-center justify-center gap-1.5 text-[13px] text-muted-foreground hover:text-ink py-2 transition-colors"
+            className="w-full inline-flex items-center justify-center gap-1.5 text-[12px] text-muted-foreground hover:text-ink py-1.5 transition-colors"
           >
-            <Home className="w-3.5 h-3.5" strokeWidth={1.8} />
+            <Home className="w-3 h-3" strokeWidth={1.8} />
             На главную
           </button>
         </StaggerItem>
