@@ -10,9 +10,13 @@ export interface AiStats {
   }
   business: {
     revenue_today: number
+    revenue_yesterday: number
     appointments_today: number
+    appointments_yesterday: number
     no_shows_today: number
     avg_ticket: number
+    avg_ticket_yesterday: number
+    conversion_today: number
   }
   handed_off_count: number
   recent_activity: Array<{
@@ -27,6 +31,9 @@ export async function getAiStats(tenantId: string): Promise<AiStats> {
   const todayStr = new Date().toISOString().slice(0, 10)
   const dayStart = `${todayStr}T00:00:00Z`
   const dayEnd = `${todayStr}T23:59:59Z`
+  const yesterdayStr = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+  const ydayStart = `${yesterdayStr}T00:00:00Z`
+  const ydayEnd = `${yesterdayStr}T23:59:59Z`
 
   // 1. AI conversations today
   const { count: conversationsCount } = await supabase
@@ -95,11 +102,32 @@ export async function getAiStats(tenantId: string): Promise<AiStats> {
     .filter(a => ['confirmed', 'completed'].includes(a.status))
     .reduce((sum, a) => sum + (a.price ?? 0), 0)
   const revenuedAppts = bizAppts.filter(a => ['confirmed', 'completed'].includes(a.status))
-  const avgTicket = revenuedAppts.length > 0
-    ? Math.round(revenueToday / revenuedAppts.length)
+  const avgTicket = revenuedAppts.length > 0 ? Math.round(revenueToday / revenuedAppts.length) : 0
+
+  // 7. Yesterday business metrics (for trend arrows)
+  const { data: ydayAppts } = await supabase
+    .from('appointments')
+    .select('status, price, starts_at')
+    .eq('tenant_id', tenantId)
+    .gte('starts_at', ydayStart)
+    .lte('starts_at', ydayEnd)
+
+  const ydayBizAppts = (ydayAppts ?? []) as BizAppt[]
+  const appointmentsYesterday = ydayBizAppts.length
+  const revenueYesterday = ydayBizAppts
+    .filter(a => ['confirmed', 'completed'].includes(a.status))
+    .reduce((sum, a) => sum + (a.price ?? 0), 0)
+  const ydayRevenuedAppts = ydayBizAppts.filter(a => ['confirmed', 'completed'].includes(a.status))
+  const avgTicketYesterday = ydayRevenuedAppts.length > 0
+    ? Math.round(revenueYesterday / ydayRevenuedAppts.length)
     : 0
 
-  // 7. Recent activity — combine bookings + handoffs + knowledge messages
+  // 8. Conversion today: bookings / conversations
+  const convToday = conversationsCount ?? 0
+  const bkToday = bookingsCount ?? 0
+  const conversionToday = convToday > 0 ? Math.round((bkToday / convToday) * 100) : 0
+
+  // 9. Recent activity — combine bookings + handoffs + knowledge messages
   type ActivityItem = { time: string; type: 'booking' | 'message' | 'handoff'; text: string; ts: number }
   const activities: ActivityItem[] = []
 
@@ -130,7 +158,6 @@ export async function getAiStats(tenantId: string): Promise<AiStats> {
     })
   }
 
-  // Add a few knowledge-used messages
   const knowledgeMsgs = msgs.filter(m => (m.metadata?.knowledgeSources?.length ?? 0) > 0).slice(0, 3)
   for (const m of knowledgeMsgs) {
     const source = m.metadata?.knowledgeSources?.[0]?.title ?? '—'
@@ -150,17 +177,21 @@ export async function getAiStats(tenantId: string): Promise<AiStats> {
 
   return {
     ai: {
-      conversations_today: conversationsCount ?? 0,
-      bookings_today: bookingsCount ?? 0,
+      conversations_today: convToday,
+      bookings_today: bkToday,
       messages_today,
       saved_hours,
       knowledge_hits_today: knowledgeHits,
     },
     business: {
       revenue_today: revenueToday,
+      revenue_yesterday: revenueYesterday,
       appointments_today: appointmentsToday,
+      appointments_yesterday: appointmentsYesterday,
       no_shows_today: noShowsToday,
       avg_ticket: avgTicket,
+      avg_ticket_yesterday: avgTicketYesterday,
+      conversion_today: conversionToday,
     },
     handed_off_count: handoffCount ?? 0,
     recent_activity,
