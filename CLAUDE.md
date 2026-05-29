@@ -148,7 +148,7 @@ If a master has no `working_hours` rows → default Mon–Sat 9:00–18:00 (in `
 | `(tma)/booking/masters` | ✓ redesigned | 3.3a |
 | `(tma)/booking/slots` | ✓ redesigned + MonthCalendar modal | 3.3b |
 | `(tma)/booking/confirm` + Success v2 | ✓ redesigned (sticky CTA, confetti, .ics) | 3.3c |
-| `(tma)/appointments` | legacy | 3.5 next |
+| `(tma)/appointments` | ✓ redesigned (tabs + ChipRow + Reschedule sheet + Cancel dialog) | 3.5 |
 | `(tma)/chat` | legacy | 3.4 (after keyboard fix) |
 | `(tma)/promotions` | legacy | 3.5+ |
 | `(tma)/profile` | legacy | 3.6 |
@@ -211,7 +211,7 @@ Migrations 001-009 — see `supabase/migrations/`. All 19 applied in prod Supaba
 
 ### Phase 3 redesign continuation
 - **3.4 chat** — BEFORE redesign: fix keyboard viewport bug on iOS (sticky input, `viewportChanged` event, flex min-h-0). See [memory](C:\Users\Вадим\.claude\projects\c--Users-------Desktop--LAUDE-KOSMETOLOG\memory\project_phase34_chat_todo.md). Then TypingWave + MessageReveal + BreathingGlow + SuccessRipple after booking.
-- **3.5 appointments** — BookCard 3 variants + EmptyDashedCard + RatingStars stagger + ChipRow filter (Все/Завершены/Отменены/Перенесены) + Reschedule sheet + Cancel dialog (peach + 3D calendar SVG) + «Записаться снова» CTA + Напоминания block. Query `?reschedule=<id>` already handled — needs the modal redesign.
+- ~~3.5 appointments~~ ✅ done: segmented Предстоящие/История tabs, ChipRow filter (Все/Завершённые/Отменённые — «Перенесены» dropped, no such status), BookCard next/list/history, EmptyDashedCard, RatingStars on completed (added `rating` to GET /api/appointments + AppointmentWithRelations type), Reschedule bottom-sheet with real slot picker, Cancel dialog (peach + 3D calendar SVG), «Записаться снова», Напоминания block. `?reschedule=<id>` deep-link opens the sheet.
 - **3.5 promotions** — visual refresh.
 - **3.6 profile** — Pop logo (130px) + Brand block + AI here banner + menu list.
 
@@ -254,6 +254,13 @@ Behavioral rules to reduce common LLM coding mistakes. **Compromise:** these fav
 2. **Simplicity First** — minimum code that solves the task. No speculative features, no premature abstractions, no error handling for impossible scenarios.
 3. **Surgical Changes** — touch only what's necessary, clean only your own leftovers. Don't refactor working code. Follow existing style.
 4. **Goal-Driven Execution** — convert tasks into verifiable goals («write a test that reproduces the bug, then fix it»).
+
+---
+
+## Communication & UX rules (standing user feedback)
+
+1. **Explain like a child** — at the end of every phase or meaningful chunk of work, add a plain-words recap in Russian: no jargon, use salon analogies (гость, администратор, приёмная…). The technical summary is fine, but always finish with the simple version.
+2. **No duplicate CTAs** — don't repeat the same call-to-action (Записаться, Акции…) twice on one screen. TMA hero = one-click, not an array of actions.
 
 ---
 

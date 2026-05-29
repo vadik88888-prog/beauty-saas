@@ -361,6 +361,8 @@ export type AppointmentWithRelations = Appointment & {
   client: Pick<Client, 'id' | 'first_name' | 'last_name' | 'telegram_id'>
   master: Pick<Master, 'id' | 'name' | 'photo_url'>
   service: Pick<Service, 'id' | 'name' | 'duration_min' | 'price' | 'currency' | 'image_url'>
+  /** Post-visit rating 1–5 (migration 016). Not in the generated Row type. */
+  rating?: number | null
 }
 
 export type ServiceWithCategory = Service & {
