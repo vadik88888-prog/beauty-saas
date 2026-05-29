@@ -22,8 +22,17 @@ export async function GET() {
   if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   try {
-    const stats = await getAiStats(tenantId)
-    return NextResponse.json({ data: stats })
+    const adminClient = createAdminClient()
+    const [stats, tenantRes] = await Promise.all([
+      getAiStats(tenantId),
+      adminClient
+        .from('tenants')
+        .select('name, subscription_plan, trial_ends_at')
+        .eq('id', tenantId)
+        .single(),
+    ])
+    const tenant = (tenantRes.data as { name: string; subscription_plan: string; trial_ends_at: string | null } | null) ?? null
+    return NextResponse.json({ data: { ...stats, tenant } })
   } catch (err) {
     console.error('[ai-stats] error', err)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

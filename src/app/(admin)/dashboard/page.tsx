@@ -3,16 +3,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
-  Sparkles, MessageSquare, Calendar, Clock, Repeat,
-  BookOpen, Wallet, TrendingDown, Users, BarChart3,
-  ArrowRight, AlertCircle,
+  Bot, MessageSquare, Calendar, Clock, BookOpen, Wallet,
+  TrendingDown, Users, ArrowRight, AlertCircle, Repeat, Bell, Lightbulb,
 } from 'lucide-react'
-import { MetricCard } from '@/components/shared/MetricCard'
-import { SectionTitle } from '@/components/shared/SectionTitle'
-import { GradientCard } from '@/components/shared/GradientCard'
-import { AiBadge } from '@/components/shared/AiBadge'
-import { AiActivityDot } from '@/components/shared/AiActivityDot'
-import { EmptyState } from '@/components/shared/EmptyState'
 import { formatPrice } from '@/lib/utils/format'
 import { formatTime } from '@/lib/utils/date'
 import { getAiStats } from '@/lib/admin/get-ai-stats'
@@ -43,25 +36,24 @@ async function getAiName(tenantId: string): Promise<string> {
   return (data as { admin_name?: string } | null)?.admin_name ?? 'Алина'
 }
 
-async function getUpcomingAppointments(tenantId: string) {
+type UpcomingRow = {
+  id: string
+  starts_at: string
+  source: string | null
+  client: { first_name: string | null; last_name: string | null } | null
+  master: { name: string } | null
+  service: { name: string; price: number | null; currency: string } | null
+}
+
+async function getUpcomingAppointments(tenantId: string): Promise<UpcomingRow[]> {
   const supabase = createAdminClient()
   const nowIso = new Date().toISOString()
   const todayEnd = `${new Date().toISOString().slice(0, 10)}T23:59:59Z`
 
-  type Row = {
-    id: string
-    starts_at: string
-    status: string
-    source: string | null
-    client: { first_name: string | null; last_name: string | null } | null
-    master: { name: string } | null
-    service: { name: string; price: number | null; currency: string } | null
-  }
-
   const { data } = await supabase
     .from('appointments')
     .select(`
-      id, starts_at, status, source,
+      id, starts_at, source,
       client:clients(first_name, last_name),
       master:masters(name),
       service:services(name, price, currency)
@@ -71,9 +63,9 @@ async function getUpcomingAppointments(tenantId: string) {
     .lte('starts_at', todayEnd)
     .in('status', ['pending', 'confirmed'])
     .order('starts_at')
-    .limit(5)
+    .limit(4)
 
-  return (data as unknown as Row[]) ?? []
+  return (data as unknown as UpcomingRow[]) ?? []
 }
 
 export default async function DashboardPage() {
@@ -84,225 +76,213 @@ export default async function DashboardPage() {
     getUpcomingAppointments(tenantId),
   ])
 
-  const greeting = getGreeting()
   const ai = stats.ai
   const business = stats.business
+  const greeting = getGreeting()
+  const tip = buildTip(aiName, stats)
 
-  const heroStory = buildHeroStory(aiName, ai)
+  const heroStats = [
+    { icon: MessageSquare, value: ai.conversations_today, label: 'диалогов обработано' },
+    { icon: Calendar, value: ai.bookings_today, label: 'клиентов записано' },
+    { icon: Clock, value: ai.saved_hours > 0 ? `${ai.saved_hours}ч` : '0ч', label: 'сэкономлено времени' },
+    { icon: BookOpen, value: ai.knowledge_hits_today, label: 'ответов из базы знаний' },
+  ]
 
   return (
-    <div className="p-5 md:p-8 max-w-6xl mx-auto flex flex-col gap-8">
-      {/* Hero */}
-      <section className="flex flex-col gap-1">
-        <p className="text-[13px] text-muted-foreground">{greeting}{userFirstName ? `, ${userFirstName}` : ''}</p>
-        <div className="flex items-start gap-3 flex-wrap">
-          <h1 className="text-display text-foreground">
-            {ai.messages_today > 0
-              ? `${aiName} сегодня работала за вас`
-              : `${aiName} готова работать`}
-            <Sparkles className="inline w-6 h-6 ml-2 text-ai-foreground" strokeWidth={1.8} />
+    <div className="p-5 md:p-8 max-w-5xl mx-auto flex flex-col gap-5">
+      {/* Header */}
+      <header className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-serif-h2 text-ink">
+            {greeting}{userFirstName ? `, ${userFirstName}` : ''}! <span className="inline-block">👋</span>
           </h1>
+          <p className="text-[13px] text-muted-foreground mt-0.5">
+            {aiName} {ai.conversations_today > 0 ? 'уже работает и помогает вашему салону' : 'готова работать с вашими клиентами'}
+          </p>
         </div>
-        <p className="text-body text-muted-foreground max-w-2xl mt-1">{heroStory}</p>
-      </section>
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-xl bg-cream border border-line px-3 py-2 text-[12px] text-ink-2">
+            <Calendar className="w-3.5 h-3.5 text-sage" strokeWidth={1.8} />
+            {formatTodayLong()}
+          </span>
+          <Link
+            href="/chats"
+            className="relative w-9 h-9 inline-flex items-center justify-center rounded-xl bg-cream border border-line text-ink hover:bg-cream-2 transition-colors"
+            aria-label="Чаты"
+          >
+            <Bell className="w-4 h-4" strokeWidth={1.8} />
+            {stats.handed_off_count > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-[#ef4444] text-white text-[10px] font-semibold inline-flex items-center justify-center">
+                {stats.handed_off_count}
+              </span>
+            )}
+          </Link>
+        </div>
+      </header>
 
-      {/* AI Metrics */}
-      <section>
-        <SectionTitle
-          title="Что сделала AI"
-          description="За сегодня"
-        />
+      {/* AI hero */}
+      <section
+        className="rounded-3xl p-5 border border-sage-soft"
+        style={{ background: 'linear-gradient(135deg, var(--sage-tint) 0%, var(--cream-2) 220%)' }}
+      >
+        <div className="flex items-center gap-3 mb-4">
+          <span className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-cream border border-sage-soft">
+            <Bot className="w-6 h-6 text-sage" strokeWidth={1.7} />
+          </span>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="font-serif text-xl text-ink leading-tight">{aiName} работает</h2>
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-sage bg-cream border border-sage-soft rounded-full px-2 py-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-sage" /> Онлайн сейчас
+              </span>
+            </div>
+            <p className="text-[12px] text-muted-foreground mt-0.5">Сегодня:</p>
+          </div>
+        </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <MetricCard
-            isAi
-            label="Диалоги"
-            value={ai.conversations_today}
-            icon={MessageSquare}
-            hint="клиентов написали"
-          />
-          <MetricCard
-            isAi
-            label="Записи через AI"
-            value={ai.bookings_today}
-            icon={Calendar}
-            hint="без участия админа"
-          />
-          <MetricCard
-            isAi
-            label="Сэкономлено"
-            value={ai.saved_hours > 0 ? `~${ai.saved_hours}ч` : '0ч'}
-            icon={Clock}
-            hint="вашего времени"
-          />
-          <MetricCard
-            isAi
-            label="Использовано знаний"
-            value={ai.knowledge_hits_today}
-            icon={BookOpen}
-            hint="из базы салона"
-          />
+          {heroStats.map((s, i) => (
+            <div key={i} className="rounded-2xl bg-cream/70 border border-sage-soft/60 p-3 flex items-center gap-2.5">
+              <s.icon className="w-4 h-4 text-sage shrink-0" strokeWidth={1.8} />
+              <div className="min-w-0">
+                <div className="text-[18px] font-semibold text-ink leading-none">{s.value}</div>
+                <div className="text-[11px] text-muted-foreground leading-tight mt-1">{s.label}</div>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 
       {/* Handoff alert */}
       {stats.handed_off_count > 0 && (
-        <GradientCard variant="champagne" className="flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-accent/30 flex items-center justify-center shrink-0">
-            <AlertCircle className="w-5 h-5 text-accent-foreground" />
-          </div>
+        <Link
+          href="/chats"
+          className="flex items-center gap-3 rounded-2xl bg-peach/25 border border-peach/50 p-4 hover:bg-peach/35 transition-colors"
+        >
+          <span className="w-10 h-10 rounded-xl bg-cream flex items-center justify-center shrink-0">
+            <AlertCircle className="w-5 h-5 text-ink-2" strokeWidth={1.8} />
+          </span>
           <div className="flex-1 min-w-0">
-            <p className="text-h2 text-foreground">
-              {stats.handed_off_count} {pluralize(stats.handed_off_count, ['диалог', 'диалога', 'диалогов'])} ждёт вашего ответа
+            <p className="font-semibold text-[15px] text-ink">
+              {stats.handed_off_count} {pluralize(stats.handed_off_count, ['диалог ждёт', 'диалога ждут', 'диалогов ждут'])} вашего ответа
             </p>
-            <p className="text-caption mt-0.5">{aiName} передала эти диалоги вам</p>
+            <p className="text-[12px] text-muted-foreground mt-0.5">{aiName} передала их вам</p>
           </div>
-          <Link
-            href="/chats"
-            className="px-4 py-2 rounded-xl bg-foreground text-background text-[13px] font-medium hover:opacity-90 transition-opacity shrink-0"
-          >
-            Ответить
-          </Link>
-        </GradientCard>
+          <span className="shrink-0 rounded-xl bg-ink text-page text-[13px] font-medium px-4 py-2">Ответить</span>
+        </Link>
       )}
 
-      {/* Business Metrics */}
+      {/* Business KPI */}
       <section>
-        <SectionTitle title="Бизнес сегодня" />
+        <h3 className="text-[15px] font-semibold text-ink mb-2">Бизнес сегодня</h3>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <MetricCard
-            label="Выручка"
-            value={formatPrice(business.revenue_today, 'BYN')}
-            icon={Wallet}
-          />
-          <MetricCard
-            label="Всего записей"
-            value={business.appointments_today}
-            icon={Calendar}
-          />
-          <MetricCard
-            label="No-show"
-            value={business.no_shows_today}
-            icon={TrendingDown}
-          />
-          <MetricCard
-            label="Средний чек"
-            value={business.avg_ticket > 0 ? formatPrice(business.avg_ticket, 'BYN') : '—'}
-            icon={Users}
-          />
+          <KpiCard icon={Wallet} value={formatPrice(business.revenue_today, 'BYN')} label="Выручка" />
+          <KpiCard icon={Calendar} value={String(business.appointments_today)} label="Всего записей" />
+          <KpiCard icon={TrendingDown} value={String(business.no_shows_today)} label="No-show" />
+          <KpiCard icon={Users} value={business.avg_ticket > 0 ? formatPrice(business.avg_ticket, 'BYN') : '—'} label="Средний чек" />
         </div>
       </section>
 
-      {/* AI Activity Feed */}
+      {/* What AI did — activity feed */}
       <section>
-        <SectionTitle
-          title={`Что делает ${aiName}`}
-          description="Последние действия"
-          action={
-            <Link
-              href="/chats"
-              className="text-[12px] text-ai-foreground hover:underline inline-flex items-center gap-1"
-            >
-              Все диалоги
-              <ArrowRight className="w-3 h-3" />
-            </Link>
-          }
-        />
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-[15px] font-semibold text-ink">Что сделала {aiName}</h3>
+          <Link href="/chats" className="text-[12px] text-sage font-medium hover:text-sage-2 inline-flex items-center gap-1">
+            Все действия <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
         {stats.recent_activity.length === 0 ? (
-          <EmptyState
-            icon={Sparkles}
-            title={`${aiName} пока ничего не сделала`}
-            description="Когда клиенты начнут писать боту, здесь появится активность"
-          />
+          <div className="rounded-2xl bg-cream border border-line p-6 text-center">
+            <Bot className="w-7 h-7 text-sage mx-auto mb-2" strokeWidth={1.6} />
+            <p className="text-[14px] font-medium text-ink">{aiName} пока ничего не сделала</p>
+            <p className="text-[12px] text-muted-foreground mt-0.5">Когда клиенты начнут писать боту, здесь появится активность</p>
+          </div>
         ) : (
-          <div className="card-elevated divide-y divide-border">
+          <div className="rounded-2xl bg-cream border border-line divide-y divide-line">
             {stats.recent_activity.map((act, i) => (
-              <ActivityRow key={i} item={act} aiName={aiName} />
+              <div key={i} className="flex items-start gap-3 px-4 py-3">
+                <span className="w-7 h-7 rounded-lg bg-sage-tint text-sage flex items-center justify-center shrink-0">
+                  {act.type === 'booking' ? <Calendar className="w-3.5 h-3.5" /> : act.type === 'handoff' ? <Repeat className="w-3.5 h-3.5" /> : <BookOpen className="w-3.5 h-3.5" />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] text-ink"><span className="font-medium">{aiName}</span> · {act.text}</p>
+                  <p className="text-[11px] text-muted-2 mt-0.5">{formatRelative(act.time)}</p>
+                </div>
+              </div>
             ))}
           </div>
         )}
       </section>
 
-      {/* Upcoming appointments */}
-      <section>
-        <SectionTitle
-          title="Ближайшие записи"
-          action={
-            <Link href="/calendar" className="text-[12px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
+      {/* Bottom: tip + upcoming */}
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Tip */}
+        <div
+          className="rounded-2xl p-4 border border-sage-soft"
+          style={{ background: 'linear-gradient(135deg, var(--sage-tint) 0%, var(--cream-2) 240%)' }}
+        >
+          <div className="flex items-center gap-2 mb-1.5">
+            <Lightbulb className="w-4 h-4 text-sage" strokeWidth={1.8} />
+            <span className="text-[13px] font-semibold text-ink">Совет от {aiName}</span>
+          </div>
+          <p className="font-serif italic text-[14px] text-ink-2 leading-snug">{tip}</p>
+        </div>
+
+        {/* Upcoming */}
+        <div className="rounded-2xl bg-cream border border-line overflow-hidden">
+          <div className="flex items-center justify-between px-4 pt-3 pb-2">
+            <span className="text-[13px] font-semibold text-ink">Ближайшие записи</span>
+            <Link href="/calendar" className="text-[12px] text-sage font-medium hover:text-sage-2 inline-flex items-center gap-1">
               Расписание <ArrowRight className="w-3 h-3" />
             </Link>
-          }
-        />
-        {upcoming.length === 0 ? (
-          <EmptyState
-            icon={Calendar}
-            title="На сегодня записей больше нет"
-          />
-        ) : (
-          <div className="card-elevated divide-y divide-border">
-            {upcoming.map(appt => {
-              const client = appt.client
-              const clientName = [client?.first_name, client?.last_name].filter(Boolean).join(' ') || 'Клиент'
-              const isAi = appt.source === 'ai'
-              return (
-                <div key={appt.id} className="flex items-center gap-4 px-4 py-3">
-                  <div className="text-center w-12 shrink-0">
-                    <p className="text-[15px] font-semibold leading-none">{formatTime(appt.starts_at)}</p>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-[14px] truncate">{clientName}</p>
-                      {isAi && <AiBadge />}
-                    </div>
-                    <p className="text-[12px] text-muted-foreground truncate">
-                      {appt.service?.name} · {appt.master?.name}
-                    </p>
-                  </div>
-                  {appt.service?.price && (
-                    <p className="text-[13px] text-muted-foreground shrink-0 hidden sm:block">
-                      {formatPrice(appt.service.price, appt.service.currency)}
-                    </p>
-                  )}
-                </div>
-              )
-            })}
           </div>
-        )}
+          {upcoming.length === 0 ? (
+            <p className="px-4 pb-4 text-[12px] text-muted-foreground">На сегодня записей больше нет.</p>
+          ) : (
+            <div className="divide-y divide-line">
+              {upcoming.map(appt => {
+                const clientName = [appt.client?.first_name, appt.client?.last_name].filter(Boolean).join(' ') || 'Клиент'
+                return (
+                  <div key={appt.id} className="flex items-center gap-3 px-4 py-2.5">
+                    <span className="text-[14px] font-semibold text-ink w-12 shrink-0">{formatTime(appt.starts_at)}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[13px] font-medium text-ink truncate">{clientName}</p>
+                      <p className="text-[11px] text-muted-2 truncate">{appt.service?.name} · {appt.master?.name}</p>
+                    </div>
+                    {appt.service?.price != null && (
+                      <span className="text-[12px] text-muted-foreground shrink-0">{formatPrice(appt.service.price, appt.service.currency)}</span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </section>
     </div>
   )
 }
 
-function ActivityRow({ item, aiName }: { item: { type: string; text: string; time: string }; aiName: string }) {
-  const icon = item.type === 'booking'
-    ? <Calendar className="w-3.5 h-3.5" />
-    : item.type === 'handoff'
-      ? <Repeat className="w-3.5 h-3.5" />
-      : <BookOpen className="w-3.5 h-3.5" />
-
+function KpiCard({ icon: Icon, value, label }: { icon: typeof Wallet; value: string; label: string }) {
   return (
-    <div className="flex items-start gap-3 px-4 py-3">
-      <div className="w-7 h-7 rounded-lg bg-ai-soft text-ai-foreground flex items-center justify-center shrink-0">
-        {icon}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-[13px] text-foreground">
-          <span className="font-medium">{aiName}</span> · {item.text}
-        </p>
-        <p className="text-[11px] text-muted-foreground mt-0.5">{formatRelative(item.time)}</p>
-      </div>
+    <div className="rounded-2xl bg-cream border border-line p-4">
+      <Icon className="w-4 h-4 text-sage mb-2" strokeWidth={1.8} />
+      <div className="text-[20px] font-semibold text-ink leading-none">{value}</div>
+      <div className="text-[12px] text-muted-foreground mt-1">{label}</div>
     </div>
   )
 }
 
-function buildHeroStory(aiName: string, ai: { messages_today: number; bookings_today: number; saved_hours: number; conversations_today: number }): string {
-  if (ai.messages_today === 0) {
-    return `Поделитесь ссылкой на бота с клиентами — ${aiName} начнёт отвечать, записывать и сэкономит вам часы работы.`
+function buildTip(aiName: string, stats: { ai: { conversations_today: number; bookings_today: number }; handed_off_count: number }): string {
+  if (stats.handed_off_count > 0) {
+    return `Вас ждут ${stats.handed_off_count} ${pluralize(stats.handed_off_count, ['диалог', 'диалога', 'диалогов'])} — клиенты охотнее возвращаются, когда им отвечают в тот же день.`
   }
-  const parts: string[] = []
-  if (ai.messages_today > 0) parts.push(`обработала ${ai.messages_today} ${pluralize(ai.messages_today, ['сообщение', 'сообщения', 'сообщений'])}`)
-  if (ai.bookings_today > 0) parts.push(`записала ${ai.bookings_today} ${pluralize(ai.bookings_today, ['клиента', 'клиентов', 'клиентов'])}`)
-  if (ai.saved_hours >= 0.5) parts.push(`сэкономила ~${ai.saved_hours} ч`)
-  return parts.length > 0 ? parts.join(', ') + '.' : 'AI готова к работе.'
+  if (stats.ai.bookings_today > 0) {
+    return `Сегодня ${aiName} уже записала ${stats.ai.bookings_today} ${pluralize(stats.ai.bookings_today, ['клиента', 'клиентов', 'клиентов'])}. Так держать!`
+  }
+  if (stats.ai.conversations_today > 0) {
+    return `${aiName} уже общается с клиентами. Запустите акцию, чтобы превратить диалоги в записи.`
+  }
+  return `Поделитесь ссылкой на бота с клиентами — ${aiName} начнёт отвечать, записывать и сэкономит вам часы работы.`
 }
 
 function pluralize(n: number, forms: [string, string, string]): string {
@@ -316,8 +296,7 @@ function pluralize(n: number, forms: [string, string, string]): string {
 
 function formatRelative(iso: string): string {
   const date = new Date(iso)
-  const now = Date.now()
-  const diffMin = Math.round((now - date.getTime()) / 60000)
+  const diffMin = Math.round((Date.now() - date.getTime()) / 60000)
   if (diffMin < 1) return 'только что'
   if (diffMin < 60) return `${diffMin} мин назад`
   if (diffMin < 1440) {
@@ -327,6 +306,13 @@ function formatRelative(iso: string): string {
   return date.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
+const RU_MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря']
+const RU_WEEKDAYS = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота']
+function formatTodayLong(): string {
+  const d = new Date()
+  return `${d.getDate()} ${RU_MONTHS_GEN[d.getMonth()]}, ${RU_WEEKDAYS[d.getDay()]}`
+}
+
 function getGreeting(): string {
   const h = new Date().getHours()
   if (h < 12) return 'Доброе утро'
@@ -334,7 +320,3 @@ function getGreeting(): string {
   if (h < 22) return 'Добрый вечер'
   return 'Доброй ночи'
 }
-
-// AiActivityDot is imported but currently unused in this file — keep for future hero status badge
-void AiActivityDot
-void BarChart3

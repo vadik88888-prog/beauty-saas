@@ -1,6 +1,6 @@
 # BeautySaaS — Project Context for Claude
 
-> **Last update:** 2026-05-29. Status — production stable, smoke 12/12 ✓. Redesign Phase 1+2+3.1+3.2+3.3a+3.3b+3.3c deployed. Old Phase descriptions live in [`docs/HISTORY.md`](docs/HISTORY.md). Active TODOs at the bottom.
+> **Last update:** 2026-05-29. Status — production stable, smoke 12/12 ✓. **Phase 3 TMA redesign COMPLETE** (home, booking flow, confirm/success, appointments, chat, promotions, profile all redesigned & deployed). Now starting **Phase 4** (admin redesign + real-data backing + waitlist + share booking). Old Phase descriptions live in [`docs/HISTORY.md`](docs/HISTORY.md). Active TODOs at the bottom.
 
 ## What This Is
 Multi-tenant B2B SaaS — Telegram Mini App для beauty-салонов с AI-администратором.
@@ -152,7 +152,8 @@ If a master has no `working_hours` rows → default Mon–Sat 9:00–18:00 (in `
 | `(tma)/chat` | ✓ redesigned (iOS keyboard fix + Beauty); AI slot-chips pending | 3.4 |
 | `(tma)/promotions` | ✓ redesigned (real discount/savings, image_url, unified CTA) | 3.5+ |
 | `(tma)/profile` | ✓ redesigned (`/api/profile` stats, edit dialog) | 3.6 |
-| All admin pages | legacy | 4 |
+| `(admin)/dashboard` + AdminSidebar | ✓ redesigned (Beauty, real data only) | 4 |
+| Other admin pages (calendar/clients/services/masters/chats/promo/ai-settings/analytics/settings) | legacy | 4 |
 
 Component library (Phase 2) — all 27 components in `src/components/{motion,shared,shared/microinteractions,admin,ui}/`. See `docs/HISTORY.md` for the full list.
 
@@ -284,6 +285,7 @@ Behavioral rules to reduce common LLM coding mistakes. **Compromise:** these fav
 
 ## Reference docs
 
+- **MAIN REDESIGN PLAN (TMA + Admin):** `C:\Users\Вадим\.claude\plans\elegant-brewing-alpaca.md` — full per-page redesign spec. Часть III = Admin pages (Dashboard/Calendar/Chats/Services/Masters/Promo/AI-Settings/Analytics/Settings) each with a design reference-id; Phase 4 = Admin Redesign. Use this (with the per-screen reference images) for Phase 4 admin work. (The memory pointer in `project_kosmetolog_saas.md` points to an older Sprint-5 plan `project-plan-md-memoized-brook.md` — not the main one.)
 - [`docs/HISTORY.md`](docs/HISTORY.md) — full historical CLAUDE.md (before this compaction) with detailed phase descriptions, AI architecture file map, all completed-phase summaries.
 - [`SMOKE_CHECKLIST.md`](SMOKE_CHECKLIST.md) — 12 manual UI scenarios (~30 min) for things smoke-test.sh can't cover.
 - [`scripts/smoke-test.sh`](scripts/smoke-test.sh) — automated 12-check smoke.
