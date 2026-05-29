@@ -1,24 +1,33 @@
 'use client'
 
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import {
   ArrowLeft,
   Bell,
   Calendar,
-  ChevronRight,
+  CalendarDays,
   Clock,
   Lock,
+  MessageCircle,
   RefreshCcw,
+  RotateCcw,
+  Star,
   Trash2,
+  X,
   XCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { BookCard } from '@/components/shared/BookCard'
+import { StatusPill } from '@/components/shared/StatusPill'
 import { ChipRow } from '@/components/shared/ChipRow'
 import { EmptyDashedCard } from '@/components/shared/EmptyDashedCard'
 import { RatingStars } from '@/components/shared/RatingStars'
+import { ActionRow } from '@/components/shared/ActionRow'
 import { PortraitAvatar } from '@/components/shared/PortraitAvatar'
-import { NearbyDaysChipRow } from '@/components/shared/NearbyDaysChipRow'
+import { AiTipBubble } from '@/components/shared/AiTipBubble'
+import { MonthCalendar } from '@/components/shared/MonthCalendar'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Stagger, StaggerItem } from '@/components/motion/Stagger'
@@ -28,19 +37,16 @@ import type { TimeSlot } from '@/types/api'
 import { useBookingStore } from '@/stores/bookingStore'
 import { waitForTmaToken, getTenantSlug } from '@/lib/tma-token'
 import { formatDate, formatTime } from '@/lib/utils/date'
+import { formatPrice } from '@/lib/utils/format'
 
 type Tab = 'upcoming' | 'history'
 type HistoryFilter = 'all' | 'completed' | 'cancelled'
-type ApptStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show'
 
 const HISTORY_STATUSES = ['completed', 'cancelled', 'no_show'] as const
 
-const STATUS: Record<ApptStatus, { label: string; cls: string }> = {
-  confirmed: { label: 'Подтверждена', cls: 'text-green-600' },
-  pending: { label: 'Ожидает подтверждения', cls: 'text-amber-600' },
-  completed: { label: 'Завершена', cls: 'text-muted-2' },
-  cancelled: { label: 'Отменена', cls: 'text-red-500' },
-  no_show: { label: 'Не пришли', cls: 'text-orange-500' },
+function priceOf(appt: AppointmentWithRelations): string | null {
+  const p = appt.price ?? appt.service.price
+  return p != null ? formatPrice(p, appt.service.currency) : null
 }
 
 export default function AppointmentsPage() {
@@ -54,7 +60,6 @@ export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
-  const [actionsTarget, setActionsTarget] = useState<AppointmentWithRelations | null>(null)
   const [cancelTarget, setCancelTarget] = useState<AppointmentWithRelations | null>(null)
   const [isCancelling, setIsCancelling] = useState(false)
   const [rescheduleTarget, setRescheduleTarget] = useState<AppointmentWithRelations | null>(null)
@@ -88,7 +93,7 @@ export default function AppointmentsPage() {
     }
   }, [tab])
 
-  // Deep-link ?reschedule=<id> — open the reschedule dialog once data is loaded.
+  // Deep-link ?reschedule=<id> — open the reschedule sheet once data is loaded.
   useEffect(() => {
     const targetId = searchParams.get('reschedule')
     if (!targetId || deepLinkHandled.current || appointments.length === 0) return
@@ -162,6 +167,43 @@ export default function AppointmentsPage() {
     router.push('/booking/slots')
   }
 
+  function upcomingActions(appt: AppointmentWithRelations) {
+    return (
+      <ActionRow
+        items={[
+          {
+            id: 'reschedule',
+            tone: 'sage',
+            label: (
+              <span className="inline-flex items-center gap-1.5">
+                <RefreshCcw className="w-3.5 h-3.5" strokeWidth={1.8} />
+                Перенести
+              </span>
+            ),
+            onClick: () => {
+              window.Telegram?.WebApp.HapticFeedback?.impactOccurred('light')
+              setRescheduleTarget(appt)
+            },
+          },
+          {
+            id: 'cancel',
+            tone: 'peach',
+            label: (
+              <span className="inline-flex items-center gap-1.5">
+                <XCircle className="w-3.5 h-3.5" strokeWidth={1.8} />
+                Отменить
+              </span>
+            ),
+            onClick: () => {
+              window.Telegram?.WebApp.HapticFeedback?.impactOccurred('medium')
+              setCancelTarget(appt)
+            },
+          },
+        ]}
+      />
+    )
+  }
+
   return (
     <div className="flex flex-col min-h-screen safe-bottom">
       {/* Sticky header + tabs */}
@@ -199,10 +241,25 @@ export default function AppointmentsPage() {
       </div>
 
       <div className="flex flex-col gap-3 px-5 pt-4 pb-6">
+        {/* History status filter */}
+        {tab === 'history' && !isLoading && history.length > 0 && (
+          <ChipRow
+            className="mb-1"
+            scroll={false}
+            selectedId={historyFilter}
+            onSelect={id => setHistoryFilter(id as HistoryFilter)}
+            items={[
+              { id: 'all', label: 'Все' },
+              { id: 'completed', label: 'Завершённые' },
+              { id: 'cancelled', label: 'Отменённые' },
+            ]}
+          />
+        )}
+
         {isLoading ? (
           <div className="flex flex-col gap-3">
             {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} tone="cream" className="h-24 w-full rounded-2xl" />
+              <Skeleton key={i} tone="cream" className="h-32 w-full rounded-2xl" />
             ))}
           </div>
         ) : tab === 'upcoming' ? (
@@ -213,130 +270,88 @@ export default function AppointmentsPage() {
               cta={{ label: 'Записаться', onClick: () => router.push('/booking/services') }}
             />
           ) : (
-            <>
-              <h2 className="text-[15px] font-semibold text-ink">Предстоящие записи</h2>
-              <Stagger className="flex flex-col gap-3" staggerChildren={0.06}>
-                {upcoming.map(appt => (
-                  <StaggerItem key={appt.id}>
-                    <AppointmentRow appt={appt} onTap={() => setActionsTarget(appt)} />
-                  </StaggerItem>
-                ))}
-
-                {/* New booking shortcut */}
-                <StaggerItem>
-                  <button
-                    type="button"
-                    onClick={() => router.push('/booking/services')}
-                    className="w-full text-left rounded-2xl bg-cream border border-line p-3 flex items-center gap-3 hover:bg-cream-2 transition-colors active:scale-[0.99]"
-                  >
-                    <span className="w-10 h-10 rounded-xl bg-sage-tint border border-sage-soft flex items-center justify-center shrink-0">
-                      <Calendar className="w-5 h-5 text-sage" strokeWidth={1.8} />
-                    </span>
-                    <div className="min-w-0">
-                      <div className="font-semibold text-[14px] text-ink">Записаться снова</div>
-                      <div className="text-[12px] text-muted-2">Выберите новую услугу и удобное время</div>
-                    </div>
-                  </button>
-                </StaggerItem>
-
-                {/* Reminders */}
-                <StaggerItem>
-                  <h2 className="text-[15px] font-semibold text-ink mt-2">Напоминания</h2>
-                </StaggerItem>
-                <StaggerItem>
-                  <div className="flex items-center gap-3 rounded-2xl bg-sage-tint border border-sage-soft p-3">
-                    <span className="flex-shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full bg-cream">
-                      <Bell className="w-4 h-4 text-sage" strokeWidth={1.8} />
-                    </span>
-                    <p className="text-[12px] text-ink-2 leading-snug">
-                      Напомню о визите за день и за 3 часа — ничего не пропустите 🌿
-                    </p>
-                  </div>
-                </StaggerItem>
-              </Stagger>
-            </>
-          )
-        ) : (
-          <>
-            {history.length > 0 && (
-              <ChipRow
-                className="mb-1"
-                scroll={false}
-                selectedId={historyFilter}
-                onSelect={id => setHistoryFilter(id as HistoryFilter)}
-                items={[
-                  { id: 'all', label: 'Все' },
-                  { id: 'completed', label: 'Завершённые' },
-                  { id: 'cancelled', label: 'Отменённые' },
-                ]}
-              />
-            )}
-            {history.length === 0 ? (
-              <EmptyDashedCard
-                title="История пуста"
-                description="Здесь появятся завершённые и отменённые записи."
-              />
-            ) : (
-              <Stagger className="flex flex-col gap-3" staggerChildren={0.06}>
-                {history.map(appt => (
-                  <StaggerItem key={appt.id}>
-                    <AppointmentRow
-                      appt={appt}
-                      onTap={() => rebook(appt)}
-                      rating={
-                        appt.status === 'completed' && appt.rating ? (
-                          <RatingStars value={appt.rating} size={14} className="mt-1" />
-                        ) : null
-                      }
+            <Stagger className="flex flex-col gap-3" staggerChildren={0.06}>
+              {upcoming.map((appt, i) => (
+                <StaggerItem key={appt.id}>
+                  {i === 0 ? (
+                    <BookCard
+                      variant="next"
+                      label="Ближайшая запись"
+                      serviceName={appt.service.name}
+                      masterName={appt.master.name}
+                      startsAt={appt.starts_at}
+                      photoSrc={appt.service.image_url ?? null}
+                      actions={upcomingActions(appt)}
                     />
-                  </StaggerItem>
-                ))}
-              </Stagger>
-            )}
-          </>
+                  ) : (
+                    <BookCard
+                      variant="list"
+                      serviceName={appt.service.name}
+                      masterName={appt.master.name}
+                      startsAt={appt.starts_at}
+                      price={priceOf(appt)}
+                      photoSrc={appt.service.image_url ?? null}
+                      badge={<StatusPill status={appt.status} />}
+                      actions={upcomingActions(appt)}
+                    />
+                  )}
+                </StaggerItem>
+              ))}
+
+              {/* Reminders reassurance block */}
+              <StaggerItem>
+                <div className="flex items-center gap-3 rounded-2xl bg-sage-tint border border-sage-soft p-3 mt-1">
+                  <span className="flex-shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full bg-cream">
+                    <Bell className="w-4 h-4 text-sage" strokeWidth={1.8} />
+                  </span>
+                  <p className="text-[12px] text-ink-2 leading-snug">
+                    Напомню о визите за день и за 3 часа — ничего не пропустите 🌿
+                  </p>
+                </div>
+              </StaggerItem>
+            </Stagger>
+          )
+        ) : history.length === 0 ? (
+          <EmptyDashedCard
+            title="История пуста"
+            description="Здесь появятся завершённые и отменённые записи."
+          />
+        ) : (
+          <Stagger className="flex flex-col gap-3" staggerChildren={0.06}>
+            {history.map(appt => (
+              <StaggerItem key={appt.id}>
+                <BookCard
+                  variant="history"
+                  serviceName={appt.service.name}
+                  masterName={appt.master.name}
+                  startsAt={appt.starts_at}
+                  price={priceOf(appt)}
+                  photoSrc={appt.service.image_url ?? null}
+                  badge={<StatusPill status={appt.status} />}
+                  rating={
+                    <div className="flex flex-col gap-2.5">
+                      {appt.status === 'completed' && appt.rating ? (
+                        <RatingStars value={appt.rating} size={16} />
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => rebook(appt)}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-sage-soft bg-sage-tint text-sage text-[13px] font-medium py-2 hover:bg-sage-soft transition-colors"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" strokeWidth={1.8} />
+                        Записаться снова
+                      </button>
+                    </div>
+                  }
+                />
+              </StaggerItem>
+            ))}
+          </Stagger>
         )}
       </div>
 
-      {/* Actions chooser for an upcoming appointment (tap on a card) */}
-      <Dialog open={!!actionsTarget} onOpenChange={open => !open && setActionsTarget(null)}>
-        <DialogContent className="rounded-3xl p-5">
-          <h2 className="font-serif text-xl text-ink pr-6">Управление записью</h2>
-          {actionsTarget && (
-            <p className="text-[12px] text-muted-foreground -mt-2">
-              «{actionsTarget.service.name}» — {formatDate(actionsTarget.starts_at)}, {formatTime(actionsTarget.starts_at)}
-            </p>
-          )}
-          <div className="flex flex-col gap-2 mt-1">
-            <button
-              type="button"
-              onClick={() => {
-                const t = actionsTarget
-                setActionsTarget(null)
-                setRescheduleTarget(t)
-              }}
-              className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-sage-tint text-sage border border-sage-soft font-medium py-3 text-sm hover:bg-sage-soft transition-colors"
-            >
-              <RefreshCcw className="w-4 h-4" strokeWidth={1.8} />
-              Перенести запись
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const t = actionsTarget
-                setActionsTarget(null)
-                setCancelTarget(t)
-              }}
-              className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-cream text-ink border border-line font-medium py-3 text-sm hover:bg-cream-2 transition-colors"
-            >
-              <XCircle className="w-4 h-4" strokeWidth={1.8} />
-              Отменить запись
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Reschedule dialog */}
-      <RescheduleDialog
+      {/* Reschedule bottom sheet */}
+      <RescheduleSheet
         target={rescheduleTarget}
         onClose={() => setRescheduleTarget(null)}
         onRescheduled={handleRescheduled}
@@ -419,49 +434,7 @@ export default function AppointmentsPage() {
   )
 }
 
-// ────── Appointment row card (reference style) ──────
-
-function AppointmentRow({
-  appt,
-  onTap,
-  rating,
-}: {
-  appt: AppointmentWithRelations
-  onTap: () => void
-  rating?: ReactNode
-}) {
-  const st = STATUS[appt.status as ApptStatus] ?? STATUS.pending
-  return (
-    <button
-      type="button"
-      onClick={onTap}
-      className="w-full text-left rounded-2xl bg-cream border border-line p-3 flex items-center gap-3 hover:bg-cream-2 transition-colors active:scale-[0.99]"
-    >
-      <PortraitAvatar name={appt.service.name} src={appt.service.image_url} size="lg" />
-      <div className="min-w-0 flex-1">
-        <div className="font-semibold text-[14px] text-ink leading-tight line-clamp-1">
-          {appt.service.name}
-        </div>
-        <div className="text-[12px] text-muted-2 line-clamp-1">{appt.master.name}</div>
-        <div className="flex items-center gap-3 mt-1 text-[12px] text-ink-2">
-          <span className="inline-flex items-center gap-1">
-            <Calendar className="w-3.5 h-3.5 text-peach" strokeWidth={2} />
-            {formatDate(appt.starts_at)}
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <Clock className="w-3.5 h-3.5 text-sage" strokeWidth={2} />
-            {formatTime(appt.starts_at)}
-          </span>
-        </div>
-        <div className={`mt-1 text-[12px] font-medium ${st.cls}`}>{st.label}</div>
-        {rating}
-      </div>
-      <ChevronRight className="w-4 h-4 text-muted-2 shrink-0" />
-    </button>
-  )
-}
-
-// ────── Reschedule dialog ──────
+// ────── Reschedule bottom sheet (reference style) ──────
 
 const RU_DAYS = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
 const RU_MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря']
@@ -471,17 +444,22 @@ function slotTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
 }
 
-function longDate(dateStr: string): string {
+function dayWord(dateStr: string): string {
   const d = new Date(dateStr + 'T12:00:00')
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const diff = Math.round((new Date(dateStr + 'T00:00:00').getTime() - today.getTime()) / 86400000)
-  if (diff === 0) return `Сегодня, ${d.getDate()} ${RU_MONTHS[d.getMonth()]}`
-  if (diff === 1) return `Завтра, ${d.getDate()} ${RU_MONTHS[d.getMonth()]}`
-  return `${RU_DAYS[d.getDay()]}, ${d.getDate()} ${RU_MONTHS[d.getMonth()]}`
+  if (diff === 0) return 'Сегодня'
+  if (diff === 1) return 'Завтра'
+  return RU_DAYS[d.getDay()]
 }
 
-function RescheduleDialog({
+function longDate(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00')
+  return `${dayWord(dateStr)}, ${d.getDate()} ${RU_MONTHS[d.getMonth()]}`
+}
+
+function RescheduleSheet({
   target,
   onClose,
   onRescheduled,
@@ -490,10 +468,14 @@ function RescheduleDialog({
   onClose: () => void
   onRescheduled: (id: string, newStartsAt: string) => void
 }) {
+  const reduce = useReducedMotion()
   const [slots, setSlots] = useState<TimeSlot[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [selectedDate, setSelectedDate] = useState('')
+  const [selected, setSelected] = useState<TimeSlot | null>(null)
+  const [message, setMessage] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [calendarOpen, setCalendarOpen] = useState(false)
+  const [loadingFar, setLoadingFar] = useState(false)
 
   const targetId = target?.id ?? null
   const serviceId = target?.service_id ?? null
@@ -504,7 +486,9 @@ function RescheduleDialog({
     let cancelled = false
     setIsLoading(true)
     setSlots([])
-    setSelectedDate('')
+    setSelected(null)
+    setMessage('')
+    setCalendarOpen(false)
 
     async function load() {
       const token = await waitForTmaToken()
@@ -523,7 +507,6 @@ function RescheduleDialog({
       let res = await fetch(`/api/slots?${params}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
-      // Stale token → retry once with slug (mirrors the booking/slots page).
       if (res.status === 401 && slug) {
         params.set('slug', slug)
         res = await fetch(`/api/slots?${params}`)
@@ -532,7 +515,7 @@ function RescheduleDialog({
       const json = (await res.json().catch(() => ({ data: [] }))) as { data?: TimeSlot[] }
       const list = json.data ?? []
       setSlots(list)
-      if (list[0]) setSelectedDate(list[0].datetime.slice(0, 10))
+      setSelected(list[0] ?? null) // pre-select the recommended (nearest) slot
       setIsLoading(false)
     }
     load()
@@ -550,26 +533,32 @@ function RescheduleDialog({
     return map
   }, [slots])
 
-  const nearbyDays = useMemo(
-    () =>
-      Object.keys(slotsByDate)
-        .sort()
-        .map(date => ({ date, slotsCount: slotsByDate[date].length })),
-    [slotsByDate]
-  )
+  const days = useMemo(() => Object.keys(slotsByDate).sort(), [slotsByDate])
+  const recommended = slots[0] ?? null
 
-  const daySlots = selectedDate ? slotsByDate[selectedDate] ?? [] : []
+  function isSel(s: TimeSlot): boolean {
+    return !!selected && selected.datetime === s.datetime && selected.masterId === s.masterId
+  }
 
-  async function pick(slot: TimeSlot) {
-    if (!targetId || submitting) return
+  function selectSlot(s: TimeSlot) {
+    window.Telegram?.WebApp.HapticFeedback?.selectionChanged()
+    setSelected(s)
+  }
+
+  async function confirm() {
+    if (!targetId || !selected || submitting) return
     setSubmitting(true)
-    window.Telegram?.WebApp.HapticFeedback?.impactOccurred('light')
+    window.Telegram?.WebApp.HapticFeedback?.impactOccurred('medium')
     try {
       const token = await waitForTmaToken()
       const res = await fetch(`/api/appointments/${targetId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ action: 'reschedule', newStartsAt: slot.datetime }),
+        body: JSON.stringify({
+          action: 'reschedule',
+          newStartsAt: selected.datetime,
+          reason: message.trim() || undefined,
+        }),
       })
       const json = (await res.json().catch(() => ({}))) as {
         error?: string
@@ -579,7 +568,7 @@ function RescheduleDialog({
       if (!res.ok) {
         throw new Error(json.hint ? `${json.error ?? 'Ошибка'} · ${json.hint}` : json.error ?? 'Ошибка переноса')
       }
-      onRescheduled(targetId, json.data?.starts_at ?? slot.datetime)
+      onRescheduled(targetId, json.data?.starts_at ?? selected.datetime)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Ошибка переноса')
     } finally {
@@ -587,68 +576,250 @@ function RescheduleDialog({
     }
   }
 
-  return (
-    <Dialog open={!!target} onOpenChange={open => !open && onClose()}>
-      <DialogContent className="rounded-3xl p-5 max-h-[82vh] overflow-y-auto">
-        <div className="mb-1 pr-6">
-          <h2 className="font-serif text-xl text-ink">Перенести запись</h2>
-          <p className="text-[12px] text-muted-foreground mt-0.5 line-clamp-1">
-            {target?.service.name} · {target?.master.name}
-          </p>
-        </div>
+  async function handleCalendarSelect(date: string) {
+    setCalendarOpen(false)
+    if (slotsByDate[date]?.length) return // already loaded
+    if (!serviceId) return
+    setLoadingFar(true)
+    try {
+      const token = await waitForTmaToken()
+      const slug = getTenantSlug()
+      const params = new URLSearchParams({ serviceId, dateFrom: date, dateTo: date })
+      if (masterId) params.set('masterId', masterId)
+      if (!token && slug) params.set('slug', slug)
+      const res = await fetch(`/api/slots?${params}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (res.ok) {
+        const { data } = await res.json()
+        const far = (data ?? []) as TimeSlot[]
+        if (far.length) {
+          setSlots(prev => {
+            const seen = new Set(prev.map(s => `${s.datetime}-${s.masterId}`))
+            return [...prev, ...far.filter(s => !seen.has(`${s.datetime}-${s.masterId}`))]
+          })
+        } else {
+          toast('На этот день свободных окон нет')
+        }
+      }
+    } finally {
+      setLoadingFar(false)
+    }
+  }
 
-        {isLoading ? (
-          <div className="flex flex-col gap-4 pt-2">
-            <div className="flex gap-2 overflow-hidden">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} tone="cream" className="w-28 h-14 rounded-2xl shrink-0" />
-              ))}
-            </div>
-            <div className="grid grid-cols-4 gap-2">
-              {Array.from({ length: 12 }).map((_, i) => (
-                <Skeleton key={i} tone="cream" className="h-12 rounded-xl" />
-              ))}
-            </div>
-          </div>
-        ) : nearbyDays.length === 0 ? (
-          <div className="pt-2">
-            <EmptyDashedCard
-              title="Нет свободных окон"
-              description="На ближайшие две недели мест нет. Попробуйте позже или напишите Алине."
-            />
-          </div>
-        ) : (
-          <div className="flex flex-col gap-4 pt-2">
-            <NearbyDaysChipRow
-              days={nearbyDays}
-              selectedDate={selectedDate}
-              onSelect={date => {
-                window.Telegram?.WebApp.HapticFeedback?.selectionChanged()
-                setSelectedDate(date)
-              }}
-            />
-            {selectedDate && (
-              <div>
-                <p className="text-[12px] mb-3 font-medium text-ink">{longDate(selectedDate)}</p>
-                <div className="grid grid-cols-4 gap-2">
-                  {daySlots.map(slot => (
-                    <button
-                      key={`${slot.datetime}-${slot.masterId}`}
-                      type="button"
-                      disabled={submitting}
-                      onClick={() => pick(slot)}
-                      className="inline-flex items-center justify-center h-12 rounded-xl text-[14px] font-medium border bg-cream text-ink border-line hover:bg-cream-2 transition-all active:scale-[0.97] disabled:opacity-50"
-                    >
-                      {slotTime(slot.datetime)}
-                    </button>
-                  ))}
+  const open = !!target
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <div className="fixed inset-0 z-[60]">
+          {/* Backdrop */}
+          <motion.div
+            className="absolute inset-0 bg-black/30"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={onClose}
+          />
+
+          {/* Sheet */}
+          <motion.div
+            className="absolute inset-x-0 bottom-0 flex flex-col max-h-[92vh] rounded-t-3xl bg-background border-t border-line shadow-2xl"
+            initial={reduce ? { opacity: 0 } : { y: '100%' }}
+            animate={reduce ? { opacity: 1 } : { y: 0 }}
+            exit={reduce ? { opacity: 0 } : { y: '100%' }}
+            transition={reduce ? { duration: 0.15 } : { type: 'spring', damping: 34, stiffness: 340 }}
+          >
+            {/* Header */}
+            <div className="shrink-0 px-5 pt-4 pb-3 border-b border-line">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="font-serif text-xl text-ink">Перенести запись</h2>
+                  <p className="text-[12px] text-muted-foreground mt-0.5 line-clamp-1">
+                    {target?.service.name} · {target?.master.name}
+                  </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Закрыть"
+                  className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-cream transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Scrollable content */}
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              {isLoading ? (
+                <div className="flex flex-col gap-4">
+                  <Skeleton tone="cream" className="h-12 w-full rounded-2xl" />
+                  <Skeleton tone="cream" className="h-16 w-full rounded-2xl" />
+                  <div className="flex flex-wrap gap-2">
+                    {Array.from({ length: 8 }).map((_, i) => (
+                      <Skeleton key={i} tone="cream" className="h-11 w-20 rounded-xl" />
+                    ))}
+                  </div>
+                </div>
+              ) : days.length === 0 ? (
+                <EmptyDashedCard
+                  title="Нет свободных окон"
+                  description="На ближайшие две недели мест нет. Попробуйте позже или напишите Алине."
+                />
+              ) : (
+                <div className="flex flex-col gap-5">
+                  {/* Alina greeting */}
+                  <FadeInUp delay={0.04}>
+                    <AiTipBubble message="Я нашла ближайшие свободные окна для вас ✨" />
+                  </FadeInUp>
+
+                  {/* Recommended slot */}
+                  {recommended && (
+                    <FadeInUp delay={0.08}>
+                      <div>
+                        <p className="text-[13px] font-semibold text-ink mb-2">Рекомендуемое время</p>
+                        <button
+                          type="button"
+                          onClick={() => selectSlot(recommended)}
+                          className={`w-full text-left rounded-2xl border p-3 flex items-center gap-3 transition-colors ${
+                            isSel(recommended) ? 'bg-sage-tint border-sage' : 'bg-cream border-line hover:bg-cream-2'
+                          }`}
+                        >
+                          <span className="flex-shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full bg-sage">
+                            <Star className="w-4 h-4 text-page" fill="currentColor" strokeWidth={0} />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="font-semibold text-[14px] text-ink leading-tight">
+                              {dayWord(recommended.datetime.slice(0, 10))}, {slotTime(recommended.datetime)}
+                            </div>
+                            <div className="text-[12px] text-muted-2 line-clamp-1">{recommended.masterName}</div>
+                          </div>
+                          <span className="flex-shrink-0 text-[10px] font-medium text-sage bg-cream border border-sage-soft rounded-full px-2 py-0.5">
+                            Рекомендуем
+                          </span>
+                        </button>
+                      </div>
+                    </FadeInUp>
+                  )}
+
+                  {/* Nearby windows */}
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="text-[13px] font-semibold text-ink">Ближайшие окна</p>
+                      <button
+                        type="button"
+                        onClick={() => setCalendarOpen(true)}
+                        className="inline-flex items-center gap-1.5 text-[12px] text-sage font-medium hover:text-sage-2 transition-colors"
+                      >
+                        <CalendarDays className="w-3.5 h-3.5" strokeWidth={1.8} />
+                        Открыть полный календарь
+                      </button>
+                    </div>
+
+                    <div className="flex flex-col gap-4">
+                      {days.map(date => (
+                        <div key={date}>
+                          <p className="text-[12px] text-muted-foreground mb-2">{longDate(date)}</p>
+                          <div className="flex flex-wrap gap-2">
+                            {slotsByDate[date].map(s => (
+                              <button
+                                key={`${s.datetime}-${s.masterId}`}
+                                type="button"
+                                onClick={() => selectSlot(s)}
+                                className={`inline-flex items-center gap-1 h-11 px-3 rounded-xl text-[14px] font-medium border transition-all active:scale-[0.97] ${
+                                  isSel(s)
+                                    ? 'bg-sage text-page border-sage'
+                                    : 'bg-cream text-ink border-line hover:bg-cream-2'
+                                }`}
+                              >
+                                {isSel(s) && <Star className="w-3 h-3" fill="currentColor" strokeWidth={0} />}
+                                {slotTime(s.datetime)}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                      {loadingFar && (
+                        <p className="text-center text-[12px] text-muted-foreground">Загружаем окна…</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Optional message to master */}
+                  <div>
+                    <label className="flex items-center gap-1.5 text-[12px] text-muted-foreground mb-1.5">
+                      <MessageCircle className="w-3.5 h-3.5" strokeWidth={1.8} />
+                      Хотите сообщить мастеру? (необязательно)
+                    </label>
+                    <textarea
+                      value={message}
+                      onChange={e => setMessage(e.target.value)}
+                      rows={2}
+                      maxLength={300}
+                      placeholder="Например, изменились планы, спасибо!"
+                      className="w-full px-3 py-2 rounded-2xl bg-cream text-ink text-[13px] resize-none border border-line outline-none placeholder:text-muted-2 focus-visible:border-sage focus-visible:ring-2 focus-visible:ring-sage-glow/40"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            {!isLoading && days.length > 0 && (
+              <div className="shrink-0 border-t border-line bg-background px-5 pt-3 pb-[max(env(safe-area-inset-bottom,16px),16px)]">
+                <button
+                  type="button"
+                  onClick={confirm}
+                  disabled={!selected || submitting}
+                  className="w-full inline-flex items-center justify-center rounded-2xl bg-ink text-page font-medium py-3.5 text-sm hover:bg-ink-2 transition-colors disabled:opacity-50"
+                >
+                  {submitting ? 'Переносим…' : 'Подтвердить перенос'}
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="w-full mt-1.5 inline-flex items-center justify-center text-[12px] text-muted-foreground hover:text-ink py-2 transition-colors"
+                >
+                  Отмена
+                </button>
               </div>
             )}
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
+
+            {/* Full-month calendar overlay (above the sheet) */}
+            <AnimatePresence>
+              {calendarOpen && (
+                <>
+                  <motion.div
+                    className="absolute inset-0 z-[65] bg-black/30"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    onClick={() => setCalendarOpen(false)}
+                  />
+                  <motion.div
+                    className="absolute inset-x-4 top-[12%] z-[70] rounded-3xl bg-background border border-line p-5 max-h-[72vh] overflow-y-auto shadow-2xl"
+                    initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: 8 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: 8 }}
+                    transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                  >
+                    <h3 className="font-serif text-lg text-ink mb-3">Выберите дату</h3>
+                    <MonthCalendar
+                      selectedDate={selected?.datetime.slice(0, 10)}
+                      slotsCountByDate={Object.fromEntries(days.map(d => [d, slotsByDate[d].length]))}
+                      onSelect={handleCalendarSelect}
+                    />
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   )
 }
 

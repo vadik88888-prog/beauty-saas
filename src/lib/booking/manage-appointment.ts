@@ -36,6 +36,7 @@ interface ApptRow {
   ends_at: string
   status: string
   price: number | null
+  notes: string | null
   services: { duration_min: number; buffer_after_min: number | null } | { duration_min: number; buffer_after_min: number | null }[] | null
   master: { name: string } | { name: string }[] | null
 }
@@ -45,7 +46,7 @@ async function loadAppointment(apptId: string, tenantId: string): Promise<ApptRo
   const { data } = await supabase
     .from('appointments')
     .select(`
-      id, tenant_id, client_id, master_id, service_id, starts_at, ends_at, status, price,
+      id, tenant_id, client_id, master_id, service_id, starts_at, ends_at, status, price, notes,
       services(duration_min, buffer_after_min),
       master:masters(name)
     `)
@@ -128,9 +129,10 @@ export async function rescheduleAppointment(opts: {
   tenantId: string
   clientId?: string
   newStartsAt: string  // ISO datetime UTC
+  note?: string  // optional client message to the master, appended to notes
   bypassTimeCheck?: boolean
 }): Promise<ManageResult<{ starts_at: string; ends_at: string }>> {
-  const { appointmentId, tenantId, clientId, newStartsAt, bypassTimeCheck } = opts
+  const { appointmentId, tenantId, clientId, newStartsAt, note, bypassTimeCheck } = opts
   const supabase = createAdminClient()
 
   const appt = await loadAppointment(appointmentId, tenantId)
@@ -192,12 +194,20 @@ export async function rescheduleAppointment(opts: {
     }
   }
 
+  // Append the client's optional message to the master onto the notes field,
+  // preserving the original booking note.
+  const trimmedNote = note?.trim()
+  const mergedNotes = trimmedNote
+    ? [appt.notes?.trim(), `↻ Перенос: ${trimmedNote}`].filter(Boolean).join('\n')
+    : undefined
+
   const { error } = await supabase
     .from('appointments')
     .update({
       starts_at: newStart.toISOString(),
       ends_at: newEnd.toISOString(),
       updated_at: new Date().toISOString(),
+      ...(mergedNotes !== undefined ? { notes: mergedNotes } : {}),
     })
     .eq('id', appointmentId)
 

@@ -67,6 +67,7 @@ export async function PATCH(
       tenantId,
       clientId: clientIdScope,
       newStartsAt,
+      note: reason,
       bypassTimeCheck: !isClient,
     })
     if (!result.success) {
