@@ -1,25 +1,22 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   ArrowLeft,
   Bell,
   Calendar,
+  ChevronRight,
   Clock,
   Lock,
   RefreshCcw,
-  RotateCcw,
   Trash2,
   XCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { BookCard } from '@/components/shared/BookCard'
-import { StatusPill } from '@/components/shared/StatusPill'
 import { ChipRow } from '@/components/shared/ChipRow'
 import { EmptyDashedCard } from '@/components/shared/EmptyDashedCard'
 import { RatingStars } from '@/components/shared/RatingStars'
-import { ActionRow } from '@/components/shared/ActionRow'
 import { PortraitAvatar } from '@/components/shared/PortraitAvatar'
 import { NearbyDaysChipRow } from '@/components/shared/NearbyDaysChipRow'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
@@ -31,16 +28,19 @@ import type { TimeSlot } from '@/types/api'
 import { useBookingStore } from '@/stores/bookingStore'
 import { waitForTmaToken, getTenantSlug } from '@/lib/tma-token'
 import { formatDate, formatTime } from '@/lib/utils/date'
-import { formatPrice } from '@/lib/utils/format'
 
 type Tab = 'upcoming' | 'history'
 type HistoryFilter = 'all' | 'completed' | 'cancelled'
+type ApptStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show'
 
 const HISTORY_STATUSES = ['completed', 'cancelled', 'no_show'] as const
 
-function priceOf(appt: AppointmentWithRelations): string | null {
-  const p = appt.price ?? appt.service.price
-  return p != null ? formatPrice(p, appt.service.currency) : null
+const STATUS: Record<ApptStatus, { label: string; cls: string }> = {
+  confirmed: { label: 'Подтверждена', cls: 'text-green-600' },
+  pending: { label: 'Ожидает подтверждения', cls: 'text-amber-600' },
+  completed: { label: 'Завершена', cls: 'text-muted-2' },
+  cancelled: { label: 'Отменена', cls: 'text-red-500' },
+  no_show: { label: 'Не пришли', cls: 'text-orange-500' },
 }
 
 export default function AppointmentsPage() {
@@ -54,6 +54,7 @@ export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
+  const [actionsTarget, setActionsTarget] = useState<AppointmentWithRelations | null>(null)
   const [cancelTarget, setCancelTarget] = useState<AppointmentWithRelations | null>(null)
   const [isCancelling, setIsCancelling] = useState(false)
   const [rescheduleTarget, setRescheduleTarget] = useState<AppointmentWithRelations | null>(null)
@@ -161,43 +162,6 @@ export default function AppointmentsPage() {
     router.push('/booking/slots')
   }
 
-  function upcomingActions(appt: AppointmentWithRelations) {
-    return (
-      <ActionRow
-        items={[
-          {
-            id: 'reschedule',
-            tone: 'sage',
-            label: (
-              <span className="inline-flex items-center gap-1.5">
-                <RefreshCcw className="w-3.5 h-3.5" strokeWidth={1.8} />
-                Перенести
-              </span>
-            ),
-            onClick: () => {
-              window.Telegram?.WebApp.HapticFeedback?.impactOccurred('light')
-              setRescheduleTarget(appt)
-            },
-          },
-          {
-            id: 'cancel',
-            tone: 'peach',
-            label: (
-              <span className="inline-flex items-center gap-1.5">
-                <XCircle className="w-3.5 h-3.5" strokeWidth={1.8} />
-                Отменить
-              </span>
-            ),
-            onClick: () => {
-              window.Telegram?.WebApp.HapticFeedback?.impactOccurred('medium')
-              setCancelTarget(appt)
-            },
-          },
-        ]}
-      />
-    )
-  }
-
   return (
     <div className="flex flex-col min-h-screen safe-bottom">
       {/* Sticky header + tabs */}
@@ -235,25 +199,10 @@ export default function AppointmentsPage() {
       </div>
 
       <div className="flex flex-col gap-3 px-5 pt-4 pb-6">
-        {/* History status filter */}
-        {tab === 'history' && !isLoading && history.length > 0 && (
-          <ChipRow
-            className="mb-1"
-            scroll={false}
-            selectedId={historyFilter}
-            onSelect={id => setHistoryFilter(id as HistoryFilter)}
-            items={[
-              { id: 'all', label: 'Все' },
-              { id: 'completed', label: 'Завершённые' },
-              { id: 'cancelled', label: 'Отменённые' },
-            ]}
-          />
-        )}
-
         {isLoading ? (
           <div className="flex flex-col gap-3">
             {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} tone="cream" className="h-32 w-full rounded-2xl" />
+              <Skeleton key={i} tone="cream" className="h-24 w-full rounded-2xl" />
             ))}
           </div>
         ) : tab === 'upcoming' ? (
@@ -264,85 +213,127 @@ export default function AppointmentsPage() {
               cta={{ label: 'Записаться', onClick: () => router.push('/booking/services') }}
             />
           ) : (
-            <Stagger className="flex flex-col gap-3" staggerChildren={0.06}>
-              {upcoming.map((appt, i) => (
-                <StaggerItem key={appt.id}>
-                  {i === 0 ? (
-                    <BookCard
-                      variant="next"
-                      label="Ближайшая запись"
-                      serviceName={appt.service.name}
-                      masterName={appt.master.name}
-                      startsAt={appt.starts_at}
-                      photoSrc={appt.service.image_url ?? null}
-                      actions={upcomingActions(appt)}
-                    />
-                  ) : (
-                    <BookCard
-                      variant="list"
-                      serviceName={appt.service.name}
-                      masterName={appt.master.name}
-                      startsAt={appt.starts_at}
-                      price={priceOf(appt)}
-                      photoSrc={appt.service.image_url ?? null}
-                      badge={<StatusPill status={appt.status} />}
-                      actions={upcomingActions(appt)}
-                    />
-                  )}
-                </StaggerItem>
-              ))}
+            <>
+              <h2 className="text-[15px] font-semibold text-ink">Предстоящие записи</h2>
+              <Stagger className="flex flex-col gap-3" staggerChildren={0.06}>
+                {upcoming.map(appt => (
+                  <StaggerItem key={appt.id}>
+                    <AppointmentRow appt={appt} onTap={() => setActionsTarget(appt)} />
+                  </StaggerItem>
+                ))}
 
-              {/* Reminders reassurance block */}
-              <StaggerItem>
-                <div className="flex items-center gap-3 rounded-2xl bg-sage-tint border border-sage-soft p-3 mt-1">
-                  <span className="flex-shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full bg-cream">
-                    <Bell className="w-4 h-4 text-sage" strokeWidth={1.8} />
-                  </span>
-                  <p className="text-[12px] text-ink-2 leading-snug">
-                    Напомню о визите за день и за 3 часа — ничего не пропустите 🌿
-                  </p>
-                </div>
-              </StaggerItem>
-            </Stagger>
-          )
-        ) : history.length === 0 ? (
-          <EmptyDashedCard
-            title="История пуста"
-            description="Здесь появятся завершённые и отменённые записи."
-          />
-        ) : (
-          <Stagger className="flex flex-col gap-3" staggerChildren={0.06}>
-            {history.map(appt => (
-              <StaggerItem key={appt.id}>
-                <BookCard
-                  variant="history"
-                  serviceName={appt.service.name}
-                  masterName={appt.master.name}
-                  startsAt={appt.starts_at}
-                  price={priceOf(appt)}
-                  photoSrc={appt.service.image_url ?? null}
-                  badge={<StatusPill status={appt.status} />}
-                  rating={
-                    <div className="flex flex-col gap-2.5">
-                      {appt.status === 'completed' && appt.rating ? (
-                        <RatingStars value={appt.rating} size={16} />
-                      ) : null}
-                      <button
-                        type="button"
-                        onClick={() => rebook(appt)}
-                        className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-sage-soft bg-sage-tint text-sage text-[13px] font-medium py-2 hover:bg-sage-soft transition-colors"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" strokeWidth={1.8} />
-                        Записаться снова
-                      </button>
+                {/* New booking shortcut */}
+                <StaggerItem>
+                  <button
+                    type="button"
+                    onClick={() => router.push('/booking/services')}
+                    className="w-full text-left rounded-2xl bg-cream border border-line p-3 flex items-center gap-3 hover:bg-cream-2 transition-colors active:scale-[0.99]"
+                  >
+                    <span className="w-10 h-10 rounded-xl bg-sage-tint border border-sage-soft flex items-center justify-center shrink-0">
+                      <Calendar className="w-5 h-5 text-sage" strokeWidth={1.8} />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="font-semibold text-[14px] text-ink">Записаться снова</div>
+                      <div className="text-[12px] text-muted-2">Выберите новую услугу и удобное время</div>
                     </div>
-                  }
-                />
-              </StaggerItem>
-            ))}
-          </Stagger>
+                  </button>
+                </StaggerItem>
+
+                {/* Reminders */}
+                <StaggerItem>
+                  <h2 className="text-[15px] font-semibold text-ink mt-2">Напоминания</h2>
+                </StaggerItem>
+                <StaggerItem>
+                  <div className="flex items-center gap-3 rounded-2xl bg-sage-tint border border-sage-soft p-3">
+                    <span className="flex-shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full bg-cream">
+                      <Bell className="w-4 h-4 text-sage" strokeWidth={1.8} />
+                    </span>
+                    <p className="text-[12px] text-ink-2 leading-snug">
+                      Напомню о визите за день и за 3 часа — ничего не пропустите 🌿
+                    </p>
+                  </div>
+                </StaggerItem>
+              </Stagger>
+            </>
+          )
+        ) : (
+          <>
+            {history.length > 0 && (
+              <ChipRow
+                className="mb-1"
+                scroll={false}
+                selectedId={historyFilter}
+                onSelect={id => setHistoryFilter(id as HistoryFilter)}
+                items={[
+                  { id: 'all', label: 'Все' },
+                  { id: 'completed', label: 'Завершённые' },
+                  { id: 'cancelled', label: 'Отменённые' },
+                ]}
+              />
+            )}
+            {history.length === 0 ? (
+              <EmptyDashedCard
+                title="История пуста"
+                description="Здесь появятся завершённые и отменённые записи."
+              />
+            ) : (
+              <Stagger className="flex flex-col gap-3" staggerChildren={0.06}>
+                {history.map(appt => (
+                  <StaggerItem key={appt.id}>
+                    <AppointmentRow
+                      appt={appt}
+                      onTap={() => rebook(appt)}
+                      rating={
+                        appt.status === 'completed' && appt.rating ? (
+                          <RatingStars value={appt.rating} size={14} className="mt-1" />
+                        ) : null
+                      }
+                    />
+                  </StaggerItem>
+                ))}
+              </Stagger>
+            )}
+          </>
         )}
       </div>
+
+      {/* Actions chooser for an upcoming appointment (tap on a card) */}
+      <Dialog open={!!actionsTarget} onOpenChange={open => !open && setActionsTarget(null)}>
+        <DialogContent className="rounded-3xl p-5">
+          <h2 className="font-serif text-xl text-ink pr-6">Управление записью</h2>
+          {actionsTarget && (
+            <p className="text-[12px] text-muted-foreground -mt-2">
+              «{actionsTarget.service.name}» — {formatDate(actionsTarget.starts_at)}, {formatTime(actionsTarget.starts_at)}
+            </p>
+          )}
+          <div className="flex flex-col gap-2 mt-1">
+            <button
+              type="button"
+              onClick={() => {
+                const t = actionsTarget
+                setActionsTarget(null)
+                setRescheduleTarget(t)
+              }}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-sage-tint text-sage border border-sage-soft font-medium py-3 text-sm hover:bg-sage-soft transition-colors"
+            >
+              <RefreshCcw className="w-4 h-4" strokeWidth={1.8} />
+              Перенести запись
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const t = actionsTarget
+                setActionsTarget(null)
+                setCancelTarget(t)
+              }}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-cream text-ink border border-line font-medium py-3 text-sm hover:bg-cream-2 transition-colors"
+            >
+              <XCircle className="w-4 h-4" strokeWidth={1.8} />
+              Отменить запись
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Reschedule dialog */}
       <RescheduleDialog
@@ -425,6 +416,48 @@ export default function AppointmentsPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+// ────── Appointment row card (reference style) ──────
+
+function AppointmentRow({
+  appt,
+  onTap,
+  rating,
+}: {
+  appt: AppointmentWithRelations
+  onTap: () => void
+  rating?: ReactNode
+}) {
+  const st = STATUS[appt.status as ApptStatus] ?? STATUS.pending
+  return (
+    <button
+      type="button"
+      onClick={onTap}
+      className="w-full text-left rounded-2xl bg-cream border border-line p-3 flex items-center gap-3 hover:bg-cream-2 transition-colors active:scale-[0.99]"
+    >
+      <PortraitAvatar name={appt.service.name} src={appt.service.image_url} size="lg" />
+      <div className="min-w-0 flex-1">
+        <div className="font-semibold text-[14px] text-ink leading-tight line-clamp-1">
+          {appt.service.name}
+        </div>
+        <div className="text-[12px] text-muted-2 line-clamp-1">{appt.master.name}</div>
+        <div className="flex items-center gap-3 mt-1 text-[12px] text-ink-2">
+          <span className="inline-flex items-center gap-1">
+            <Calendar className="w-3.5 h-3.5 text-peach" strokeWidth={2} />
+            {formatDate(appt.starts_at)}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <Clock className="w-3.5 h-3.5 text-sage" strokeWidth={2} />
+            {formatTime(appt.starts_at)}
+          </span>
+        </div>
+        <div className={`mt-1 text-[12px] font-medium ${st.cls}`}>{st.label}</div>
+        {rating}
+      </div>
+      <ChevronRight className="w-4 h-4 text-muted-2 shrink-0" />
+    </button>
   )
 }
 
