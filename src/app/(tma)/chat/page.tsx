@@ -25,6 +25,8 @@ import { formatTime, formatDate } from '@/lib/utils/date'
 import { toast } from 'sonner'
 import { PortraitAvatar } from '@/components/shared/PortraitAvatar'
 import { OnlineDot } from '@/components/motion/OnlineDot'
+import { TypingWave } from '@/components/shared/microinteractions/TypingWave'
+import { MessageReveal } from '@/components/shared/microinteractions/MessageReveal'
 import type { AttachmentInput } from '@/lib/ai/administrator/types'
 import { waitForTmaToken } from '@/lib/tma-token'
 
@@ -47,6 +49,8 @@ interface Message {
   imageUrl?: string
   knowledgeSources?: KnowledgeSource[]
   suggestedActions?: SuggestedAction[]
+  /** Animate the text word-by-word — set only for freshly received AI replies */
+  reveal?: boolean
 }
 
 const QUICK_CHIPS: { label: string; icon: typeof Tag; message: string }[] = [
@@ -73,17 +77,32 @@ export default function ChatPage() {
   const [welcomeText, setWelcomeText] = useState(DEFAULT_WELCOME)
   const [messages, setMessages] = useState<Message[]>([])
 
-  // iOS keyboard fix — bind the chat height to Telegram's live viewport so the
-  // input stays above the keyboard (h-screen / 100vh doesn't shrink on iOS).
+  // iOS keyboard fix — bind the chat height to window.visualViewport, which DOES
+  // shrink when the on-screen keyboard opens (Telegram's viewportHeight does not,
+  // because the OS keyboard just overlays the webview). Fallback to Telegram's
+  // viewport, then 100dvh.
   const [viewportH, setViewportH] = useState<number | null>(null)
   useEffect(() => {
     const tg = (window.Telegram?.WebApp ?? null) as unknown as TgViewport | null
-    if (!tg) return
-    tg.expand?.()
-    const update = () => setViewportH(tg.viewportHeight ?? null)
-    update()
-    tg.onEvent?.('viewportChanged', update)
-    return () => tg.offEvent?.('viewportChanged', update)
+    tg?.expand?.()
+
+    const vv = window.visualViewport
+    if (vv) {
+      const update = () => setViewportH(vv.height)
+      update()
+      vv.addEventListener('resize', update)
+      vv.addEventListener('scroll', update)
+      return () => {
+        vv.removeEventListener('resize', update)
+        vv.removeEventListener('scroll', update)
+      }
+    }
+    if (tg) {
+      const update = () => setViewportH(tg.viewportHeight ?? null)
+      update()
+      tg.onEvent?.('viewportChanged', update)
+      return () => tg.offEvent?.('viewportChanged', update)
+    }
   }, [])
 
   useEffect(() => {
@@ -410,6 +429,7 @@ export default function ChatPage() {
         timestamp: new Date(),
         knowledgeSources: data.knowledgeSources,
         suggestedActions: data.suggestedActions,
+        reveal: true,
       }))
       window.Telegram?.WebApp.HapticFeedback?.notificationOccurred('success')
 
@@ -498,7 +518,7 @@ export default function ChatPage() {
 
   return (
     <div
-      className="flex flex-col bg-background"
+      className="flex flex-col bg-background overflow-hidden"
       style={{ height: viewportH ? `${viewportH}px` : '100dvh' }}
     >
       {/* Header */}
@@ -592,13 +612,8 @@ export default function ChatPage() {
         {isSending && (
           <div className="flex items-end gap-2">
             <PortraitAvatar name={aiName} size="xs" />
-            <div className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl rounded-bl-md bg-cream border border-line max-w-[82%]">
-              <span className="w-1.5 h-1.5 rounded-full bg-sage animate-bounce [animation-delay:0ms]" />
-              <span className="w-1.5 h-1.5 rounded-full bg-sage animate-bounce [animation-delay:150ms]" />
-              <span className="w-1.5 h-1.5 rounded-full bg-sage animate-bounce [animation-delay:300ms]" />
-              <span className="text-[11px] text-muted-foreground ml-1">
-                {liveStatus ?? `${aiName} печатает`}
-              </span>
+            <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl rounded-bl-md bg-cream border border-line max-w-[82%]">
+              <TypingWave bars={6} label={liveStatus ?? `${aiName} печатает`} />
             </div>
           </div>
         )}
@@ -762,7 +777,9 @@ function ChatBubble({
               Администратор
             </p>
           )}
-          <p className="whitespace-pre-wrap leading-relaxed text-[14px] text-ink">{message.content}</p>
+          <p className="whitespace-pre-wrap leading-relaxed text-[14px] text-ink">
+            {message.reveal ? <MessageReveal text={message.content} /> : message.content}
+          </p>
           <p className="text-[10px] mt-1 text-muted-2">
             {formatTime(message.timestamp.toISOString())}
           </p>

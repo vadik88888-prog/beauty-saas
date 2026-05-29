@@ -16,8 +16,9 @@ const TABS = [
 export function BottomNav() {
   const pathname = usePathname()
 
-  // Hide during booking flow
-  if (pathname.startsWith('/booking')) return null
+  // Hide during booking flow and in the full-screen chat (its input must sit
+  // directly above the keyboard — a fixed bottom nav would overlap it).
+  if (pathname.startsWith('/booking') || pathname === '/chat') return null
 
   return (
     <nav
