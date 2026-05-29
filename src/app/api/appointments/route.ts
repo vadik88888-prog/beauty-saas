@@ -143,7 +143,7 @@ export async function GET(req: NextRequest) {
   let query = supabase
     .from('appointments')
     .select(`
-      id, starts_at, ends_at, status, price, notes, source, created_at, rating,
+      id, starts_at, ends_at, status, price, notes, source, created_at, rating, service_id, master_id,
       client:clients(id, first_name, last_name, telegram_id),
       master:masters(id, name, photo_url),
       service:services(id, name, duration_min, price, currency, image_url)

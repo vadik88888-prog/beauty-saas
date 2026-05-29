@@ -482,32 +482,37 @@ function RescheduleSheet({
     setCalendarOpen(false)
 
     async function load() {
-      const token = await waitForTmaToken()
-      const slug = getTenantSlug()
-      const today = new Date()
-      const end = new Date(today)
-      end.setDate(end.getDate() + DAYS_AHEAD)
-      const params = new URLSearchParams({
-        serviceId: serviceId!,
-        dateFrom: today.toISOString().slice(0, 10),
-        dateTo: end.toISOString().slice(0, 10),
-      })
-      if (masterId) params.set('masterId', masterId)
-      if (!token && slug) params.set('slug', slug)
+      try {
+        const token = await waitForTmaToken()
+        const slug = getTenantSlug()
+        const today = new Date()
+        const end = new Date(today)
+        end.setDate(end.getDate() + DAYS_AHEAD)
+        const params = new URLSearchParams({
+          serviceId: serviceId!,
+          dateFrom: today.toISOString().slice(0, 10),
+          dateTo: end.toISOString().slice(0, 10),
+        })
+        if (masterId) params.set('masterId', masterId)
+        if (!token && slug) params.set('slug', slug)
 
-      let res = await fetch(`/api/slots?${params}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-      if (res.status === 401 && slug) {
-        params.set('slug', slug)
-        res = await fetch(`/api/slots?${params}`)
+        let res = await fetch(`/api/slots?${params}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
+        if (res.status === 401 && slug) {
+          params.set('slug', slug)
+          res = await fetch(`/api/slots?${params}`)
+        }
+        if (cancelled) return
+        const json = (await res.json().catch(() => ({ data: [] }))) as { data?: TimeSlot[] }
+        const list = json.data ?? []
+        setSlots(list)
+        setSelected(list[0] ?? null) // pre-select the recommended (nearest) slot
+      } catch {
+        // network error — fall through; finally clears the loading skeleton
+      } finally {
+        if (!cancelled) setIsLoading(false)
       }
-      if (cancelled) return
-      const json = (await res.json().catch(() => ({ data: [] }))) as { data?: TimeSlot[] }
-      const list = json.data ?? []
-      setSlots(list)
-      setSelected(list[0] ?? null) // pre-select the recommended (nearest) slot
-      setIsLoading(false)
     }
     load()
     return () => {
