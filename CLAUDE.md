@@ -151,7 +151,7 @@ If a master has no `working_hours` rows → default Mon–Sat 9:00–18:00 (in `
 | `(tma)/appointments` | ✓ redesigned (tabs + ChipRow + Reschedule sheet + Cancel dialog) | 3.5 |
 | `(tma)/chat` | legacy | 3.4 (after keyboard fix) |
 | `(tma)/promotions` | legacy | 3.5+ |
-| `(tma)/profile` | legacy | 3.6 |
+| `(tma)/profile` | ✓ redesigned (`/api/profile` stats, edit dialog) | 3.6 |
 | All admin pages | legacy | 4 |
 
 Component library (Phase 2) — all 27 components in `src/components/{motion,shared,shared/microinteractions,admin,ui}/`. See `docs/HISTORY.md` for the full list.
@@ -184,8 +184,9 @@ Component library (Phase 2) — all 27 components in `src/components/{motion,sha
 - 017 conversation_summary
 - 018 voice_messages (voice_enabled toggle)
 - 019 live_status (multi-step thinking visible)
+- 020 promotion_image (`promotions.image_url` for «Акции» photo) — ⚠️ **NOT yet applied in prod**; apply before deploying the «Акции» page (the promotions query selects `image_url`).
 
-Migrations 001-009 — see `supabase/migrations/`. All 19 applied in prod Supabase.
+Migrations 001-009 — see `supabase/migrations/`. 001-019 applied in prod Supabase; 020 pending.
 
 ---
 
@@ -212,8 +213,8 @@ Migrations 001-009 — see `supabase/migrations/`. All 19 applied in prod Supaba
 ### Phase 3 redesign continuation
 - **3.4 chat** — BEFORE redesign: fix keyboard viewport bug on iOS (sticky input, `viewportChanged` event, flex min-h-0). See [memory](C:\Users\Вадим\.claude\projects\c--Users-------Desktop--LAUDE-KOSMETOLOG\memory\project_phase34_chat_todo.md). Then TypingWave + MessageReveal + BreathingGlow + SuccessRipple after booking.
 - ~~3.5 appointments~~ ✅ done: segmented Предстоящие/История tabs, ChipRow filter (Все/Завершённые/Отменённые — «Перенесены» dropped, no such status), BookCard next/list/history, EmptyDashedCard, RatingStars on completed (added `rating` to GET /api/appointments + AppointmentWithRelations type), Reschedule bottom-sheet with real slot picker, Cancel dialog (peach + 3D calendar SVG), «Записаться снова», Напоминания block. `?reschedule=<id>` deep-link opens the sheet.
-- **3.5 promotions** — visual refresh.
-- **3.6 profile** — Pop logo (130px) + Brand block + AI here banner + menu list.
+- **3.5 promotions** — visual refresh (next). Real data only: photo from `promotions.image_url` (placeholder otherwise), discount/savings from `discount_type`/`discount_value` + service prices, unified «Записаться по акции» CTA. Drop fabricated badges «Популярно»/«Специально для вас».
+- ~~3.6 profile~~ ✅ done: header card (avatar + «Постоянный клиент» + «клиент с …»), «Ваши отношения» (visits + computed favorite master/service), «Ваша история» (first/last visit), quick actions, Личные данные edit dialog, Связаться с салоном. New `/api/profile` computes favorites/first-visit. Dropped fabricated «10% на следующий визит» banner + «Уведомления» settings (no backend).
 
 ### Phase 4 admin (after Phase 3 done)
 Replace TMA front-fallbacks with real admin settings:
@@ -231,6 +232,22 @@ Replace TMA front-fallbacks with real admin settings:
 - Migration `appointment_waitlist (id, tenant_id, client_id, service_id, master_id?, days_window, created_at, notified_at, deleted_at)`
 - `POST/DELETE /api/waitlist` — wire to `NotifyWhenSlotsAvailable.onToggle`
 - Cron `/api/cron/check-waitlist` — monitor freed slots → notify via tenant bot
+
+### Share booking (planned — premium, decided 2026-05-29)
+Let a client share a just-created booking (e.g. booked for a friend). Agreed design:
+- **Trigger:** «Поделиться» on the Success screen only (just-created appointment).
+- **Delivery:** premium — `tg.shareMessage(preparedId)` (Bot API 8.0 `savePreparedInlineMessage` via grammy). One Telegram bubble = booking image + button «Открыть запись». No bot-relay fallback.
+- **Image:** `next/og` ImageResponse at `/api/appointments/[id]/share-image?token=…` (public, token-gated) — salon bg, service, master, date/time, name.
+- **Ownership = claim (Option A):** add `appointments.share_token TEXT UNIQUE`, `booked_by_client_id UUID`. On open the friend authenticates via Telegram, the appointment's `client_id` is reassigned to her + her phone/name pulled → it becomes HER booking, shows in her «Мои записи», reschedule/cancel work via existing client_id-scoped flows (no new auth path). First opener claims; later opens = view-only.
+- **Deep link:** `t.me/<bot>?start=appt_<token>` (works without a configured Main Mini App); bot `/start` handler parses `appt_` and routes the TMA to the shared/claim view.
+- **Recipient flow:** open → Telegram auth auto-fills name/username (existing) → claim → «Запись для вас: …» + Add to calendar.
+- Pieces: share-image route, share_token + claim endpoint, bot prepared-message + `/start` parse, shared-appointment view, Success-screen wire-up.
+- **Admin side (design carefully — must reflect the re-assignment):**
+  - Calendar/clients read the client off the appointment, so after claim they auto-show the new attendee. Keep `booked_by_client_id` and surface «записал: X · придёт: Y» + a «переписана» badge so it's not confusing.
+  - **On claim, notify the salon:** push via tenant bot → `telegram_channel_id` (and/or an admin-panel notice): «Запись {date} {time} переписана с {booker} на {friend}».
+  - **Stats:** after claim `client_id` = friend, so migration-015 `client_stats` trigger should credit the friend on completion, NOT the booker — verify the trigger behaves correctly when `client_id` changes mid-life; make sure the booker isn't left with a phantom visit.
+  - **Audit trail:** consider an `appointment_events` (or reassignment log) row so the booker→friend change is traceable in admin.
+  - Decide what the booker sees afterwards (keeps a «передана» record in his «Мои записи» vs disappears).
 
 ### Phase 5 motion polish
 - `<AnimatePresence>` page transitions on TMA layout

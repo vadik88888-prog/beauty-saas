@@ -281,6 +281,7 @@ export type Database = {
           starts_at: string | null
           ends_at: string | null
           is_active: boolean
+          image_url?: string | null
           created_at: string
         }
         Insert: Omit<Database['public']['Tables']['promotions']['Row'], 'id' | 'created_at'>
