@@ -2,7 +2,17 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ArrowLeft, Bell, RefreshCcw, RotateCcw, XCircle } from 'lucide-react'
+import {
+  ArrowLeft,
+  Bell,
+  Calendar,
+  Clock,
+  Lock,
+  RefreshCcw,
+  RotateCcw,
+  Trash2,
+  XCircle,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { BookCard } from '@/components/shared/BookCard'
 import { StatusPill } from '@/components/shared/StatusPill'
@@ -10,8 +20,8 @@ import { ChipRow } from '@/components/shared/ChipRow'
 import { EmptyDashedCard } from '@/components/shared/EmptyDashedCard'
 import { RatingStars } from '@/components/shared/RatingStars'
 import { ActionRow } from '@/components/shared/ActionRow'
+import { PortraitAvatar } from '@/components/shared/PortraitAvatar'
 import { NearbyDaysChipRow } from '@/components/shared/NearbyDaysChipRow'
-import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Stagger, StaggerItem } from '@/components/motion/Stagger'
@@ -77,7 +87,7 @@ export default function AppointmentsPage() {
     }
   }, [tab])
 
-  // Deep-link ?reschedule=<id> — open the reschedule sheet once data is loaded.
+  // Deep-link ?reschedule=<id> — open the reschedule dialog once data is loaded.
   useEffect(() => {
     const targetId = searchParams.get('reschedule')
     if (!targetId || deepLinkHandled.current || appointments.length === 0) return
@@ -334,32 +344,67 @@ export default function AppointmentsPage() {
         )}
       </div>
 
-      {/* Reschedule bottom sheet */}
-      <RescheduleSheet
+      {/* Reschedule dialog */}
+      <RescheduleDialog
         target={rescheduleTarget}
         onClose={() => setRescheduleTarget(null)}
         onRescheduled={handleRescheduled}
       />
 
-      {/* Cancel dialog */}
+      {/* Cancel dialog — matches reference: illustration, summary card, reassurance, footer */}
       <Dialog open={!!cancelTarget} onOpenChange={open => !open && setCancelTarget(null)}>
-        <DialogContent showCloseButton={false} className="rounded-3xl p-6">
+        <DialogContent className="rounded-3xl p-6">
           <div className="flex flex-col items-center text-center">
             <CancelCalendarSvg />
             <h2 className="font-serif text-xl text-ink mt-3">Отменить запись?</h2>
+            <p className="text-[12px] text-muted-foreground mt-1">
+              Мы поймём, если планы изменились
+            </p>
+
             {cancelTarget && (
-              <p className="text-[13px] text-muted-foreground mt-1.5 max-w-[16rem]">
-                «{cancelTarget.service.name}» — {formatDate(cancelTarget.starts_at)},{' '}
-                {formatTime(cancelTarget.starts_at)}. Это действие нельзя отменить.
-              </p>
+              <div className="w-full mt-4 rounded-2xl bg-cream border border-line p-3 flex items-center gap-3 text-left">
+                <PortraitAvatar
+                  name={cancelTarget.master.name}
+                  src={cancelTarget.master.photo_url}
+                  size="md"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-[14px] text-ink leading-tight line-clamp-1">
+                    {cancelTarget.service.name}
+                  </div>
+                  <div className="text-[12px] text-muted-2 line-clamp-1">
+                    {cancelTarget.master.name}
+                  </div>
+                  <div className="flex items-center gap-3 mt-1 text-[12px] text-ink-2">
+                    <span className="inline-flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5 text-peach" strokeWidth={2} />
+                      {formatDate(cancelTarget.starts_at)}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-sage" strokeWidth={2} />
+                      {formatTime(cancelTarget.starts_at)}
+                    </span>
+                  </div>
+                </div>
+              </div>
             )}
+
+            {/* Reassurance — you can always rebook */}
+            <div className="w-full mt-2.5 rounded-2xl bg-peach/25 border border-peach/40 p-3 flex items-center gap-2.5 text-left">
+              <Bell className="w-4 h-4 shrink-0" strokeWidth={2} style={{ color: 'var(--ink-2)' }} />
+              <p className="text-[12px] text-ink-2 leading-snug">
+                Если передумали — вы всегда можете записаться снова в пару кликов 💗
+              </p>
+            </div>
+
             <div className="flex flex-col gap-2 w-full mt-5">
               <button
                 type="button"
                 onClick={handleCancel}
                 disabled={isCancelling}
-                className="w-full inline-flex items-center justify-center rounded-2xl bg-peach text-ink font-medium py-3 text-sm hover:bg-peach/80 transition-colors disabled:opacity-60"
+                className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-[#ef4444] text-white font-medium py-3 text-sm hover:bg-[#dc2626] transition-colors disabled:opacity-60"
               >
+                <Trash2 className="w-4 h-4" strokeWidth={2} />
                 {isCancelling ? 'Отменяем…' : 'Да, отменить запись'}
               </button>
               <button
@@ -368,9 +413,14 @@ export default function AppointmentsPage() {
                 disabled={isCancelling}
                 className="w-full inline-flex items-center justify-center rounded-2xl bg-cream text-ink border border-line font-medium py-3 text-sm hover:bg-cream-2 transition-colors"
               >
-                Оставить запись
+                Нет, оставить запись
               </button>
             </div>
+
+            <p className="mt-3 inline-flex items-center gap-1.5 text-[11px] text-muted-2">
+              <Lock className="w-3 h-3" strokeWidth={1.8} />
+              Ничего не будет списано. Запись просто удалится.
+            </p>
           </div>
         </DialogContent>
       </Dialog>
@@ -378,7 +428,7 @@ export default function AppointmentsPage() {
   )
 }
 
-// ────── Reschedule sheet ──────
+// ────── Reschedule dialog ──────
 
 const RU_DAYS = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
 const RU_MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря']
@@ -398,7 +448,7 @@ function longDate(dateStr: string): string {
   return `${RU_DAYS[d.getDay()]}, ${d.getDate()} ${RU_MONTHS[d.getMonth()]}`
 }
 
-function RescheduleSheet({
+function RescheduleDialog({
   target,
   onClose,
   onRescheduled,
@@ -437,12 +487,17 @@ function RescheduleSheet({
       if (masterId) params.set('masterId', masterId)
       if (!token && slug) params.set('slug', slug)
 
-      const res = await fetch(`/api/slots?${params}`, {
+      let res = await fetch(`/api/slots?${params}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
+      // Stale token → retry once with slug (mirrors the booking/slots page).
+      if (res.status === 401 && slug) {
+        params.set('slug', slug)
+        res = await fetch(`/api/slots?${params}`)
+      }
       if (cancelled) return
-      const { data } = await res.json().catch(() => ({ data: [] }))
-      const list = (data ?? []) as TimeSlot[]
+      const json = (await res.json().catch(() => ({ data: [] }))) as { data?: TimeSlot[] }
+      const list = json.data ?? []
       setSlots(list)
       if (list[0]) setSelectedDate(list[0].datetime.slice(0, 10))
       setIsLoading(false)
@@ -500,13 +555,9 @@ function RescheduleSheet({
   }
 
   return (
-    <Sheet open={!!target} onOpenChange={open => !open && onClose()}>
-      <SheetContent
-        side="bottom"
-        showCloseButton
-        className="rounded-t-3xl max-h-[85vh] overflow-y-auto px-5 pt-5 pb-[max(env(safe-area-inset-bottom,16px),16px)]"
-      >
-        <div className="mb-1">
+    <Dialog open={!!target} onOpenChange={open => !open && onClose()}>
+      <DialogContent className="rounded-3xl p-5 max-h-[82vh] overflow-y-auto">
+        <div className="mb-1 pr-6">
           <h2 className="font-serif text-xl text-ink">Перенести запись</h2>
           <p className="text-[12px] text-muted-foreground mt-0.5 line-clamp-1">
             {target?.service.name} · {target?.master.name}
@@ -563,26 +614,38 @@ function RescheduleSheet({
             )}
           </div>
         )}
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   )
 }
 
-// ────── Cancel dialog illustration ──────
+// ────── Cancel dialog illustration — coral 3D calendar with X badge + sparkles ──────
 
 function CancelCalendarSvg() {
   return (
     <FadeInUp delay={0.05}>
-      <svg width="72" height="72" viewBox="0 0 80 80" fill="none">
-        {/* base card */}
-        <rect x="14" y="22" width="52" height="48" rx="8" fill="var(--cream)" stroke="var(--line)" strokeWidth="1.5" />
-        {/* peach header */}
-        <rect x="14" y="22" width="52" height="14" rx="8" fill="var(--peach)" />
+      <svg width="92" height="88" viewBox="0 0 92 88" fill="none">
+        {/* sparkles */}
+        <path d="M12 30l1.6 4.2 4.2 1.6-4.2 1.6L12 41.6l-1.6-4.2L6.2 35.8l4.2-1.6z" fill="#f6a8c0" />
+        <path d="M80 20l1.3 3.4 3.4 1.3-3.4 1.3L80 30.7l-1.3-3.4-3.4-1.3 3.4-1.3z" fill="#f6a8c0" />
+        <circle cx="74" cy="52" r="2.4" fill="#f9c4d4" />
+        <circle cx="18" cy="58" r="2" fill="#f9c4d4" />
+
+        {/* calendar body */}
+        <rect x="22" y="26" width="48" height="46" rx="9" fill="#fff" stroke="#f4d9d9" strokeWidth="1.5" />
+        {/* coral header */}
+        <rect x="22" y="26" width="48" height="14" rx="9" fill="#f26a6a" />
+        <rect x="22" y="34" width="48" height="6" fill="#f26a6a" />
         {/* rings */}
-        <rect x="24" y="14" width="4" height="14" rx="2" fill="var(--ink-2)" />
-        <rect x="52" y="14" width="4" height="14" rx="2" fill="var(--ink-2)" />
-        {/* X mark */}
-        <path d="M32 46l16 16M48 46L32 62" stroke="var(--ink-2)" strokeWidth="3" strokeLinecap="round" />
+        <rect x="32" y="19" width="4" height="13" rx="2" fill="#d94f4f" />
+        <rect x="56" y="19" width="4" height="13" rx="2" fill="#d94f4f" />
+        {/* date dots */}
+        <circle cx="34" cy="50" r="2.2" fill="#f3c0c0" />
+        <circle cx="46" cy="50" r="2.2" fill="#f3c0c0" />
+        <circle cx="34" cy="60" r="2.2" fill="#f3c0c0" />
+        {/* X badge */}
+        <circle cx="62" cy="62" r="13" fill="#ef4444" stroke="#fff" strokeWidth="3" />
+        <path d="M57.5 57.5l9 9M66.5 57.5l-9 9" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" />
       </svg>
     </FadeInUp>
   )
