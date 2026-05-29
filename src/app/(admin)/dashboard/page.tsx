@@ -89,14 +89,14 @@ export default async function DashboardPage() {
   ]
 
   return (
-    <div className="p-5 md:p-8 max-w-5xl mx-auto flex flex-col gap-5">
+    <div className="p-6 md:p-8 flex flex-col gap-5">
       {/* Header */}
       <header className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-serif-h2 text-ink">
             {greeting}{userFirstName ? `, ${userFirstName}` : ''}! <span className="inline-block">👋</span>
           </h1>
-          <p className="text-[13px] text-muted-foreground mt-0.5">
+          <p className="text-[13px] text-ink-2 mt-0.5">
             {aiName} {ai.conversations_today > 0 ? 'уже работает и помогает вашему салону' : 'готова работать с вашими клиентами'}
           </p>
         </div>
@@ -136,16 +136,16 @@ export default async function DashboardPage() {
                 <span className="w-1.5 h-1.5 rounded-full bg-sage" /> Онлайн сейчас
               </span>
             </div>
-            <p className="text-[12px] text-muted-foreground mt-0.5">Сегодня:</p>
+            <p className="text-[12px] text-ink-2 mt-0.5">Сегодня:</p>
           </div>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {heroStats.map((s, i) => (
-            <div key={i} className="rounded-2xl bg-cream/70 border border-sage-soft/60 p-3 flex items-center gap-2.5">
-              <s.icon className="w-4 h-4 text-sage shrink-0" strokeWidth={1.8} />
+            <div key={i} className="rounded-2xl bg-cream/70 border border-sage-soft/60 p-3.5 flex items-center gap-3">
+              <s.icon className="w-5 h-5 text-sage shrink-0" strokeWidth={1.8} />
               <div className="min-w-0">
-                <div className="text-[18px] font-semibold text-ink leading-none">{s.value}</div>
-                <div className="text-[11px] text-muted-foreground leading-tight mt-1">{s.label}</div>
+                <div className="text-[22px] font-semibold text-ink leading-none">{s.value}</div>
+                <div className="text-[11px] text-ink-2 leading-tight mt-1">{s.label}</div>
               </div>
             </div>
           ))}
@@ -165,7 +165,7 @@ export default async function DashboardPage() {
             <p className="font-semibold text-[15px] text-ink">
               {stats.handed_off_count} {pluralize(stats.handed_off_count, ['диалог ждёт', 'диалога ждут', 'диалогов ждут'])} вашего ответа
             </p>
-            <p className="text-[12px] text-muted-foreground mt-0.5">{aiName} передала их вам</p>
+            <p className="text-[12px] text-ink-2 mt-0.5">{aiName} передала их вам</p>
           </div>
           <span className="shrink-0 rounded-xl bg-ink text-page text-[13px] font-medium px-4 py-2">Ответить</span>
         </Link>
@@ -173,7 +173,7 @@ export default async function DashboardPage() {
 
       {/* Business KPI */}
       <section>
-        <h3 className="text-[15px] font-semibold text-ink mb-2">Бизнес сегодня</h3>
+        <h3 className="text-[16px] font-semibold text-ink mb-3">Бизнес сегодня</h3>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <KpiCard icon={Wallet} value={formatPrice(business.revenue_today, 'BYN')} label="Выручка" />
           <KpiCard icon={Calendar} value={String(business.appointments_today)} label="Всего записей" />
@@ -182,82 +182,85 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      {/* What AI did — activity feed */}
-      <section>
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-[15px] font-semibold text-ink">Что сделала {aiName}</h3>
-          <Link href="/chats" className="text-[12px] text-sage font-medium hover:text-sage-2 inline-flex items-center gap-1">
-            Все действия <ArrowRight className="w-3 h-3" />
-          </Link>
-        </div>
-        {stats.recent_activity.length === 0 ? (
-          <div className="rounded-2xl bg-cream border border-line p-6 text-center">
-            <Bot className="w-7 h-7 text-sage mx-auto mb-2" strokeWidth={1.6} />
-            <p className="text-[14px] font-medium text-ink">{aiName} пока ничего не сделала</p>
-            <p className="text-[12px] text-muted-foreground mt-0.5">Когда клиенты начнут писать боту, здесь появится активность</p>
-          </div>
-        ) : (
-          <div className="rounded-2xl bg-cream border border-line divide-y divide-line">
-            {stats.recent_activity.map((act, i) => (
-              <div key={i} className="flex items-start gap-3 px-4 py-3">
-                <span className="w-7 h-7 rounded-lg bg-sage-tint text-sage flex items-center justify-center shrink-0">
-                  {act.type === 'booking' ? <Calendar className="w-3.5 h-3.5" /> : act.type === 'handoff' ? <Repeat className="w-3.5 h-3.5" /> : <BookOpen className="w-3.5 h-3.5" />}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13px] text-ink"><span className="font-medium">{aiName}</span> · {act.text}</p>
-                  <p className="text-[11px] text-muted-2 mt-0.5">{formatRelative(act.time)}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Bottom: tip + upcoming */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Tip */}
-        <div
-          className="rounded-2xl p-4 border border-sage-soft"
-          style={{ background: 'linear-gradient(135deg, var(--sage-tint) 0%, var(--cream-2) 240%)' }}
-        >
-          <div className="flex items-center gap-2 mb-1.5">
-            <Lightbulb className="w-4 h-4 text-sage" strokeWidth={1.8} />
-            <span className="text-[13px] font-semibold text-ink">Совет от {aiName}</span>
-          </div>
-          <p className="font-serif italic text-[14px] text-ink-2 leading-snug">{tip}</p>
-        </div>
-
-        {/* Upcoming */}
-        <div className="rounded-2xl bg-cream border border-line overflow-hidden">
-          <div className="flex items-center justify-between px-4 pt-3 pb-2">
-            <span className="text-[13px] font-semibold text-ink">Ближайшие записи</span>
-            <Link href="/calendar" className="text-[12px] text-sage font-medium hover:text-sage-2 inline-flex items-center gap-1">
-              Расписание <ArrowRight className="w-3 h-3" />
+      {/* Bottom: activity feed (wide) + right rail (tip + upcoming) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Activity feed — 2/3 */}
+        <section className="lg:col-span-2">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-[16px] font-semibold text-ink">Что сделала {aiName}</h3>
+            <Link href="/chats" className="text-[12px] text-sage font-medium hover:text-sage-2 inline-flex items-center gap-1">
+              Все действия <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
-          {upcoming.length === 0 ? (
-            <p className="px-4 pb-4 text-[12px] text-muted-foreground">На сегодня записей больше нет.</p>
+          {stats.recent_activity.length === 0 ? (
+            <div className="rounded-2xl bg-cream border border-line p-8 text-center">
+              <Bot className="w-8 h-8 text-sage mx-auto mb-2.5" strokeWidth={1.6} />
+              <p className="text-[14px] font-medium text-ink">{aiName} пока ничего не сделала</p>
+              <p className="text-[13px] text-ink-2 mt-1">Когда клиенты начнут писать боту, здесь появится активность</p>
+            </div>
           ) : (
-            <div className="divide-y divide-line">
-              {upcoming.map(appt => {
-                const clientName = [appt.client?.first_name, appt.client?.last_name].filter(Boolean).join(' ') || 'Клиент'
-                return (
-                  <div key={appt.id} className="flex items-center gap-3 px-4 py-2.5">
-                    <span className="text-[14px] font-semibold text-ink w-12 shrink-0">{formatTime(appt.starts_at)}</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[13px] font-medium text-ink truncate">{clientName}</p>
-                      <p className="text-[11px] text-muted-2 truncate">{appt.service?.name} · {appt.master?.name}</p>
-                    </div>
-                    {appt.service?.price != null && (
-                      <span className="text-[12px] text-muted-foreground shrink-0">{formatPrice(appt.service.price, appt.service.currency)}</span>
-                    )}
+            <div className="rounded-2xl bg-cream border border-line divide-y divide-line">
+              {stats.recent_activity.map((act, i) => (
+                <div key={i} className="flex items-start gap-3 px-4 py-3.5">
+                  <span className="w-8 h-8 rounded-xl bg-sage-tint text-sage flex items-center justify-center shrink-0 mt-0.5">
+                    {act.type === 'booking' ? <Calendar className="w-4 h-4" /> : act.type === 'handoff' ? <Repeat className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] text-ink"><span className="font-medium">{aiName}</span> · {act.text}</p>
+                    <p className="text-[12px] text-ink-2 mt-0.5">{formatRelative(act.time)}</p>
                   </div>
-                )
-              })}
+                </div>
+              ))}
             </div>
           )}
+        </section>
+
+        {/* Right rail — 1/3 */}
+        <div className="flex flex-col gap-4">
+          {/* Tip */}
+          <div
+            className="rounded-2xl p-4 border border-sage-soft"
+            style={{ background: 'linear-gradient(135deg, var(--sage-tint) 0%, var(--cream-2) 240%)' }}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <Lightbulb className="w-4 h-4 text-sage" strokeWidth={1.8} />
+              <span className="text-[14px] font-semibold text-ink">Совет от {aiName}</span>
+            </div>
+            <p className="font-serif italic text-[15px] text-ink-2 leading-snug">{tip}</p>
+          </div>
+
+          {/* Upcoming */}
+          <div className="rounded-2xl bg-cream border border-line overflow-hidden flex-1">
+            <div className="flex items-center justify-between px-4 pt-3.5 pb-2.5">
+              <span className="text-[14px] font-semibold text-ink">Ближайшие записи</span>
+              <Link href="/calendar" className="text-[12px] text-sage font-medium hover:text-sage-2 inline-flex items-center gap-1">
+                Расписание <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+            {upcoming.length === 0 ? (
+              <p className="px-4 pb-4 text-[13px] text-ink-2">На сегодня записей больше нет.</p>
+            ) : (
+              <div className="divide-y divide-line">
+                {upcoming.map(appt => {
+                  const clientName = [appt.client?.first_name, appt.client?.last_name].filter(Boolean).join(' ') || 'Клиент'
+                  return (
+                    <div key={appt.id} className="flex items-center gap-3 px-4 py-3">
+                      <span className="text-[14px] font-semibold text-ink w-12 shrink-0">{formatTime(appt.starts_at)}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[13px] font-medium text-ink truncate">{clientName}</p>
+                        <p className="text-[12px] text-ink-2 truncate">{appt.service?.name} · {appt.master?.name}</p>
+                      </div>
+                      {appt.service?.price != null && (
+                        <span className="text-[13px] text-ink-2 font-medium shrink-0">{formatPrice(appt.service.price, appt.service.currency)}</span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </div>
-      </section>
+      </div>
     </div>
   )
 }
@@ -265,9 +268,9 @@ export default async function DashboardPage() {
 function KpiCard({ icon: Icon, value, label }: { icon: typeof Wallet; value: string; label: string }) {
   return (
     <div className="rounded-2xl bg-cream border border-line p-4">
-      <Icon className="w-4 h-4 text-sage mb-2" strokeWidth={1.8} />
-      <div className="text-[20px] font-semibold text-ink leading-none">{value}</div>
-      <div className="text-[12px] text-muted-foreground mt-1">{label}</div>
+      <Icon className="w-4 h-4 text-sage mb-2.5" strokeWidth={1.8} />
+      <div className="text-[22px] font-semibold text-ink leading-none">{value}</div>
+      <div className="text-[13px] text-ink-2 mt-1.5">{label}</div>
     </div>
   )
 }
