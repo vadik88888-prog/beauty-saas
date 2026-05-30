@@ -1,3 +1,5 @@
+export { AlinaCareOrb } from './AlinaCareOrb'
+export type { CareOrbState, AlinaCareOrbProps } from './AlinaCareOrb'
 export { FadeIn } from './FadeIn'
 export { FadeInUp } from './FadeInUp'
 export { FadeInLeft } from './FadeInLeft'

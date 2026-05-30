@@ -14,7 +14,6 @@ import {
   RefreshCcw,
   Search,
   Send,
-  Sparkles,
   Square,
   Tag,
   UserRound,
@@ -25,6 +24,8 @@ import { formatTime, formatDate } from '@/lib/utils/date'
 import { toast } from 'sonner'
 import { PortraitAvatar } from '@/components/shared/PortraitAvatar'
 import { OnlineDot } from '@/components/motion/OnlineDot'
+import { AlinaCareOrb } from '@/components/motion/AlinaCareOrb'
+import type { CareOrbState } from '@/components/motion/AlinaCareOrb'
 import { TypingWave } from '@/components/shared/microinteractions/TypingWave'
 import { MessageReveal } from '@/components/shared/microinteractions/MessageReveal'
 import type { AttachmentInput } from '@/lib/ai/administrator/types'
@@ -170,6 +171,12 @@ export default function ChatPage() {
   const [recordSeconds, setRecordSeconds] = useState(0)
   const [liveStatus, setLiveStatus] = useState<string | null>(null)
   const liveStatusTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // maps chat state → orb visual state
+  const orbState: CareOrbState =
+    handoffState !== 'none' ? 'handover' :
+    isSending ? 'thinking' :
+    'online'
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -534,12 +541,13 @@ export default function ChatPage() {
         >
           <ArrowLeft className="w-5 h-5" strokeWidth={1.8} />
         </button>
-        <PortraitAvatar name={aiName} size="md" />
+        <AlinaCareOrb state={orbState} size={42} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <p className="font-serif text-[17px] text-ink leading-tight">{aiName}</p>
             <span className="inline-flex items-center gap-1 text-[11px] text-sage">
-              <OnlineDot size={6} /> Онлайн
+              <OnlineDot size={6} />
+              {orbState === 'thinking' ? 'Думает…' : orbState === 'handover' ? 'Передаёт' : 'Онлайн'}
             </span>
           </div>
           <p className="text-[11px] text-muted-foreground leading-tight">Ваш AI-администратор</p>
@@ -570,9 +578,7 @@ export default function ChatPage() {
       <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 flex flex-col gap-3">
         {/* Welcome hero */}
         <div className="flex flex-col items-center text-center pt-2 pb-1">
-          <span className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-sage-tint border border-sage-soft mb-3">
-            <Sparkles className="w-5 h-5 text-sage" strokeWidth={1.8} />
-          </span>
+          <AlinaCareOrb state={orbState} size={100} className="mb-1" />
           <p className="font-serif text-[18px] text-ink leading-snug max-w-[18rem]">{welcomeText}</p>
           <p className="text-[12px] text-muted-foreground mt-1.5 max-w-[18rem]">
             Цены, услуги, мастера, записи, акции и многое другое. Просто напишите, что вас интересует.
@@ -615,7 +621,7 @@ export default function ChatPage() {
         {/* Typing indicator — shows live_status (current tool-call step) if present */}
         {isSending && (
           <div className="flex items-end gap-2">
-            <PortraitAvatar name={aiName} size="xs" />
+            <AlinaCareOrb state="thinking" size={28} />
             <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl rounded-bl-md bg-cream border border-line max-w-[82%]">
               <TypingWave bars={6} label={liveStatus ?? `${aiName} печатает`} />
             </div>
