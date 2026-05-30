@@ -9,7 +9,7 @@ import {
 import { formatPrice } from '@/lib/utils/format'
 import { formatTime } from '@/lib/utils/date'
 import { getAiStats } from '@/lib/admin/get-ai-stats'
-import { AlinaSymbol } from '@/components/admin/AlinaSymbol'
+import { AlinaCareOrb } from '@/components/motion/AlinaCareOrb'
 import { DateNav } from './_components/DateNav'
 import { AdviceCard } from './_components/AdviceCard'
 
@@ -203,10 +203,7 @@ export default async function DashboardPage({
       >
         {/* Left */}
         <div className="flex flex-col items-start justify-center gap-4 p-6 border-b md:border-b-0 md:border-r border-[#a8c8a0]/40">
-          <div className="relative">
-            <AlinaSymbol size={92} animate />
-            <span className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-[#16a34a] border-2 border-white animate-online-pulse shadow-sm" />
-          </div>
+          <AlinaCareOrb state="online" size={92} />
           <div>
             <h2 className="font-serif text-[1.4rem] font-bold text-ink leading-tight">
               Алина работает для вас
@@ -290,7 +287,7 @@ export default async function DashboardPage({
 
           {stats.recent_activity.length === 0 ? (
             <div className="rounded-2xl bg-white border border-line p-10 text-center shadow-sm">
-              <AlinaSymbol size={44} className="mx-auto mb-3 opacity-50" />
+              <AlinaCareOrb state="idle" size={44} className="mx-auto mb-3 opacity-50" />
               <p className="text-sm font-semibold text-ink">{aiName} пока ничего не сделала</p>
               <p className="text-xs text-ink-2 mt-1">Когда клиенты напишут боту, здесь появится активность</p>
             </div>

@@ -3,6 +3,7 @@ import { type ReactNode } from 'react'
 import { ChevronRight, MessageCircle } from 'lucide-react'
 import { PortraitAvatar } from './PortraitAvatar'
 import { OnlineDot } from '@/components/motion/OnlineDot'
+import { AlinaCareOrb } from '@/components/motion/AlinaCareOrb'
 
 type QuickAction = {
   id: string
@@ -114,7 +115,7 @@ export function AlinaHeroCard({
       />
 
       <div className="relative flex items-start gap-4">
-        <PortraitAvatar name={name} src={avatarSrc} size="lg" breathing />
+        <AlinaCareOrb state="online" size={72} />
         <div className="flex-1 min-w-0 pt-1">
           <div className="font-serif text-xl text-ink leading-tight">{name}</div>
           <div className="text-sm text-ink-2 flex items-center gap-1.5 mt-1">
