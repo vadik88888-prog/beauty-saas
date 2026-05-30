@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Plus, Tag, Trash2, Pencil, Calendar, Sparkles } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
@@ -33,12 +34,30 @@ const EMPTY_FORM = {
 }
 
 export default function PromotionsAdminPage() {
+  const searchParams = useSearchParams()
+  const prefillHandled = useRef(false)
+
   const [promotions, setPromotions] = useState<Promotion[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
+
+  // Pre-fill from Alina's tip (URL params: new, title, description, discount, type)
+  useEffect(() => {
+    if (prefillHandled.current) return
+    if (searchParams.get('new') !== '1') return
+    prefillHandled.current = true
+    const title       = searchParams.get('title') ?? ''
+    const description = searchParams.get('description') ?? ''
+    const discount    = searchParams.get('discount') ?? ''
+    const type        = (searchParams.get('type') ?? 'percent') as 'percent' | 'fixed'
+    if (!title) return
+    setEditingId(null)
+    setForm({ ...EMPTY_FORM, title, description, discount_value: discount, discount_type: type, is_active: true })
+    setDialogOpen(true)
+  }, [searchParams])
 
   async function load() {
     const res = await fetch('/api/admin/promotions')
