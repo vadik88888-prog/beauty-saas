@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import {
   LayoutGrid, Calendar, Users, Scissors, UserCheck, Megaphone,
-  Bot, BarChart2, Settings, LogOut, Menu, X, MessageSquare, Headphones,
+  Bot, BarChart2, Settings, LogOut, MessageSquare, Menu, X, Headphones,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -14,16 +14,16 @@ import { AlinaCareOrb } from '@/components/motion/AlinaCareOrb'
 type NavItem = { href: string; icon: typeof LayoutGrid; label: string }
 
 const NAV: NavItem[] = [
-  { href: '/dashboard',   icon: LayoutGrid,    label: 'Главная'       },
-  { href: '/calendar',    icon: Calendar,      label: 'Записи'        },
-  { href: '/clients',     icon: Users,         label: 'Клиенты'       },
-  { href: '/services',    icon: Scissors,      label: 'Услуги'        },
-  { href: '/chats',       icon: MessageSquare, label: 'Сообщения'     },
-  { href: '/analytics',   icon: BarChart2,     label: 'Аналитика'     },
-  { href: '/promo',       icon: Megaphone,     label: 'Маркетинг'     },
-  { href: '/masters',     icon: UserCheck,     label: 'Мастера'       },
-  { href: '/ai-settings', icon: Bot,           label: 'Настройки SERA'},
-  { href: '/settings',    icon: Settings,      label: 'Настройки'     },
+  { href: '/dashboard',   icon: LayoutGrid,    label: 'Главная'        },
+  { href: '/calendar',    icon: Calendar,      label: 'Записи'         },
+  { href: '/clients',     icon: Users,         label: 'Клиенты'        },
+  { href: '/services',    icon: Scissors,      label: 'Услуги'         },
+  { href: '/chats',       icon: MessageSquare, label: 'Сообщения'      },
+  { href: '/analytics',   icon: BarChart2,     label: 'Аналитика'      },
+  { href: '/promo',       icon: Megaphone,     label: 'Маркетинг'      },
+  { href: '/masters',     icon: UserCheck,     label: 'Мастера'        },
+  { href: '/ai-settings', icon: Bot,           label: 'Настройки SERA' },
+  { href: '/settings',    icon: Settings,      label: 'Настройки'      },
 ]
 
 const PLAN_LABEL: Record<string, string> = {
@@ -34,6 +34,18 @@ const PLAN_LABEL: Record<string, string> = {
 }
 
 type Tenant = { name: string; subscription_plan: string; trial_ends_at: string | null }
+
+// SERA Design Tokens
+const S = {
+  bg: 'linear-gradient(180deg, #10382F 0%, #18483D 100%)',
+  active: 'rgba(175,197,176,0.18)',
+  hover: 'rgba(255,255,255,0.06)',
+  textPrimary: '#FFFFFF',
+  textMuted: 'rgba(255,255,255,0.50)',
+  textSage: '#AFC5B0',
+  border: 'rgba(255,255,255,0.08)',
+  divider: 'rgba(255,255,255,0.08)',
+}
 
 export function AdminSidebar({ role: _role }: { role: string }) {
   const pathname  = usePathname()
@@ -49,7 +61,7 @@ export function AdminSidebar({ role: _role }: { role: string }) {
       .then(r => r.ok ? r.json() : null)
       .then(json => {
         const data = json?.data as { handed_off_count?: number; tenant?: Tenant } | undefined
-        if (data?.tenant)                            setTenant(data.tenant)
+        if (data?.tenant) setTenant(data.tenant)
         if (typeof data?.handed_off_count === 'number') setHandoff(data.handed_off_count)
       })
       .catch(() => null)
@@ -66,55 +78,64 @@ export function AdminSidebar({ role: _role }: { role: string }) {
     : null
 
   const sidebarContent = (
-    <div className="flex flex-col h-full" style={{ background: '#172417' }}>
+    <div
+      className="flex flex-col h-full"
+      style={{ background: S.bg, borderRight: `1px solid ${S.border}` }}
+    >
 
       {/* ── Brand ── */}
-      <div className="px-5 pt-5 pb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span
-            className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 overflow-hidden"
-            style={{ background: 'linear-gradient(135deg, #2d4a2d 0%, #1a3a1a 100%)', border: '1px solid rgba(255,255,255,0.10)' }}
-          >
-            <AlinaCareOrb state="online" size={24} />
-          </span>
-          <div className="min-w-0">
-            <p className="text-[13px] font-semibold text-white truncate leading-tight">
-              {tenant?.name ?? 'AI Beauty'}
-            </p>
-            <p className="text-[10px]" style={{ color: '#6fa868' }}>студия красоты</p>
+      <div style={{ padding: '24px 20px 16px', borderBottom: `1px solid ${S.border}` }}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,0.10)', border: `1px solid ${S.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <AlinaCareOrb state="online" size={24} />
+            </div>
+            <div className="min-w-0">
+              <p style={{ fontSize: 14, fontWeight: 600, color: S.textPrimary, lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {tenant?.name ?? 'AI Beauty'}
+              </p>
+              <p style={{ fontSize: 11, color: S.textSage, marginTop: 1 }}>студия красоты</p>
+            </div>
           </div>
+          <button
+            className="md:hidden"
+            onClick={() => setOpen(false)}
+            style={{ color: S.textMuted, padding: 4 }}
+          >
+            <X size={18} strokeWidth={1.5} />
+          </button>
         </div>
-        <button className="md:hidden p-1 rounded-lg hover:bg-white/10" onClick={() => setOpen(false)}>
-          <X className="w-4 h-4 text-white/60" />
-        </button>
       </div>
 
       {/* ── Navigation ── */}
-      <nav className="flex-1 px-3 flex flex-col gap-0.5 overflow-y-auto pb-2">
+      <nav style={{ flex: 1, padding: '12px 12px', display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto' }}>
         {NAV.map(item => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
-          const badge    = item.href === '/chats' ? handoff : 0
+          const badge = item.href === '/chats' ? handoff : 0
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-colors',
-                isActive
-                  ? 'text-white'
-                  : 'hover:text-white'
-              )}
-              style={isActive
-                ? { background: 'rgba(255,255,255,0.12)', color: '#fff' }
-                : { color: '#7aaa74' }
-              }
-              onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)' }}
-              onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = '' }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: '10px 12px',
+                borderRadius: 12,
+                fontSize: 14,
+                fontWeight: isActive ? 600 : 400,
+                color: isActive ? S.textPrimary : S.textMuted,
+                background: isActive ? S.active : 'transparent',
+                transition: 'all 150ms ease',
+                textDecoration: 'none',
+              }}
+              onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = S.hover }}
+              onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
             >
-              <item.icon className="w-4 h-4 shrink-0" strokeWidth={isActive ? 2.1 : 1.8} />
-              <span className="flex-1">{item.label}</span>
+              <item.icon size={18} strokeWidth={1.5} style={{ flexShrink: 0 }} />
+              <span style={{ flex: 1 }}>{item.label}</span>
               {badge > 0 && (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#ef4444] text-white">
+                <span style={{ fontSize: 11, fontWeight: 700, background: '#D46A6A', color: '#fff', borderRadius: 20, padding: '1px 7px' }}>
                   {badge}
                 </span>
               )}
@@ -123,73 +144,91 @@ export function AdminSidebar({ role: _role }: { role: string }) {
         })}
       </nav>
 
-      {/* ── SERA identity card ── */}
-      <div className="px-3 pb-2">
+      {/* ── SERA Card ── */}
+      <div style={{ padding: '0 12px 8px' }}>
         <Link
           href="/ai-settings"
-          className="flex items-start gap-3 rounded-2xl p-3 transition-colors"
-          style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.09)' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.10)' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)' }}
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 12,
+            padding: 16,
+            borderRadius: 20,
+            background: 'rgba(255,255,255,0.07)',
+            border: `1px solid ${S.border}`,
+            textDecoration: 'none',
+            transition: 'background 150ms ease',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.11)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)' }}
         >
-          <div className="shrink-0 mt-0.5">
-            <AlinaCareOrb state="online" size={36} />
+          <div style={{ flexShrink: 0, marginTop: 2 }}>
+            <AlinaCareOrb state="online" size={38} />
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[13px] font-bold text-white leading-tight">SERA</p>
-            <p className="text-[11px] mt-0.5 leading-snug" style={{ color: '#7aaa74' }}>
-              AI-администратор салона
-            </p>
-            <p className="text-[11px] mt-1 font-medium" style={{ color: '#4ade80' }}>
-              ● Онлайн 24/7
-            </p>
-            <p className="text-[10px] mt-1 leading-snug" style={{ color: 'rgba(255,255,255,0.38)' }}>
-              Забочусь о вашем бизнесе и каждом клиенте в любое время ✨
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: S.textPrimary, lineHeight: 1.3 }}>SERA</p>
+            <p style={{ fontSize: 11, color: S.textSage, marginTop: 2 }}>AI-администратор салона</p>
+            <p style={{ fontSize: 11, color: '#4ade80', marginTop: 4, fontWeight: 500 }}>● Онлайн 24/7</p>
+            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 6, lineHeight: 1.4 }}>
+              Забочусь о вашем бизнесе и каждом клиенте ✨
             </p>
           </div>
         </Link>
+
         <Link
           href="/chats"
-          className="mt-2 flex items-center justify-center gap-2 w-full rounded-xl py-2.5 text-[12px] font-semibold transition-colors"
-          style={{ background: 'rgba(94,125,93,0.35)', color: '#a8d4a4', border: '1px solid rgba(94,125,93,0.4)' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(94,125,93,0.50)' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(94,125,93,0.35)' }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            marginTop: 8,
+            padding: '10px 0',
+            borderRadius: 14,
+            background: 'rgba(175,197,176,0.18)',
+            border: '1px solid rgba(175,197,176,0.25)',
+            color: '#AFC5B0',
+            fontSize: 13,
+            fontWeight: 600,
+            textDecoration: 'none',
+            transition: 'background 150ms ease',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(175,197,176,0.28)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(175,197,176,0.18)' }}
         >
-          <MessageSquare className="w-3.5 h-3.5" strokeWidth={1.8} />
+          <MessageSquare size={16} strokeWidth={1.5} />
           Написать SERA
         </Link>
       </div>
 
       {/* ── Tariff + sign out ── */}
-      <div className="px-3 pb-4 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+      <div style={{ padding: '8px 12px 16px', borderTop: `1px solid ${S.border}` }}>
         {tenant && (
-          <p className="px-2 pt-2 pb-2 text-[11px] leading-tight" style={{ color: 'rgba(255,255,255,0.35)' }}>
+          <p style={{ padding: '8px 4px', fontSize: 11, color: 'rgba(255,255,255,0.30)', lineHeight: 1.5 }}>
             Тариф:{' '}
-            <span style={{ color: 'rgba(255,255,255,0.60)' }} className="font-medium">
+            <span style={{ color: 'rgba(255,255,255,0.55)', fontWeight: 500 }}>
               {PLAN_LABEL[tenant.subscription_plan] ?? tenant.subscription_plan}
             </span>
             {tariffEnds && <><br />Действует до {tariffEnds}</>}
           </p>
         )}
-        <div className="flex items-center justify-between">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <button
             onClick={handleSignOut}
-            className="flex items-center gap-2 px-2 py-2 rounded-xl text-[12px] transition-colors"
-            style={{ color: 'rgba(255,255,255,0.45)' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px', borderRadius: 10, fontSize: 13, color: 'rgba(255,255,255,0.40)', background: 'none', border: 'none', cursor: 'pointer', transition: 'color 150ms ease', flex: 1 }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#fff' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.45)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.40)' }}
           >
-            <LogOut className="w-3.5 h-3.5" strokeWidth={1.8} />
+            <LogOut size={16} strokeWidth={1.5} />
             Выйти
           </button>
           <Link
             href="/settings"
-            className="flex items-center gap-1.5 px-2 py-2 rounded-xl text-[12px] transition-colors"
-            style={{ color: 'rgba(255,255,255,0.45)' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px', borderRadius: 10, fontSize: 13, color: 'rgba(255,255,255,0.40)', textDecoration: 'none', transition: 'color 150ms ease' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#fff' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.45)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.40)' }}
           >
-            <Headphones className="w-3.5 h-3.5" strokeWidth={1.8} />
+            <Headphones size={16} strokeWidth={1.5} />
             Поддержка
           </Link>
         </div>
@@ -199,21 +238,22 @@ export function AdminSidebar({ role: _role }: { role: string }) {
 
   return (
     <>
-      {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-60 shrink-0 h-full">
+      {/* Desktop */}
+      <aside className="hidden md:flex shrink-0 h-full" style={{ width: 280 }}>
         {sidebarContent}
       </aside>
 
       {/* Mobile top bar */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-40 backdrop-blur-md border-b flex items-center px-4 h-14"
-        style={{ background: 'rgba(23,36,23,0.95)', borderColor: 'rgba(255,255,255,0.08)' }}
+      <div
+        className="md:hidden fixed top-0 left-0 right-0 z-40 flex items-center px-4 h-14 backdrop-blur-md"
+        style={{ background: 'rgba(16,56,47,0.95)', borderBottom: `1px solid ${S.border}` }}
       >
-        <button className="p-2 rounded-xl hover:bg-white/10" onClick={() => setOpen(true)}>
-          <Menu className="w-5 h-5 text-white" />
+        <button onClick={() => setOpen(true)} style={{ color: '#fff', padding: 8 }}>
+          <Menu size={20} strokeWidth={1.5} />
         </button>
-        <div className="flex items-center gap-2 ml-3">
-          <AlinaCareOrb state="online" size={22} />
-          <span className="text-[15px] font-semibold text-white truncate">{tenant?.name ?? 'AI Beauty'}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 8 }}>
+          <AlinaCareOrb state="online" size={24} />
+          <span style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>{tenant?.name ?? 'AI Beauty'}</span>
         </div>
       </div>
 
@@ -222,9 +262,9 @@ export function AdminSidebar({ role: _role }: { role: string }) {
         <div className="md:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={() => setOpen(false)} />
       )}
       <aside className={cn(
-        'md:hidden fixed top-0 left-0 z-50 h-full w-72 transition-transform duration-200',
+        'md:hidden fixed top-0 left-0 z-50 h-full transition-transform duration-200',
         open ? 'translate-x-0' : '-translate-x-full'
-      )}>
+      )} style={{ width: 280 }}>
         {sidebarContent}
       </aside>
     </>
