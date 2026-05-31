@@ -108,7 +108,7 @@ export function AdminSidebar({ role: _role }: { role: string }) {
       </div>
 
       {/* ── Navigation ── */}
-      <nav style={{ flex: 1, padding: '12px 12px', display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto' }}>
+      <nav style={{ flex: 1, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 1, overflowY: 'hidden' }}>
         {NAV.map(item => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
           const badge = item.href === '/chats' ? handoff : 0
@@ -120,9 +120,9 @@ export function AdminSidebar({ role: _role }: { role: string }) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 12,
-                padding: '10px 12px',
-                borderRadius: 12,
-                fontSize: 14,
+                padding: '8px 10px',
+                borderRadius: 10,
+                fontSize: 13,
                 fontWeight: isActive ? 600 : 400,
                 color: isActive ? S.textPrimary : S.textMuted,
                 background: isActive ? S.active : 'transparent',

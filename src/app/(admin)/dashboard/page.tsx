@@ -205,7 +205,7 @@ export default async function DashboardPage({
       href: '/chats',
     },
     {
-      icon: AlertTriangle, label: 'Требуют внимания',
+      icon: AlertTriangle, label: 'Под риском',
       value: String(stats.at_risk.count),
       trend: null as number | null,
       alert: stats.at_risk.count > 0,
@@ -277,23 +277,23 @@ export default async function DashboardPage({
           <div
             className="hidden md:flex"
             style={{
-              width: 200, flexShrink: 0,
+              width: 168, flexShrink: 0,
               alignItems: 'center', justifyContent: 'center',
-              padding: '28px 20px',
+              padding: '20px 16px',
               borderRight: `1px solid ${C.cardBorder}`,
               background: '#ffffff',
             }}
           >
-            <AlinaCareOrb state={isToday ? 'online' : 'idle'} size={136} />
+            <AlinaCareOrb state={isToday ? 'online' : 'idle'} size={116} />
           </div>
 
           {/* SERA identity card */}
           <div
             style={{
-              padding: '20px 20px',
+              padding: '16px 16px',
               borderRight: `1px solid ${C.cardBorder}`,
-              display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 10,
-              minWidth: 180, flexShrink: 0,
+              display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 8,
+              minWidth: 156, flexShrink: 0,
             }}
           >
             <div className="flex md:hidden items-center gap-3 mb-1">
@@ -325,9 +325,9 @@ export default async function DashboardPage({
                 href={kpi.href}
                 className="flex-1 hover:bg-black/[0.025] transition-colors"
                 style={{
-                  padding: '20px 18px',
+                  padding: '16px 14px',
                   borderRight: i < kpis.length - 1 ? `1px solid ${C.cardBorder}` : 'none',
-                  minWidth: 110,
+                  minWidth: 0,
                   borderBottom: 'none',
                   textDecoration: 'none',
                   display: 'block',
