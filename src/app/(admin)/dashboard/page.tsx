@@ -323,7 +323,7 @@ export default async function DashboardPage({
               <Link
                 key={i}
                 href={kpi.href}
-                className="flex-1"
+                className="flex-1 hover:bg-black/[0.025] transition-colors"
                 style={{
                   padding: '20px 18px',
                   borderRight: i < kpis.length - 1 ? `1px solid ${C.cardBorder}` : 'none',
@@ -331,10 +331,7 @@ export default async function DashboardPage({
                   borderBottom: 'none',
                   textDecoration: 'none',
                   display: 'block',
-                  transition: 'background 120ms ease',
                 }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(27,42,34,0.03)' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                   <kpi.icon
@@ -388,15 +385,13 @@ export default async function DashboardPage({
                 <Link
                   key={i}
                   href="/activity"
+                  className="hover:bg-black/[0.025] transition-colors"
                   style={{
                     display: 'flex', alignItems: 'flex-start', gap: 10,
                     padding: '9px 16px',
                     borderBottom: i < 4 ? `1px solid ${C.cardBorder}` : 'none',
                     textDecoration: 'none',
-                    transition: 'background 120ms ease',
                   }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(27,42,34,0.03)' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                 >
                   <span style={{ fontSize: 11, color: C.muted, fontVariantNumeric: 'tabular-nums', width: 36, flexShrink: 0, paddingTop: 1 }}>
                     {fmtHHMM(act.time)}
@@ -557,14 +552,12 @@ export default async function DashboardPage({
                     <Link
                       key={appt.id}
                       href="/calendar"
+                      className="hover:bg-black/[0.025] transition-colors"
                       style={{
                         display: 'flex', alignItems: 'center', gap: 10, padding: '9px 16px',
                         borderBottom: i < Math.min(stats.upcoming.length, 4) - 1 ? `1px solid ${C.cardBorder}` : 'none',
                         textDecoration: 'none',
-                        transition: 'background 120ms ease',
                       }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(27,42,34,0.03)' }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                     >
                       <div style={{ flexShrink: 0, width: 40, textAlign: 'center' }}>
                         <p style={{ fontSize: 14, fontWeight: 700, color: C.ink, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
@@ -688,14 +681,12 @@ export default async function DashboardPage({
               <Link
                 key={i}
                 href={row.href}
+                className="hover:bg-black/[0.025] transition-colors"
                 style={{
                   display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px',
                   borderBottom: i < arr.length - 1 ? `1px solid ${C.cardBorder}` : 'none',
                   textDecoration: 'none',
-                  transition: 'background 120ms ease',
                 }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(27,42,34,0.03)' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
               >
                 <div style={{ width: 32, height: 32, borderRadius: 8, background: C.pageBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   {row.icon}
