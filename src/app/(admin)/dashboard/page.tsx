@@ -16,7 +16,7 @@ import { AdviceCard } from './_components/AdviceCard'
 // ── SERA Design Tokens ─────────────────────────────────────────────────────────
 const T = {
   pageBg:      '#F8F5EF',
-  cardBg:      '#FCFAF6',
+  cardBg:      '#F4F9F5',
   cardBorder:  'rgba(16,56,47,0.08)',
   cardRadius:  24,
   largeRadius: 32,
@@ -173,11 +173,11 @@ export default async function DashboardPage({
 
       {/* ── AI Hero ── */}
       <section style={{ background: T.aiGradient, borderRadius: T.largeRadius, boxShadow: T.shadowLg, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1.5fr', minHeight: 240 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1.5fr', minHeight: 240 }}>
 
           {/* Col 1: Orb */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px', borderRight: `1px solid ${T.aiBorder}` }}>
-            <AlinaCareOrb state="online" size={200} />
+            <AlinaCareOrb state="online" size={160} />
             <div style={{ textAlign: 'center', marginTop: 12 }}>
               <p style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>{SERA} онлайн</p>
               <p style={{ fontSize: 12, color: '#4ade80', marginTop: 3 }}>● Активна 24/7</p>
