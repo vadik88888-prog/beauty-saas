@@ -38,6 +38,7 @@ const CARD: CSSProperties = {
   borderRadius: 14,
   overflow:     'hidden',
 }
+const CARD_FILL: CSSProperties = { ...CARD, height: '100%' }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 async function getTenantContext() {
@@ -214,12 +215,17 @@ export default async function DashboardPage({
   ]
 
   return (
-    <div style={{ padding: '24px 28px 64px', background: C.pageBg, minHeight: '100%' }}>
+    <div style={{
+      height: '100%', overflow: 'hidden',
+      display: 'flex', flexDirection: 'column',
+      padding: '12px 20px 8px', gap: 10,
+      background: C.pageBg, boxSizing: 'border-box',
+    }}>
 
       {/* ═══════════════════════════════════════════════════════════════════
           HEADER
       ═══════════════════════════════════════════════════════════════════ */}
-      <header className="flex flex-wrap items-start justify-between gap-3 mb-5">
+      <header className="flex flex-wrap items-start justify-between gap-3" style={{ flexShrink: 0 }}>
         {/* Greeting */}
         <div>
           <h1
@@ -270,7 +276,7 @@ export default async function DashboardPage({
       {/* ═══════════════════════════════════════════════════════════════════
           HERO CARD — Orb + SERA card + 5 KPIs
       ═══════════════════════════════════════════════════════════════════ */}
-      <section style={{ ...CARD, marginBottom: 20 }}>
+      <section style={{ ...CARD, flexShrink: 0 }}>
         <div className="flex flex-col md:flex-row">
 
           {/* Orb */}
@@ -361,10 +367,10 @@ export default async function DashboardPage({
       {/* ═══════════════════════════════════════════════════════════════════
           MIDDLE ROW — Activity | At-risk clients | Next appointment
       ═══════════════════════════════════════════════════════════════════ */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+      <div style={{ flex: '1 1 0', minHeight: 0, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, overflow: 'hidden' }}>
 
         {/* Col 1: Activity feed */}
-        <div style={{ ...CARD, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ ...CARD_FILL, display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${C.cardBorder}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               ЧТО СДЕЛАЛА SERA СЕГОДНЯ
@@ -421,7 +427,7 @@ export default async function DashboardPage({
         </div>
 
         {/* Col 2: At-risk clients */}
-        <div style={{ ...CARD, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ ...CARD_FILL, display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${C.cardBorder}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               КЛИЕНТЫ, КОТОРЫМ НУЖНО ВНИМАНИЕ
@@ -439,7 +445,7 @@ export default async function DashboardPage({
         </div>
 
         {/* Col 3: Next appointment */}
-        <div style={{ ...CARD, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ ...CARD_FILL, display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${C.cardBorder}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               СЛЕДУЮЩАЯ ЗАПИСЬ
@@ -497,16 +503,6 @@ export default async function DashboardPage({
                           {nextAppt.master}
                         </p>
                       </div>
-                      {/* Photo placeholder — будет заменён фото из профиля мастера */}
-                      <div style={{
-                        marginLeft: 'auto', flexShrink: 0,
-                        width: 40, height: 40, borderRadius: 10,
-                        background: C.pageBg, border: `1px dashed ${C.sageSoft}`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 9, color: C.sageSoft, textAlign: 'center', lineHeight: 1.3,
-                      }}>
-                        📷
-                      </div>
                     </div>
                   )}
 
@@ -527,10 +523,10 @@ export default async function DashboardPage({
       {/* ═══════════════════════════════════════════════════════════════════
           BOTTOM ROW — Upcoming events | Recommendations | Day summary
       ═══════════════════════════════════════════════════════════════════ */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+      <div style={{ flex: '0.75 1 0', minHeight: 0, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, overflow: 'hidden' }}>
 
         {/* Col 1: Upcoming events */}
-        <div style={{ ...CARD, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ ...CARD_FILL, display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${C.cardBorder}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               БЛИЖАЙШИЕ СОБЫТИЯ
@@ -597,7 +593,7 @@ export default async function DashboardPage({
         </div>
 
         {/* Col 2: Recommendations */}
-        <div style={{ ...CARD, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ ...CARD_FILL, display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${C.cardBorder}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               РЕКОМЕНДАЦИИ SERA
@@ -635,7 +631,7 @@ export default async function DashboardPage({
         </div>
 
         {/* Col 3: Day summary */}
-        <div style={{ ...CARD, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ ...CARD_FILL, display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${C.cardBorder}` }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               СВОДКА ДНЯ
