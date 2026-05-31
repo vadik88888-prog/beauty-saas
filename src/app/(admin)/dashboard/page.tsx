@@ -360,7 +360,7 @@ export default async function DashboardPage({
             <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               ЧТО СДЕЛАЛА SERA СЕГОДНЯ
             </span>
-            <Link href="/chats" style={{ fontSize: 12, color: C.sage, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 2, whiteSpace: 'nowrap' }}>
+            <Link href="/activity" style={{ fontSize: 12, color: C.sage, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 2, whiteSpace: 'nowrap' }}>
               Смотреть все <ChevronRight size={12} />
             </Link>
           </div>
