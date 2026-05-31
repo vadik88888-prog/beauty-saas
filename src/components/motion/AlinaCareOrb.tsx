@@ -172,7 +172,7 @@ export function AlinaCareOrb({ state = 'idle', size = 120, className }: AlinaCar
         width={size}
         height={size}
         style={{ overflow: 'visible' }}
-        aria-label="Ядро заботы Алины"
+        aria-label="SERA — AI-администратор"
         role="img"
       >
         <defs>

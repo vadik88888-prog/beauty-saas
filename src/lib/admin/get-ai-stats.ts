@@ -10,6 +10,22 @@ export type SmartTip = {
   promoType?: 'percent' | 'fixed'
 }
 
+export type AtRiskClient = {
+  id: string
+  name: string
+  days_absent: number
+}
+
+export type UpcomingAppointment = {
+  id: string
+  starts_at: string
+  service: string
+  master: string
+  client: string
+  price: number | null
+  currency: string
+}
+
 export interface AiStats {
   ai: {
     conversations_today: number
@@ -36,6 +52,8 @@ export interface AiStats {
   handed_off_count: number
   recent_activity: Array<{ time: string; type: 'booking' | 'message' | 'handoff'; text: string; subtitle?: string }>
   smart_tips: SmartTip[]
+  at_risk: { count: number; top3: AtRiskClient[] }
+  upcoming: UpcomingAppointment[]
 }
 
 export async function getAiStats(tenantId: string, dateStr?: string): Promise<AiStats> {
@@ -54,6 +72,9 @@ export async function getAiStats(tenantId: string, dateStr?: string): Promise<Ai
   const tmrwStart = `${tmrwDate}T00:00:00Z`
   const tmrwEnd   = `${tmrwDate}T23:59:59Z`
 
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString()
+  const nowIso = new Date().toISOString()
+
   const [
     { count: convToday },
     { count: convYday },
@@ -65,6 +86,8 @@ export async function getAiStats(tenantId: string, dateStr?: string): Promise<Ai
     { data: todayAppts },
     { data: ydayAppts },
     { count: tmrwCount },
+    { data: atRiskData, count: atRiskCount },
+    { data: upcomingData },
   ] = await Promise.all([
     supabase.from('conversations').select('id', { count: 'exact', head: true })
       .eq('tenant_id', tenantId).gte('created_at', dayStart).lte('created_at', dayEnd),
@@ -108,6 +131,22 @@ export async function getAiStats(tenantId: string, dateStr?: string): Promise<Ai
     supabase.from('appointments').select('id', { count: 'exact', head: true })
       .eq('tenant_id', tenantId).in('status', ['pending', 'confirmed'])
       .gte('starts_at', tmrwStart).lte('starts_at', tmrwEnd),
+
+    supabase.from('clients')
+      .select('id, first_name, last_name, last_visit_at', { count: 'exact' })
+      .eq('tenant_id', tenantId)
+      .not('last_visit_at', 'is', null)
+      .lt('last_visit_at', thirtyDaysAgo)
+      .order('last_visit_at', { ascending: true })
+      .limit(3),
+
+    isToday ? supabase.from('appointments')
+      .select('id, starts_at, client:clients(first_name, last_name), master:masters(name), service:services(name, price, currency)')
+      .eq('tenant_id', tenantId)
+      .in('status', ['pending', 'confirmed'])
+      .gte('starts_at', nowIso)
+      .order('starts_at', { ascending: true })
+      .limit(5) : Promise.resolve({ data: [] }),
   ])
 
   type BizAppt = { status: string; price: number | null; starts_at: string; client_id?: string | null }
@@ -175,6 +214,24 @@ export async function getAiStats(tenantId: string, dateStr?: string): Promise<Ai
   activities.sort((a, b) => b.ts - a.ts)
   const recent_activity = activities.slice(0, 8).map(({ ts: _ts, ...rest }) => rest)
 
+  type AtRiskRow = { id: string; first_name: string | null; last_name: string | null; last_visit_at: string }
+  const atRiskTop3: AtRiskClient[] = ((atRiskData ?? []) as unknown as AtRiskRow[]).map(c => ({
+    id: c.id,
+    name: [c.first_name, c.last_name].filter(Boolean).join(' ') || 'Клиент',
+    days_absent: Math.floor((Date.now() - new Date(c.last_visit_at).getTime()) / 86400000),
+  }))
+
+  type UpcomingRow = { id: string; starts_at: string; client: { first_name: string | null; last_name: string | null } | null; master: { name: string } | null; service: { name: string; price: number | null; currency: string } | null }
+  const upcomingList: UpcomingAppointment[] = ((upcomingData ?? []) as unknown as UpcomingRow[]).map(a => ({
+    id: a.id,
+    starts_at: a.starts_at,
+    service: a.service?.name ?? 'Услуга',
+    master: a.master?.name ?? '',
+    client: [a.client?.first_name, a.client?.last_name].filter(Boolean).join(' ') || 'Клиент',
+    price: a.service?.price ?? null,
+    currency: a.service?.currency ?? 'BYN',
+  }))
+
   const smart_tips = buildSmartTips({
     tomorrow_appts: isToday ? (tmrwCount ?? 0) : 0,
     no_shows_today: noShowsToday,
@@ -190,6 +247,8 @@ export async function getAiStats(tenantId: string, dateStr?: string): Promise<Ai
     handed_off_count: handoffCount ?? 0,
     recent_activity,
     smart_tips,
+    at_risk: { count: atRiskCount ?? 0, top3: atRiskTop3 },
+    upcoming: upcomingList,
   }
 }
 
@@ -240,7 +299,7 @@ function buildSmartTips(p: {
 
   if (p.bookings_today > 0 && p.is_today) {
     tips.push({
-      text: `Алина уже записала ${p.bookings_today} ${pl(p.bookings_today, ['клиента', 'клиентов', 'клиентов'])} сегодня — привлеките новых акцией «Приведи подругу».`,
+      text: `SERA уже записала ${p.bookings_today} ${pl(p.bookings_today, ['клиента', 'клиентов', 'клиентов'])} сегодня — привлеките новых акцией «Приведи подругу».`,
       action: 'Создать акцию', href: '/promo',
       promoTitle: 'Приведи подругу — скидка −15%',
       promoDescription: 'Приведи подругу и получите скидку 15% обе. Делитесь красотой!',
@@ -257,7 +316,7 @@ function buildSmartTips(p: {
   })
 
   tips.push({
-    text: 'Поделитесь ссылкой на бота с клиентами — Алина начнёт записывать автоматически и сэкономит вам часы работы.',
+    text: 'Поделитесь ссылкой на бота с клиентами — SERA начнёт записывать автоматически и сэкономит вам часы работы.',
     action: 'Настроить', href: '/ai-settings',
   })
 

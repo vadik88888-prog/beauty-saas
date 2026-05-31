@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Sparkles, ChevronRight } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import type { SmartTip } from '@/lib/admin/get-ai-stats'
 
 function buildPromoHref(tip: SmartTip): string {
@@ -17,7 +17,7 @@ function buildPromoHref(tip: SmartTip): string {
   return `/promo?${params.toString()}`
 }
 
-export function AdviceCard({ tips, aiName }: { tips: SmartTip[]; aiName: string }) {
+export function AdviceCard({ tips, aiName, dark }: { tips: SmartTip[]; aiName: string; dark?: boolean }) {
   const [idx, setIdx] = useState(0)
   if (!tips.length) return null
 
@@ -25,15 +25,59 @@ export function AdviceCard({ tips, aiName }: { tips: SmartTip[]; aiName: string 
   const href = buildPromoHref(tip)
   const next = () => setIdx(i => (i + 1) % tips.length)
 
+  if (dark) {
+    return (
+      <div className="flex flex-col gap-3 flex-1">
+        <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.80)' }}>{tip.text}</p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link
+            href={href}
+            className="inline-flex items-center rounded-xl text-xs font-bold px-4 py-2 transition-colors"
+            style={{ background: 'rgba(94,125,93,0.55)', color: '#c8e8c4', border: '1px solid rgba(94,125,93,0.5)' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(94,125,93,0.75)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(94,125,93,0.55)' }}
+          >
+            {tip.action}
+          </Link>
+          {tips.length > 1 && (
+            <button
+              onClick={next}
+              className="text-xs font-medium inline-flex items-center gap-0.5 transition-colors"
+              style={{ color: 'rgba(255,255,255,0.40)' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.70)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.40)' }}
+            >
+              Другой совет <ChevronRight className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+        {tips.length > 1 && (
+          <div className="flex gap-1 mt-0.5">
+            {tips.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setIdx(i)}
+                className="rounded-full transition-all"
+                style={{
+                  width: i === idx ? '12px' : '6px',
+                  height: '6px',
+                  background: i === idx ? 'rgba(255,255,255,0.70)' : 'rgba(255,255,255,0.20)',
+                }}
+                aria-label={`Совет ${i + 1}`}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div
       className="rounded-2xl border border-sage/30 p-4 flex flex-col gap-3"
       style={{ background: 'linear-gradient(135deg, #c8dfc3 0%, #f4efe5 70%)' }}
     >
       <div className="flex items-center gap-2">
-        <span className="w-7 h-7 rounded-lg bg-white/70 border border-sage/30 flex items-center justify-center">
-          <Sparkles className="w-3.5 h-3.5 text-sage" strokeWidth={2} />
-        </span>
         <span className="text-sm font-bold text-ink">Совет от {aiName}</span>
       </div>
 
@@ -62,7 +106,7 @@ export function AdviceCard({ tips, aiName }: { tips: SmartTip[]; aiName: string 
             <button
               key={i}
               onClick={() => setIdx(i)}
-              className={`w-1.5 h-1.5 rounded-full transition-all ${i === idx ? 'bg-sage w-3' : 'bg-sage/30'}`}
+              className={`h-1.5 rounded-full transition-all ${i === idx ? 'bg-sage w-3' : 'bg-sage/30 w-1.5'}`}
               aria-label={`Идея ${i + 1}`}
             />
           ))}
