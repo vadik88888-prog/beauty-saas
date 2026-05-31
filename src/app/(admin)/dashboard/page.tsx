@@ -217,15 +217,17 @@ export default async function DashboardPage({
   return (
     <div style={{
       height: '100%', overflow: 'hidden',
-      display: 'flex', flexDirection: 'column',
-      padding: '12px 20px 8px', gap: 10,
+      display: 'grid',
+      gridTemplateRows: 'auto auto 1fr 0.62fr auto',
+      gap: 10,
+      padding: '12px 20px 8px',
       background: C.pageBg, boxSizing: 'border-box',
     }}>
 
       {/* ═══════════════════════════════════════════════════════════════════
           HEADER
       ═══════════════════════════════════════════════════════════════════ */}
-      <header className="flex flex-wrap items-start justify-between gap-3" style={{ flexShrink: 0 }}>
+      <header className="flex flex-wrap items-start justify-between gap-3">
         {/* Greeting */}
         <div>
           <h1
@@ -276,7 +278,7 @@ export default async function DashboardPage({
       {/* ═══════════════════════════════════════════════════════════════════
           HERO CARD — Orb + SERA card + 5 KPIs
       ═══════════════════════════════════════════════════════════════════ */}
-      <section style={{ ...CARD, flexShrink: 0 }}>
+      <section style={{ ...CARD }}>
         <div className="flex flex-col md:flex-row">
 
           {/* Orb */}
@@ -367,7 +369,7 @@ export default async function DashboardPage({
       {/* ═══════════════════════════════════════════════════════════════════
           MIDDLE ROW — Activity | At-risk clients | Next appointment
       ═══════════════════════════════════════════════════════════════════ */}
-      <div style={{ flex: '1 1 0', minHeight: 0, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, overflow: 'hidden' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, overflow: 'hidden', minHeight: 0 }}>
 
         {/* Col 1: Activity feed */}
         <div style={{ ...CARD_FILL, display: 'flex', flexDirection: 'column' }}>
@@ -523,7 +525,7 @@ export default async function DashboardPage({
       {/* ═══════════════════════════════════════════════════════════════════
           BOTTOM ROW — Upcoming events | Recommendations | Day summary
       ═══════════════════════════════════════════════════════════════════ */}
-      <div style={{ flex: '0.75 1 0', minHeight: 0, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, overflow: 'hidden' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, overflow: 'hidden', minHeight: 0 }}>
 
         {/* Col 1: Upcoming events */}
         <div style={{ ...CARD_FILL, display: 'flex', flexDirection: 'column' }}>
