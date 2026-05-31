@@ -1,48 +1,67 @@
-import type { CSSProperties } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
-  Bell, Calendar, ChevronRight,
-  BookOpen, Clock, RefreshCw, MessageSquare,
+  Calendar, ChevronRight, AlertCircle, Sparkles, Clock,
+  UserX, Users, Tag, TrendingUp, BookOpen, RefreshCw,
+  MessageSquare, Settings,
 } from 'lucide-react'
+import { formatPrice } from '@/lib/utils/format'
 import { getAiStats } from '@/lib/admin/get-ai-stats'
 import { AlinaCareOrb } from '@/components/motion/AlinaCareOrb'
+import { DateNav } from './_components/DateNav'
+import { AdviceCard } from './_components/AdviceCard'
 
-// ── Spec color tokens ───────────────────────────────────────────────────────
-const C = {
-  heroBg:        '#152619',
-  heroBorder:    '#2a4d30',
-  heroMetricNum: '#e8f0e9',
-  heroMetricLbl: '#8aab8e',
-  heroDeltaBg:   '#1e3d24',
-  heroDeltaText: '#6db87e',
-  heroGold:      '#c9a84c',
-  heroAdviceBg:  '#1c3521',
-  pageBg:        '#f2ede6',
-  cardBg:        '#ffffff',
-  cardBorder:    '#e8e2d9',
-  cardTitle:     '#1a1a1a',
-  cardMuted:     '#6b7280',
-  cardLink:      '#3d8a4e',
-  dotBooking:    '#3d8a4e',
-  dotReturn:     '#5b8dd9',
-  dotMarketing:  '#c9a84c',
-  dotAnswer:     '#8aab8e',
-  dotTransfer:   '#b86b5a',
-} as const
+// ── SERA Design Tokens ─────────────────────────────────────────────────────────
+const T = {
+  pageBg:      '#F8F5EF',
+  cardBg:      '#F4F9F5',
+  cardBorder:  'rgba(16,56,47,0.08)',
+  cardRadius:  24,
+  largeRadius: 32,
+  shadowSm:    '0 4px 16px rgba(16,56,47,0.04)',
+  shadowMd:    '0 8px 32px rgba(16,56,47,0.08)',
+  shadowLg:    '0 20px 60px rgba(16,56,47,0.18)',
+  aiGradient:  'linear-gradient(135deg, #10382F 0%, #18483D 100%)',
+  aiBorder:    'rgba(255,255,255,0.08)',
+  // Glassmorphism card on dark bg
+  glassCard: {
+    background: 'rgba(255,255,255,0.08)',
+    border:     '1px solid rgba(255,255,255,0.12)',
+    borderRadius: 14,
+  } as React.CSSProperties,
+  textPrimary:   '#1B1B1B',
+  textSecondary: '#6B7280',
+  success:       '#4F8A68',
+  error:         '#D46A6A',
+  gold:          '#E8D6AE',
+  sage:          '#AFC5B0',
+}
 
-const CARD: CSSProperties = {
-  background:   C.cardBg,
-  border:       `0.5px solid ${C.cardBorder}`,
-  borderRadius: 10,
-  padding:      '12px 14px',
+const card: React.CSSProperties = {
+  background:   T.cardBg,
+  border:       `1px solid ${T.cardBorder}`,
+  borderRadius: T.cardRadius,
+  boxShadow:    T.shadowSm,
   overflow:     'hidden',
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
-async function getTenantContext() {
+// tip icon by href
+function tipIcon(href: string, idx: number) {
+  if (href.includes('/promo')) return { icon: Tag,        bg: 'rgba(213,179,106,0.15)', color: '#D5B36A' }
+  if (href.includes('/ai-settings')) return { icon: Settings, bg: 'rgba(107,114,128,0.12)', color: '#6B7280' }
+  const icons = [
+    { icon: Users,       bg: 'rgba(79,138,104,0.15)',  color: T.success },
+    { icon: Tag,         bg: 'rgba(213,179,106,0.15)', color: '#D5B36A' },
+    { icon: TrendingUp,  bg: 'rgba(59,130,246,0.12)',  color: '#3B82F6' },
+  ]
+  return icons[idx % 3]
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function getTenantContext(): Promise<{ tenantId: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -54,6 +73,8 @@ async function getTenantContext() {
   return { tenantId: (data as { tenant_id: string }).tenant_id }
 }
 
+const SERA = 'SERA'
+
 function trendPct(a: number, b: number): number | null {
   if (b === 0 && a === 0) return null
   if (b === 0) return 100
@@ -62,43 +83,29 @@ function trendPct(a: number, b: number): number | null {
 
 function fmtHHMM(iso: string): string {
   const d = new Date(iso)
-  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
+  return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`
 }
 
 function fmtApptDate(iso: string): string {
   const d = new Date(iso), t = new Date(), tm = new Date(Date.now() + 86400000)
-  const m = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек']
+  const m = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря']
   if (d.toDateString() === t.toDateString())  return 'Сегодня'
-  if (d.toDateString() === tm.toDateString()) return 'Завтра'
+  if (d.toDateString() === tm.toDateString()) return `Завтра, ${d.getDate()} ${m[d.getMonth()]}`
   return `${d.getDate()} ${m[d.getMonth()]}`
+}
+
+function pl(n: number, f: [string,string,string]): string {
+  const a = Math.abs(n) % 100, l = a % 10
+  if (a > 10 && a < 20) return f[2]
+  if (l > 1 && l < 5)   return f[1]
+  if (l === 1)           return f[0]
+  return f[2]
 }
 
 function fmtFullDate(): string {
   return new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })
 }
 
-function fmtShortDate(): string {
-  return new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
-}
-
-function actDotColor(type: string): string {
-  if (type === 'booking')  return C.dotBooking
-  if (type === 'handoff')  return C.dotTransfer
-  if (type === 'return')   return C.dotReturn
-  if (type === 'promo')    return C.dotMarketing
-  return C.dotAnswer
-}
-
-// ── Gold sparkle SVG (spec) ─────────────────────────────────────────────────
-function GoldSparkle({ size = 12 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
-      <path d="M7 0 L7.8 6.2 L14 7 L7.8 7.8 L7 14 L6.2 7.8 L0 7 L6.2 6.2 Z" fill="#c9a84c" />
-    </svg>
-  )
-}
-
-// ── Dashboard ────────────────────────────────────────────────────────────────
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -110,587 +117,393 @@ export default async function DashboardPage({
   const isToday = dateStr === today
 
   const { tenantId } = await getTenantContext()
-  const stats = await getAiStats(tenantId, dateStr)
-  const { ai } = stats
+  const stats  = await getAiStats(tenantId, dateStr)
+  const { ai, business } = stats
 
   const nextAppt = stats.upcoming[0] ?? null
 
   const kpis = [
-    { icon: BookOpen,      label: 'Записей через SERA', value: String(ai.bookings_today),      trend: trendPct(ai.bookings_today, ai.bookings_yesterday) },
-    { icon: Clock,         label: 'Сэкономлено времени', value: `${ai.saved_hours} ч`,          trend: trendPct(Math.round(ai.saved_hours * 10), Math.round(ai.saved_hours_yesterday * 10)) },
-    { icon: RefreshCw,     label: 'Клиентов возвращено', value: String(ai.returning_today),     trend: null as number | null },
-    { icon: MessageSquare, label: 'Диалогов сегодня',    value: String(ai.conversations_today), trend: trendPct(ai.conversations_today, ai.conversations_yesterday) },
+    { icon: BookOpen,      label: `Записей через ${SERA}`, value: String(ai.bookings_today),       trend: trendPct(ai.bookings_today, ai.bookings_yesterday) },
+    { icon: Clock,         label: 'Сэкономлено времени',   value: `${ai.saved_hours} ч`,           trend: trendPct(Math.round(ai.saved_hours*10), Math.round(ai.saved_hours_yesterday*10)) },
+    { icon: RefreshCw,     label: 'Клиентов возвращено',   value: String(ai.returning_today),      trend: null as number | null },
+    { icon: MessageSquare, label: 'Диалогов сегодня',      value: String(ai.conversations_today),  trend: trendPct(ai.conversations_today, ai.conversations_yesterday) },
   ]
-
-  const usagePercent = Math.min(100, Math.round(((ai.bookings_today + ai.conversations_today) / 60) * 100))
-  const ring = 2 * Math.PI * 20
-
-  const defaultTips = [
-    { text: 'Привлеките клиентов акцией на популярную услугу', href: '/promo',       action: 'Создать акцию' },
-    { text: 'Настройте базу знаний для точных ответов',        href: '/ai-settings', action: 'Открыть'      },
-    { text: 'Добавьте услуги и мастеров в систему',            href: '/services',    action: 'Услуги'       },
-  ]
-  const tips = stats.smart_tips.length > 0 ? stats.smart_tips : defaultTips
-
-  const statItems = [
-    { v: String(ai.bookings_today),       l: 'Записей'     },
-    { v: String(ai.conversations_today),  l: 'Диалогов'    },
-    { v: String(ai.returning_today),      l: 'Возврата'    },
-    { v: `${ai.saved_hours}ч`,            l: 'Сэкономлено' },
-  ]
-
-  const pearls = [0.85, 1.0, 0.75, 0.95, 0.70]
-
-  // ── HEIGHT BUDGET (fits in 900px viewport, no scroll)
-  // padding-top: 16 + padding-bottom: 12 = 28
-  // header: 36  gap: 6
-  // hero:   138 gap: 6
-  // middle: 148 gap: 6
-  // stats:  28  gap: 6
-  // bottom: 108
-  // TOTAL:  510px  ──────────────────────────────────────
 
   return (
-    <div style={{
-      height:          '100%',
-      overflow:        'hidden',
-      display:         'flex',
-      flexDirection:   'column',
-      padding:         '16px 16px 12px 16px',
-      gap:             6,
-      background:      C.pageBg,
-      boxSizing:       'border-box',
-    }}>
+    <div style={{ padding: '24px 28px 40px', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          1. PAGE HEADER — 36px
-      ═══════════════════════════════════════════════════════════════════ */}
-      <header style={{ height: 36, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-
-        {/* Left: title + subtitle */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <h1 style={{
-            fontSize: 16, fontWeight: 700, color: C.cardTitle,
-            lineHeight: 1, margin: 0,
-            display: 'flex', alignItems: 'center', gap: 6,
-          }}>
-            Главная
-            <GoldSparkle size={12} />
+      {/* ── Header ── */}
+      <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <h1 style={{ fontSize: 32, fontWeight: 600, color: T.textPrimary, lineHeight: 1.2, fontFamily: 'var(--font-cormorant, Georgia, serif)', display: 'flex', alignItems: 'center', gap: 10 }}>
+            {SERA} рядом. Заботится. С каждым клиентом.
+            <span style={{ color: T.gold }}>✦</span>
           </h1>
-          <span style={{
-            fontSize: 11, color: C.cardMuted,
-            borderLeft: `1px solid ${C.cardBorder}`, paddingLeft: 8,
-          }}>
-            {isToday
-              ? 'AI-администратор активен 24/7'
-              : `История за ${new Date(dateStr + 'T12:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}`}
-          </span>
+          <p style={{ fontSize: 14, color: T.textSecondary, marginTop: 4 }}>
+            {isToday ? 'Ваш AI-администратор работает 24/7' : `Данные за ${new Date(dateStr+'T12:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}`}
+          </p>
         </div>
-
-        {/* Right: date + calendar + bell */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 12, color: C.cardMuted, fontVariantNumeric: 'tabular-nums' }}>
-            {fmtFullDate()}
-          </span>
-          <Calendar size={16} strokeWidth={1.5} style={{ color: C.cardMuted }} />
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-            <Bell size={16} strokeWidth={1.5} style={{ color: C.cardMuted }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <span style={{ fontSize: 13, color: T.textSecondary }}>{fmtFullDate()}</span>
+          <DateNav dateStr={dateStr} />
+          <Link href="/chats" style={{ position: 'relative', width: 40, height: 40, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 12, background: T.cardBg, border: `1px solid ${T.cardBorder}`, color: T.textPrimary, textDecoration: 'none' }}>
+            <Calendar size={18} strokeWidth={1.5} />
             {stats.handed_off_count > 0 && (
-              <span style={{
-                position: 'absolute', top: -5, right: -5,
-                minWidth: 14, height: 14, padding: '0 3px',
-                borderRadius: 10, background: '#e05353', color: '#fff',
-                fontSize: 9, fontWeight: 700,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
+              <span style={{ position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, padding: '0 4px', borderRadius: 20, background: T.error, color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {stats.handed_off_count}
               </span>
             )}
-          </div>
+          </Link>
         </div>
       </header>
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          2. HERO BLOCK — 138px, dark green, 3 zones
-      ═══════════════════════════════════════════════════════════════════ */}
-      <section style={{
-        height:      138,
-        flexShrink:  0,
-        borderRadius: 14,
-        background:  C.heroBg,
-        padding:     '14px 18px',
-        display:     'grid',
-        gridTemplateColumns: '88px 1fr 152px',
-        gap:         12,
-        border:      `1px solid ${C.heroBorder}`,
-        overflow:    'hidden',
-        boxSizing:   'border-box',
-      }}>
-
-        {/* Zone 1: Orb */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-            <AlinaCareOrb state={isToday ? 'online' : 'idle'} size={66} />
-            <div style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: 11, fontWeight: 600, color: '#fff', lineHeight: 1 }}>SERA</p>
-              <p style={{ fontSize: 9, color: '#4ade80', marginTop: 2 }}>● онлайн</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Zone 2: 4 metrics — VERTICAL STACK ONLY */}
-        <div style={{
-          display:        'flex',
-          flexDirection:  'column',
-          justifyContent: 'space-between',
-          height:         '100%',
-          padding:        '2px 0',
-        }}>
-          {kpis.map((kpi, i) => {
-            const pos = (kpi.trend ?? 0) > 2
-            const neg = (kpi.trend ?? 0) < -2
-            return (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, lineHeight: 1 }}>
-                <kpi.icon
-                  size={13} strokeWidth={1.5}
-                  style={{ color: C.heroMetricLbl, flexShrink: 0, opacity: 0.8 }}
-                />
-                <span style={{
-                  fontSize: 11, color: C.heroMetricLbl,
-                  flex: 1, minWidth: 0,
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                }}>
-                  {kpi.label}
-                </span>
-                <span style={{
-                  fontSize: 22, fontWeight: 700, color: C.heroMetricNum,
-                  fontVariantNumeric: 'tabular-nums', lineHeight: 1, flexShrink: 0,
-                }}>
-                  {kpi.value}
-                </span>
-                {kpi.trend != null && (
-                  <span style={{
-                    fontSize: 10, flexShrink: 0,
-                    background: C.heroDeltaBg,
-                    color: pos ? C.heroDeltaText : neg ? '#f87171' : 'rgba(255,255,255,0.35)',
-                    padding: '1px 5px', borderRadius: 3,
-                  }}>
-                    {pos ? `+${kpi.trend}%` : neg ? `${kpi.trend}%` : '—'}
-                  </span>
-                )}
-              </div>
-            )
-          })}
-        </div>
-
-        {/* Zone 3: Совет от SERA + mini schedule */}
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', gap: 5 }}>
-
-          {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-            <GoldSparkle size={10} />
-            <span style={{
-              fontSize: 9, fontWeight: 700, letterSpacing: '0.1em',
-              textTransform: 'uppercase', color: C.heroGold,
-            }}>
-              СОВЕТ ОТ SERA
-            </span>
-            <span style={{ marginLeft: 'auto', fontSize: 9, color: 'rgba(255,255,255,0.30)' }}>
-              {fmtShortDate()}
-            </span>
-          </div>
-
-          {/* Advice panel */}
-          <div style={{
-            flex:         1,
-            background:   C.heroAdviceBg,
-            borderRadius: 8,
-            padding:      '8px 10px',
-            border:       '1px solid rgba(42,77,48,0.5)',
-            overflow:     'hidden',
-            display:      'flex',
-            flexDirection:'column',
-            gap:          6,
-            justifyContent: 'space-between',
-          }}>
-            <p style={{
-              fontSize: 11, color: 'rgba(255,255,255,0.82)', lineHeight: 1.45,
-              overflow: 'hidden',
-              display: '-webkit-box' as CSSProperties['display'],
-              WebkitLineClamp: 3,
-              WebkitBoxOrient: 'vertical' as CSSProperties['WebkitBoxOrient'],
-            }}>
-              {tips[0].text}
+      {/* ── Handoff alert ── */}
+      {stats.handed_off_count > 0 && (
+        <Link href="/chats" style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 20px', borderRadius: 20, background: '#FDF0EC', border: '1px solid rgba(212,106,106,0.25)', textDecoration: 'none' }}>
+          <AlertCircle size={20} strokeWidth={1.5} style={{ color: T.error, flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: T.textPrimary }}>
+              {stats.handed_off_count} {pl(stats.handed_off_count, ['диалог ждёт','диалога ждут','диалогов ждут'])} вашего ответа
             </p>
-            <Link
-              href={tips[0].href}
-              style={{
-                display: 'inline-block', alignSelf: 'flex-start',
-                fontSize: 10, fontWeight: 700, color: '#7dd98a',
-                background: 'rgba(94,125,93,0.55)',
-                border: '1px solid rgba(94,125,93,0.5)',
-                borderRadius: 6, padding: '3px 8px', textDecoration: 'none',
-              }}
-            >
-              {tips[0].action}
-            </Link>
+            <p style={{ fontSize: 13, color: T.textSecondary, marginTop: 2 }}>{SERA} передала их вам — клиенты ждут</p>
           </div>
-
-          {/* Mini schedule — upcoming slots, right-aligned */}
-          {stats.upcoming.length > 0 && (
-            <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {stats.upcoming.slice(0, 2).map((appt, i) => (
-                <div key={i} style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                }}>
-                  <span style={{
-                    fontSize: 10, fontVariantNumeric: 'tabular-nums',
-                    color: C.heroGold, fontWeight: 600,
-                  }}>
-                    {fmtHHMM(appt.starts_at)}
-                  </span>
-                  <span style={{
-                    fontSize: 10, color: 'rgba(255,255,255,0.50)',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    maxWidth: 96, marginLeft: 6,
-                  }}>
-                    {appt.client}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          3. MIDDLE ROW — 148px, columns 45/27/28%
-      ═══════════════════════════════════════════════════════════════════ */}
-      <div style={{
-        height:      148,
-        flexShrink:  0,
-        display:     'grid',
-        gridTemplateColumns: '45fr 27fr 28fr',
-        gap:         8,
-      }}>
-
-        {/* ── Col 1 (45%): Activity feed "Что сделала SERA сегодня" */}
-        <div style={{ ...CARD }}>
-          <div style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            marginBottom: 6,
-          }}>
-            <span style={{
-              fontSize: 11, fontWeight: 600, color: C.cardTitle,
-              textTransform: 'uppercase', letterSpacing: '0.4px',
-            }}>
-              Что сделала SERA сегодня
-            </span>
-            <Link href="/chats" style={{
-              fontSize: 11, color: C.cardLink, textDecoration: 'none',
-              display: 'flex', alignItems: 'center', gap: 2, whiteSpace: 'nowrap',
-            }}>
-              Смотреть все <ChevronRight size={11} strokeWidth={1.5} />
-            </Link>
-          </div>
-
-          <div style={{ overflow: 'hidden' }}>
-            {stats.recent_activity.length === 0 ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 90 }}>
-                <p style={{ fontSize: 11, color: C.cardMuted, textAlign: 'center', lineHeight: 1.6 }}>
-                  Когда клиенты напишут боту,<br />здесь появится активность
-                </p>
-              </div>
-            ) : (
-              stats.recent_activity.slice(0, 5).map((act, i) => (
-                <div key={i} style={{
-                  display: 'grid', gridTemplateColumns: '28px 8px 1fr',
-                  gap: 6, alignItems: 'center',
-                  padding: '4px 0',
-                  borderBottom: i < 4 ? `0.5px solid ${C.cardBorder}` : 'none',
-                }}>
-                  <span style={{
-                    fontSize: 10, color: '#9ca3af', fontVariantNumeric: 'tabular-nums',
-                  }}>
-                    {fmtHHMM(act.time)}
-                  </span>
-                  <span style={{
-                    width: 6, height: 6, borderRadius: 3,
-                    background: actDotColor(act.type),
-                    display: 'inline-block', flexShrink: 0,
-                  }} />
-                  <span style={{
-                    fontSize: 12, color: C.cardTitle,
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>
-                    {act.text}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* ── Col 2 (27%): Состояние SERA */}
-        <div style={{
-          ...CARD,
-          display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'space-between',
-        }}>
-          <span style={{
-            fontSize: 10, fontWeight: 600, color: C.cardTitle,
-            textTransform: 'uppercase', letterSpacing: '0.4px',
-            alignSelf: 'flex-start',
-          }}>
-            Состояние SERA
-          </span>
-
-          <AlinaCareOrb state={isToday ? 'online' : 'idle'} size={52} />
-
-          <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', justifyContent: 'center' }}>
-            {['Онлайн','Думает','Отвечает','Записывает','Работает'].map((s, i) => (
-              <span key={i} style={{
-                fontSize: 9, padding: '2px 6px', borderRadius: 20, lineHeight: 1.4,
-                background: i === 0 && isToday ? 'rgba(61,138,78,0.12)' : 'rgba(0,0,0,0.04)',
-                color:      i === 0 && isToday ? '#3d8a4e' : C.cardMuted,
-                border:     `0.5px solid ${i === 0 && isToday ? 'rgba(61,138,78,0.25)' : C.cardBorder}`,
-              }}>
-                {s}
-              </span>
-            ))}
-          </div>
-
-          <p style={{ fontSize: 9, color: C.cardMuted, textAlign: 'center', lineHeight: 1.4 }}>
-            Ядро стабильно и работает в оптимальном режиме
-          </p>
-        </div>
-
-        {/* ── Col 3 (28%): Следующая запись */}
-        <div style={{ ...CARD, display: 'flex', flexDirection: 'column' }}>
-          <div style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            marginBottom: 2,
-          }}>
-            <span style={{
-              fontSize: 10, fontWeight: 600, color: C.cardMuted,
-              textTransform: 'uppercase', letterSpacing: '0.4px',
-            }}>
-              Следующая запись
-            </span>
-            <Link href="/calendar" style={{
-              fontSize: 10, color: C.cardLink, textDecoration: 'none',
-              display: 'flex', alignItems: 'center', gap: 1,
-            }}>
-              Открыть <ChevronRight size={10} strokeWidth={1.5} />
-            </Link>
-          </div>
-
-          {nextAppt ? (
-            <>
-              <p style={{ fontSize: 10, color: C.cardMuted, margin: '2px 0' }}>
-                {fmtApptDate(nextAppt.starts_at)}
-              </p>
-              {/* LARGE time — must be largest element in card */}
-              <p style={{
-                fontSize: 36, fontWeight: 700, color: '#1a1a1a',
-                lineHeight: 1, fontVariantNumeric: 'tabular-nums', margin: '2px 0',
-              }}>
-                {fmtHHMM(nextAppt.starts_at)}
-              </p>
-              <p style={{
-                fontSize: 12, fontWeight: 500, color: C.cardTitle,
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>
-                {nextAppt.service}
-              </p>
-              <p style={{
-                fontSize: 11, color: C.cardMuted,
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                marginBottom: 'auto',
-              }}>
-                {nextAppt.client}
-              </p>
-              <Link href="/calendar" style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                padding: '5px 0', borderRadius: 7,
-                border: `0.5px solid ${C.cardBorder}`,
-                color: '#10382F', fontSize: 11, fontWeight: 600,
-                textDecoration: 'none', marginTop: 4, flexShrink: 0,
-              }}>
-                Подготовить клиента
-              </Link>
-            </>
-          ) : (
-            <div style={{
-              flex: 1, display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center', gap: 4,
-            }}>
-              <Calendar size={20} strokeWidth={1.5} style={{ color: C.cardMuted, opacity: 0.35 }} />
-              <p style={{ fontSize: 11, color: C.cardMuted }}>Нет ближайших записей</p>
-              <Link href="/calendar" style={{ fontSize: 11, color: C.cardLink, textDecoration: 'none' }}>
-                Открыть расписание →
-              </Link>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          4. STATS BAR — 28px, inline, no background/border
-      ═══════════════════════════════════════════════════════════════════ */}
-      <div style={{
-        height:     28,
-        flexShrink: 0,
-        display:    'flex',
-        alignItems: 'center',
-        padding:    '0 4px',
-        gap:        16,
-      }}>
-        {statItems.map((item, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-            <span style={{
-              fontSize: 14, fontWeight: 700, color: C.cardTitle,
-              fontVariantNumeric: 'tabular-nums',
-            }}>
-              {item.v}
-            </span>
-            <span style={{ fontSize: 11, color: C.cardMuted }}>{item.l}</span>
-          </div>
-        ))}
-        <Link href="/analytics" style={{
-          marginLeft: 'auto', fontSize: 11, color: C.cardLink,
-          textDecoration: 'none', fontWeight: 500, whiteSpace: 'nowrap',
-          display: 'flex', alignItems: 'center', gap: 2,
-        }}>
-          Смотреть аналитику <ChevronRight size={11} strokeWidth={1.5} />
+          <span style={{ padding: '8px 18px', borderRadius: 12, background: T.error, color: '#fff', fontSize: 13, fontWeight: 600, flexShrink: 0 }}>Ответить</span>
         </Link>
-      </div>
+      )}
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          5. BOTTOM ROW — 108px, 3 equal columns
-      ═══════════════════════════════════════════════════════════════════ */}
-      <div style={{
-        height:     108,
-        flexShrink: 0,
-        display:    'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
-        gap:        8,
-      }}>
+      {/* ── AI Hero ── */}
+      <section style={{ background: T.aiGradient, borderRadius: T.largeRadius, boxShadow: T.shadowLg, overflow: 'hidden' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1.5fr', minHeight: 240 }}>
 
-        {/* ── Card 1: Использование ядра */}
-        <div style={{ ...CARD, display: 'flex', flexDirection: 'column' }}>
-          <span style={{
-            fontSize: 10, fontWeight: 600, color: C.cardTitle,
-            textTransform: 'uppercase', letterSpacing: '0.4px',
-            marginBottom: 8, display: 'block', flexShrink: 0,
-          }}>
-            Использование
-          </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, overflow: 'hidden' }}>
-            {/* Circular progress ring */}
-            <svg width="52" height="52" viewBox="0 0 52 52" style={{ flexShrink: 0 }}>
-              <circle cx="26" cy="26" r="20" fill="none" stroke={C.cardBorder} strokeWidth="4" />
-              <circle
-                cx="26" cy="26" r="20"
-                fill="none" stroke="#3d8a4e" strokeWidth="4"
-                strokeDasharray={`${ring * (usagePercent / 100)} ${ring}`}
-                strokeLinecap="round"
-                transform="rotate(-90 26 26)"
-              />
-              <text
-                x="26" y="30" textAnchor="middle"
-                fontSize="11" fontWeight="700" fill={C.cardTitle}
-              >
-                {usagePercent}%
-              </text>
-            </svg>
-            {/* Usage metrics */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 5 }}>
-              {[
-                { l: 'Записей',    v: String(ai.bookings_today)       },
-                { l: 'Диалогов',   v: String(ai.conversations_today)  },
-                { l: 'Сэкономлено',v: `${ai.saved_hours}ч`           },
-              ].map((r, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 10, color: C.cardMuted }}>{r.l}</span>
-                  <span style={{ fontSize: 10, color: C.cardTitle, fontWeight: 600 }}>{r.v}</span>
-                </div>
-              ))}
+          {/* Col 1: Orb */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px', borderRight: `1px solid ${T.aiBorder}` }}>
+            <AlinaCareOrb state="online" size={160} />
+            <div style={{ textAlign: 'center', marginTop: 12 }}>
+              <p style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>{SERA} онлайн</p>
+              <p style={{ fontSize: 12, color: '#4ade80', marginTop: 3 }}>● Активна 24/7</p>
             </div>
           </div>
-        </div>
 
-        {/* ── Card 2: Рекомендует для роста — 3 horizontal sub-cards */}
-        <div style={{ ...CARD, display: 'flex', flexDirection: 'column' }}>
-          <div style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            marginBottom: 6, flexShrink: 0,
-          }}>
-            <span style={{
-              fontSize: 10, fontWeight: 600, color: C.cardTitle,
-              textTransform: 'uppercase', letterSpacing: '0.4px',
-            }}>
-              Рекомендует для роста
-            </span>
-            <Link href="/promo" style={{ color: C.cardLink, textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
-              <ChevronRight size={12} strokeWidth={1.5} />
-            </Link>
-          </div>
-          {/* 3 horizontal sub-cards */}
-          <div style={{ display: 'flex', gap: 5, flex: 1, overflow: 'hidden' }}>
-            {tips.slice(0, 3).map((tip, i) => (
-              <Link
-                key={i}
-                href={tip.href}
-                style={{
-                  flex: 1, display: 'flex', flexDirection: 'column', gap: 4,
-                  padding: '7px 8px', borderRadius: 8, minWidth: 0,
-                  background: 'rgba(61,138,78,0.05)',
-                  border: `0.5px solid ${C.cardBorder}`,
-                  textDecoration: 'none', overflow: 'hidden',
-                }}
-              >
-                <span style={{ fontSize: 14, lineHeight: 1 }}>
-                  {i === 0 ? '🌱' : i === 1 ? '🎁' : '📈'}
-                </span>
-                <p style={{
-                  fontSize: 9, color: C.cardTitle, lineHeight: 1.4,
-                  overflow: 'hidden',
-                  display: '-webkit-box' as CSSProperties['display'],
-                  WebkitLineClamp: 3,
-                  WebkitBoxOrient: 'vertical' as CSSProperties['WebkitBoxOrient'],
-                }}>
-                  {tip.text}
-                </p>
-              </Link>
-            ))}
-          </div>
-        </div>
-
-        {/* ── Card 3: Магия анимации SERA — 5 pearl spheres */}
-        <div style={{
-          ...CARD,
-          display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', gap: 10,
-        }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {pearls.map((scale, i) => {
-              const sz = Math.round(22 * scale)
+          {/* Col 2: KPI — прозрачные карточки */}
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 8, padding: '24px 20px', borderRight: `1px solid ${T.aiBorder}` }}>
+            {kpis.map((kpi, i) => {
+              const pos = (kpi.trend ?? 0) > 2
+              const neg = (kpi.trend ?? 0) < -2
               return (
-                <div
-                  key={i}
-                  style={{
-                    width: sz, height: sz, borderRadius: '50%', flexShrink: 0,
-                    background: 'radial-gradient(circle at 35% 35%, #e8dfc0 0%, #c9b878 25%, #9a8a5a 55%, #5a4a30 80%, #2a2010 100%)',
-                    boxShadow: '0 0 10px rgba(201,168,76,0.35), 0 0 20px rgba(61,122,71,0.15)',
-                  }}
-                />
+                <div key={i} style={{ ...T.glassCard, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <kpi.icon size={16} strokeWidth={1.5} style={{ color: T.sage, flexShrink: 0 }} />
+                    <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)' }}>{kpi.label}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexShrink: 0 }}>
+                    <span style={{ fontSize: 36, fontWeight: 700, lineHeight: 1, color: '#fff', fontVariantNumeric: 'tabular-nums' }}>
+                      {kpi.value}
+                    </span>
+                    {kpi.trend != null ? (
+                      <span style={{ fontSize: 11, fontWeight: 600, color: pos ? '#4ade80' : neg ? '#f87171' : 'rgba(255,255,255,0.35)' }}>
+                        {pos ? `+${kpi.trend}%` : neg ? `${kpi.trend}%` : '0%'}
+                        <span style={{ color: 'rgba(255,255,255,0.25)', fontWeight: 400 }}> к вчера</span>
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)' }}>постоянные</span>
+                    )}
+                  </div>
+                </div>
               )
             })}
           </div>
-          <p style={{ fontSize: 10, color: C.cardMuted, textAlign: 'center', lineHeight: 1.4 }}>
-            SERA · 5 граней присутствия
-          </p>
+
+          {/* Col 3: Advice — прозрачная карточка */}
+          <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Sparkles size={13} strokeWidth={2} style={{ color: T.gold, flexShrink: 0 }} />
+              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gold }}>
+                Совет от {SERA}
+              </span>
+              <span style={{ marginLeft: 'auto', fontSize: 10, color: 'rgba(255,255,255,0.30)' }}>
+                {new Date().toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' })}
+              </span>
+            </div>
+            <div style={{ ...T.glassCard, padding: 16, flex: 1, display: 'flex', flexDirection: 'column' }}>
+              <AdviceCard tips={stats.smart_tips} aiName={SERA} dark />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Middle grid: Activity | Status CENTER | Next+Activity ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1fr 1.4fr', gap: 20 }}>
+
+        {/* Col 1: Activity feed */}
+        <section style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h2 style={{ fontSize: 20, fontWeight: 600, color: T.textPrimary }}>Что сделала {SERA} сегодня</h2>
+            <Link href="/chats" style={{ fontSize: 13, color: T.success, fontWeight: 500, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
+              Смотреть все <ChevronRight size={16} strokeWidth={1.5} />
+            </Link>
+          </div>
+          <div style={{ ...card, padding: 0 }}>
+            {stats.recent_activity.length === 0 ? (
+              <div style={{ padding: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                <AlinaCareOrb state="idle" size={44} className="opacity-40" />
+                <p style={{ fontSize: 15, fontWeight: 600, color: T.textPrimary }}>{SERA} пока ничего не сделала</p>
+                <p style={{ fontSize: 13, color: T.textSecondary }}>Когда клиенты напишут боту, здесь появится активность</p>
+              </div>
+            ) : stats.recent_activity.map((act, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 20px', borderBottom: i < stats.recent_activity.length - 1 ? `1px solid ${T.cardBorder}` : 'none' }}>
+                <span style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: T.textSecondary, width: 44, flexShrink: 0 }}>{fmtHHMM(act.time)}</span>
+                <span style={{ fontSize: 16, flexShrink: 0, width: 22, textAlign: 'center' }}>
+                  {act.type === 'booking' ? '📅' : act.type === 'handoff' ? '🔄' : '📖'}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 14, fontWeight: 500, color: T.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{act.text}</p>
+                  {act.subtitle && <p style={{ fontSize: 12, color: T.textSecondary, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{act.subtitle}</p>}
+                </div>
+                <ChevronRight size={14} strokeWidth={1.5} style={{ color: T.cardBorder, flexShrink: 0 }} />
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Col 2: Состояние SERA (центральная колонка) */}
+        <div>
+          <div style={{ ...card, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '16px 20px 14px', borderBottom: `1px solid ${T.cardBorder}` }}>
+              <span style={{ fontSize: 16, fontWeight: 600, color: T.textPrimary }}>Состояние {SERA}</span>
+            </div>
+            <div style={{ padding: '24px 16px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+              <AlinaCareOrb state={isToday ? 'online' : 'idle'} size={80} />
+              <div style={{ textAlign: 'center' }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: T.textPrimary }}>
+                  {SERA} {isToday ? 'онлайн' : 'в ожидании'}
+                </p>
+                <p style={{ fontSize: 12, color: T.textSecondary, marginTop: 3, lineHeight: 1.4 }}>
+                  {isToday ? 'Работает для вас и клиентов' : 'Просмотр истории'}
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
+                {['Онлайн','Думает','Отвечает','Записывает'].map((s, i) => (
+                  <span key={i} style={{
+                    fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 20,
+                    background: i === 0 && isToday ? 'rgba(79,138,104,0.12)' : 'rgba(16,56,47,0.05)',
+                    border: `1px solid ${i === 0 && isToday ? 'rgba(79,138,104,0.25)' : T.cardBorder}`,
+                    color: i === 0 && isToday ? T.success : T.textSecondary,
+                  }}>
+                    {s}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div style={{ padding: '0 16px 16px', textAlign: 'center' }}>
+              <p style={{ fontSize: 12, color: T.textSecondary, lineHeight: 1.5 }}>
+                {isToday ? 'Ядро стабильно и работает в оптимальном режиме' : 'Архив активности за прошлый день'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Col 3: Следующая запись + Активность сегодня */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+          {/* Следующая запись */}
+          <div style={{ ...card, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '16px 20px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${T.cardBorder}` }}>
+              <span style={{ fontSize: 16, fontWeight: 600, color: T.textPrimary }}>Следующая запись</span>
+              <Link href="/calendar" style={{ fontSize: 13, color: T.success, fontWeight: 500, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
+                Открыть <ChevronRight size={14} strokeWidth={1.5} />
+              </Link>
+            </div>
+
+            {nextAppt == null ? (
+              <div style={{ padding: '24px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                <Calendar size={28} strokeWidth={1.5} style={{ color: T.sage, opacity: 0.4 }} />
+                <p style={{ fontSize: 13, color: T.textSecondary }}>Нет ближайших записей</p>
+                <Link href="/calendar" style={{ fontSize: 13, fontWeight: 500, color: T.success, textDecoration: 'none' }}>Открыть расписание →</Link>
+              </div>
+            ) : (
+              <div style={{ padding: '16px 20px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <p style={{ fontSize: 12, color: T.textSecondary, fontWeight: 500 }}>{fmtApptDate(nextAppt.starts_at)}</p>
+                <p style={{ fontSize: 48, fontWeight: 700, color: '#10382F', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+                  {fmtHHMM(nextAppt.starts_at)}
+                </p>
+                <p style={{ fontSize: 14, fontWeight: 600, color: T.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {nextAppt.service}
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 16, background: 'rgba(16,56,47,0.08)', border: `1px solid ${T.cardBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 12, fontWeight: 700, color: T.success }}>
+                    {(nextAppt.master || nextAppt.client).charAt(0).toUpperCase()}
+                  </div>
+                  <p style={{ fontSize: 13, color: T.textSecondary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {nextAppt.client}{nextAppt.master ? ` · ${nextAppt.master}` : ''}
+                  </p>
+                </div>
+                {nextAppt.price != null && (
+                  <p style={{ fontSize: 13, fontWeight: 600, color: T.success }}>{formatPrice(nextAppt.price, nextAppt.currency)}</p>
+                )}
+                <Link
+                  href="/calendar"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 4, padding: '10px 0', borderRadius: 12, background: 'transparent', border: `1px solid rgba(16,56,47,0.20)`, color: '#10382F', fontSize: 13, fontWeight: 600, textDecoration: 'none', transition: 'background 150ms ease' }}
+                >
+                  <Calendar size={14} strokeWidth={1.5} />
+                  Подготовить клиента
+                </Link>
+              </div>
+            )}
+          </div>
+
+          {/* Активность сегодня — горизонтальный ряд */}
+          <div style={{ ...card, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '16px 20px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${T.cardBorder}` }}>
+              <span style={{ fontSize: 16, fontWeight: 600, color: T.textPrimary }}>Активность сегодня</span>
+              <Link href="/analytics" style={{ fontSize: 13, color: T.success, fontWeight: 500, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
+                Аналитика <ChevronRight size={14} strokeWidth={1.5} />
+              </Link>
+            </div>
+            <div style={{ display: 'flex' }}>
+              {[
+                { v: String(ai.bookings_today),      l: 'Записей'    },
+                { v: String(ai.conversations_today), l: 'Диалогов'   },
+                { v: String(ai.returning_today),     l: 'Возврат'    },
+                { v: `${ai.saved_hours}ч`,           l: 'Сэкономл.' },
+              ].map((item, i, arr) => (
+                <div
+                  key={i}
+                  style={{ flex: 1, padding: '14px 12px', borderRight: i < arr.length - 1 ? `1px solid ${T.cardBorder}` : 'none' }}
+                >
+                  <p style={{ fontSize: 28, fontWeight: 700, lineHeight: 1, color: T.textPrimary, fontVariantNumeric: 'tabular-nums' }}>{item.v}</p>
+                  <p style={{ fontSize: 11, color: T.textSecondary, marginTop: 4 }}>{item.l}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      {/* ── Bottom grid ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20 }}>
+
+        {/* Клиенты под риском */}
+        <div style={{ ...card, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '16px 20px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${T.cardBorder}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <UserX size={18} strokeWidth={1.5} style={{ color: T.error }} />
+              <span style={{ fontSize: 16, fontWeight: 600, color: T.textPrimary }}>Клиенты под риском</span>
+            </div>
+            <Link href="/clients" style={{ fontSize: 13, color: T.success, fontWeight: 500, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
+              Все <ChevronRight size={14} strokeWidth={1.5} />
+            </Link>
+          </div>
+
+          {stats.at_risk.count === 0 ? (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 28, gap: 8 }}>
+              <span style={{ fontSize: 28 }}>🎉</span>
+              <p style={{ fontSize: 14, fontWeight: 600, color: T.textPrimary }}>Всё отлично!</p>
+              <p style={{ fontSize: 13, color: T.textSecondary, textAlign: 'center' }}>Нет клиентов давно не приходивших</p>
+            </div>
+          ) : (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ flex: 1 }}>
+                {stats.at_risk.top3.map((c, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderBottom: i < stats.at_risk.top3.length - 1 ? `1px solid ${T.cardBorder}` : 'none' }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 18, background: 'rgba(212,106,106,0.08)', border: '1px solid rgba(212,106,106,0.20)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 13, fontWeight: 700, color: T.error }}>
+                      {c.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 13, fontWeight: 500, color: T.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</p>
+                      <p style={{ fontSize: 12, color: T.textSecondary, marginTop: 2 }}>не приходил {c.days_absent} {pl(c.days_absent, ['день','дня','дней'])}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ padding: '12px 20px', borderTop: `1px solid ${T.cardBorder}`, background: 'rgba(16,56,47,0.02)' }}>
+                {stats.at_risk.count > 3 && (
+                  <p style={{ fontSize: 12, color: T.textSecondary, marginBottom: 10 }}>
+                    +{stats.at_risk.count - 3} клиентов ещё не возвращались
+                  </p>
+                )}
+                <Link href="/chats" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 0', borderRadius: 12, background: '#10382F', color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                  <Sparkles size={14} strokeWidth={2} />
+                  {SERA} вернёт клиентов
+                </Link>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Рекомендует для роста — с иконками */}
+        <div style={{ ...card, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '16px 20px 14px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: `1px solid ${T.cardBorder}` }}>
+            <TrendingUp size={18} strokeWidth={1.5} style={{ color: T.success }} />
+            <span style={{ fontSize: 16, fontWeight: 600, color: T.textPrimary }}>Рекомендует для роста</span>
+          </div>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            {stats.smart_tips.slice(0, 3).map((tip, i) => {
+              const ic = tipIcon(tip.href, i)
+              const Icon = ic.icon
+              return (
+                <div key={i} style={{ padding: '14px 20px', borderBottom: i < 2 ? `1px solid ${T.cardBorder}` : 'none', display: 'flex', gap: 12 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: ic.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Icon size={18} strokeWidth={1.5} style={{ color: ic.color }} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 13, color: T.textPrimary, lineHeight: 1.5 }}>{tip.text}</p>
+                    <Link href={tip.href} style={{ fontSize: 12, color: T.success, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, marginTop: 6 }}>
+                      {tip.action} <ChevronRight size={12} strokeWidth={1.5} />
+                    </Link>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Ближайшие записи */}
+        <div style={{ ...card, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '16px 20px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${T.cardBorder}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Clock size={18} strokeWidth={1.5} style={{ color: T.success }} />
+              <span style={{ fontSize: 16, fontWeight: 600, color: T.textPrimary }}>Ближайшие записи</span>
+            </div>
+            <Link href="/calendar" style={{ fontSize: 13, color: T.success, fontWeight: 500, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
+              Открыть <ChevronRight size={14} strokeWidth={1.5} />
+            </Link>
+          </div>
+
+          {stats.upcoming.length === 0 ? (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 28, gap: 10 }}>
+              <Calendar size={28} strokeWidth={1.5} style={{ color: T.sage, opacity: 0.4 }} />
+              <p style={{ fontSize: 13, color: T.textSecondary }}>Нет ближайших записей</p>
+              <Link href="/calendar" style={{ fontSize: 13, fontWeight: 500, color: T.success, textDecoration: 'none' }}>Открыть расписание →</Link>
+            </div>
+          ) : (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              {stats.upcoming.map((appt, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 20px', borderBottom: i < stats.upcoming.length - 1 ? `1px solid ${T.cardBorder}` : 'none' }}>
+                  <div style={{ flexShrink: 0, textAlign: 'center', minWidth: 48 }}>
+                    <p style={{ fontSize: 20, fontWeight: 700, color: '#10382F', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{fmtHHMM(appt.starts_at)}</p>
+                    <p style={{ fontSize: 10, color: T.textSecondary, marginTop: 2, whiteSpace: 'nowrap' }}>{fmtApptDate(appt.starts_at)}</p>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 13, fontWeight: 500, color: T.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{appt.service}</p>
+                    <p style={{ fontSize: 12, color: T.textSecondary, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {appt.client}{appt.master ? ` · ${appt.master}` : ''}
+                    </p>
+                  </div>
+                  {appt.price != null && (
+                    <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 600, color: T.success }}>{formatPrice(appt.price, appt.currency)}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {business.revenue_today > 0 && (
+            <div style={{ padding: '12px 20px', borderTop: `1px solid ${T.cardBorder}`, background: 'rgba(79,138,104,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, color: T.textSecondary }}>Выручка сегодня</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: T.success }}>{formatPrice(business.revenue_today, 'BYN')}</span>
+            </div>
+          )}
         </div>
 
       </div>
