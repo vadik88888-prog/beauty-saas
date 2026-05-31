@@ -7,7 +7,6 @@ import {
   Clock, UserX, TrendingUp,
 } from 'lucide-react'
 import { formatPrice } from '@/lib/utils/format'
-import { formatTime } from '@/lib/utils/date'
 import { getAiStats } from '@/lib/admin/get-ai-stats'
 import { AlinaCareOrb } from '@/components/motion/AlinaCareOrb'
 import { DateNav } from './_components/DateNav'
@@ -25,12 +24,8 @@ async function getTenantContext(): Promise<{ tenantId: string }> {
   return { tenantId: (data as { tenant_id: string }).tenant_id }
 }
 
-async function getSeraName(tenantId: string): Promise<string> {
-  const supabase = createAdminClient()
-  const { data } = await supabase
-    .from('tenant_ai_settings').select('admin_name').eq('tenant_id', tenantId).single()
-  return (data as { admin_name?: string } | null)?.admin_name ?? 'SERA'
-}
+// SERA = бренд платформы, всегда SERA независимо от admin_name в БД
+const SERA = 'SERA'
 
 function trendPct(today: number, yesterday: number): number | null {
   if (yesterday === 0 && today === 0) return null
@@ -82,10 +77,8 @@ export default async function DashboardPage({
   const isToday = dateStr === today
 
   const { tenantId } = await getTenantContext()
-  const [stats, seraName] = await Promise.all([
-    getAiStats(tenantId, dateStr),
-    getSeraName(tenantId),
-  ])
+  const seraName = SERA
+  const stats = await getAiStats(tenantId, dateStr)
 
   const { ai, business } = stats
 
@@ -111,9 +104,6 @@ export default async function DashboardPage({
       trend: trendPct(ai.conversations_today, ai.conversations_yesterday),
     },
   ]
-
-  // suppress unused import warning — formatTime is used in UpcomingAppointment rows below
-  void formatTime
 
   return (
     <div className="p-5 md:p-6 flex flex-col gap-4 pb-10">
@@ -173,14 +163,18 @@ export default async function DashboardPage({
         className="rounded-2xl overflow-hidden"
         style={{ background: '#172417', border: '1px solid rgba(255,255,255,0.08)' }}
       >
-        <div className="grid grid-cols-1 md:grid-cols-[160px_1fr_288px]">
+        <div className="grid grid-cols-1 md:grid-cols-[240px_1fr_300px]">
 
           {/* Orb */}
           <div
-            className="flex items-center justify-center p-6 border-b md:border-b-0 md:border-r"
+            className="flex flex-col items-center justify-center gap-3 p-6 border-b md:border-b-0 md:border-r"
             style={{ borderColor: 'rgba(255,255,255,0.08)' }}
           >
-            <AlinaCareOrb state="online" size={108} />
+            <AlinaCareOrb state="online" size={168} />
+            <div className="text-center">
+              <p className="text-[13px] font-bold text-white">{seraName} онлайн</p>
+              <p className="text-[11px] mt-0.5" style={{ color: '#4ade80' }}>● Активна 24/7</p>
+            </div>
           </div>
 
           {/* KPI list */}
