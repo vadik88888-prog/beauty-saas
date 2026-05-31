@@ -152,10 +152,52 @@ If a master has no `working_hours` rows → default Mon–Sat 9:00–18:00 (in `
 | `(tma)/chat` | ✓ redesigned (iOS keyboard fix + Beauty); AI slot-chips pending | 3.4 |
 | `(tma)/promotions` | ✓ redesigned (real discount/savings, image_url, unified CTA) | 3.5+ |
 | `(tma)/profile` | ✓ redesigned (`/api/profile` stats, edit dialog) | 3.6 |
-| `(admin)/dashboard` + AdminSidebar | ✓ redesigned (Beauty, real data only) | 4 |
+| `(admin)/dashboard` + AdminSidebar | ✓ redesigned (SERA tokens v7: dark sidebar, hero orb, glass KPI, 3-col middle, greenish cards) | 4 |
 | Other admin pages (calendar/clients/services/masters/chats/promo/ai-settings/analytics/settings) | legacy | 4 |
 
 Component library (Phase 2) — all 27 components in `src/components/{motion,shared,shared/microinteractions,admin,ui}/`. See `docs/HISTORY.md` for the full list.
+
+---
+
+## SERA Brand & Design System (2026-05-31)
+
+**SERA** = имя AI везде. «Алина» полностью заменена. Запрещены слова: ядро, движок, система, нейросеть, бот.
+
+Phrases: «SERA онлайн», «SERA записала», «Совет от SERA», «Написать SERA».
+
+### SERA Design Tokens (admin panel)
+
+```
+Page bg:        #F8F5EF  (Warm Ivory)
+Card bg:        #F4F9F5  (слегка зелёноватый)
+Card border:    rgba(16,56,47,0.08)
+Card radius:    24px (default) / 32px (large/hero)
+Card shadow:    0 4px 16px rgba(16,56,47,0.04)
+
+Sidebar:        linear-gradient(180deg, #10382F, #18483D) width 280px
+AI Hero:        linear-gradient(135deg, #10382F 0%, #18483D 100%) radius 32px
+                shadow 0 20px 60px rgba(16,56,47,0.18)
+Glass card:     rgba(255,255,255,0.08) border rgba(255,255,255,0.12) radius 14px
+
+Primary green:  #10382F / #18483D
+Sage:           #AFC5B0
+Success:        #4F8A68
+Error:          #D46A6A
+Gold accent:    #E8D6AE
+
+KPI numbers:    font-size 36px / font-weight 700
+Page title:     font-size 32px / font-weight 600 (Cormorant)
+Section title:  font-size 20px / font-weight 600
+Body:           font-size 14px / font-weight 400 / line-height 1.6
+Icons:          Lucide, stroke 1.5px, size 18-20px
+```
+
+### Orb (AlinaCareOrb)
+- В hero дашборда: 160px, колонка `1fr` из `1fr 2fr 1.5fr` (занимает ~25% ширины)
+- В статус-блоке: 80px
+- 12 состояний: idle/online/thinking/responding/booking/success/reminder/followUp/handover/learning/celebrating/resting
+- Референсные изображения 12 состояний: `C:\Users\Вадим\Desktop\РЕДИЗАЙН\` (файлы от 30.05.2026)
+- В будущем: живой Orb заменит жемчужину в hero
 
 ---
 
