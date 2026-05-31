@@ -277,14 +277,14 @@ export default async function DashboardPage({
           <div
             className="hidden md:flex"
             style={{
-              width: 160, flexShrink: 0,
+              width: 200, flexShrink: 0,
               alignItems: 'center', justifyContent: 'center',
-              padding: '24px 16px',
+              padding: '28px 20px',
               borderRight: `1px solid ${C.cardBorder}`,
               background: '#ffffff',
             }}
           >
-            <AlinaCareOrb state={isToday ? 'online' : 'idle'} size={100} />
+            <AlinaCareOrb state={isToday ? 'online' : 'idle'} size={136} />
           </div>
 
           {/* SERA identity card */}

@@ -17,12 +17,6 @@ async function getTenantId(): Promise<string> {
   return (data as { tenant_id: string }).tenant_id
 }
 
-async function getAiName(tenantId: string): Promise<string> {
-  const supabase = createAdminClient()
-  const { data } = await supabase
-    .from('tenant_ai_settings').select('admin_name').eq('tenant_id', tenantId).single()
-  return (data as { admin_name?: string } | null)?.admin_name ?? 'Алина'
-}
 
 type BookingRow = {
   id: string; created_at: string; starts_at: string
@@ -178,10 +172,7 @@ export default async function ActivityPage({
   const dateStr = dateParam ?? today
 
   const tenantId = await getTenantId()
-  const [aiName, cards] = await Promise.all([
-    getAiName(tenantId),
-    getActivityForDate(tenantId, dateStr),
-  ])
+  const cards = await getActivityForDate(tenantId, dateStr)
 
   const iconMap = {
     booking: <Calendar className="w-3.5 h-3.5" />,
@@ -203,7 +194,7 @@ export default async function ActivityPage({
             <Link href="/dashboard" className="w-8 h-8 rounded-xl border border-line bg-cream hover:bg-cream-2 flex items-center justify-center transition-colors">
               <ArrowLeft className="w-4 h-4 text-ink-2" />
             </Link>
-            <h1 className="text-base font-bold text-ink">Что сделала {aiName}</h1>
+            <h1 className="text-base font-bold text-ink">Что сделала SERA</h1>
           </div>
           <p className="text-xs text-ink-2 ml-10">{fmtDateHeading(dateStr)}</p>
         </div>
@@ -215,7 +206,7 @@ export default async function ActivityPage({
         <div className="rounded-2xl bg-cream border border-line p-10 text-center">
           <User className="w-8 h-8 text-sage/40 mx-auto mb-2.5" />
           <p className="text-sm font-medium text-ink">Нет активности за этот день</p>
-          <p className="text-xs text-ink-2 mt-1">Алина ещё не работала с клиентами в выбранный день</p>
+          <p className="text-xs text-ink-2 mt-1">SERA ещё не обрабатывала диалоги в выбранный день</p>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
