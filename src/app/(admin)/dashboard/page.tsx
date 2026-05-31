@@ -208,7 +208,7 @@ export default async function DashboardPage({
   ]
 
   return (
-    <div style={{ padding: '20px 24px 40px', background: C.pageBg, minHeight: '100%' }}>
+    <div style={{ padding: '24px 28px 64px', background: C.pageBg, minHeight: '100%' }}>
 
       {/* ═══════════════════════════════════════════════════════════════════
           HEADER
@@ -264,7 +264,7 @@ export default async function DashboardPage({
       {/* ═══════════════════════════════════════════════════════════════════
           HERO CARD — Orb + SERA card + 5 KPIs
       ═══════════════════════════════════════════════════════════════════ */}
-      <section style={{ ...CARD, marginBottom: 16 }}>
+      <section style={{ ...CARD, marginBottom: 20 }}>
         <div className="flex flex-col md:flex-row">
 
           {/* Orb */}
@@ -275,7 +275,7 @@ export default async function DashboardPage({
               alignItems: 'center', justifyContent: 'center',
               padding: '24px 16px',
               borderRight: `1px solid ${C.cardBorder}`,
-              background: 'linear-gradient(135deg, #f8f5f0 0%, #efe9dd 100%)',
+              background: '#ffffff',
             }}
           >
             <AlinaCareOrb state={isToday ? 'online' : 'idle'} size={100} />
@@ -309,18 +309,6 @@ export default async function DashboardPage({
                 {isToday ? 'Система работает отлично' : 'Режим просмотра истории'}
               </span>
             </div>
-            <Link
-              href="/chats"
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '8px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600,
-                background: C.sage, color: '#fff', textDecoration: 'none',
-                width: 'fit-content',
-              }}
-            >
-              <MessageSquare size={14} strokeWidth={1.5} />
-              Написать SERA
-            </Link>
           </div>
 
           {/* 5 KPIs — horizontal row */}
@@ -364,7 +352,7 @@ export default async function DashboardPage({
       {/* ═══════════════════════════════════════════════════════════════════
           MIDDLE ROW — Activity | At-risk clients | Next appointment
       ═══════════════════════════════════════════════════════════════════ */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
 
         {/* Col 1: Activity feed */}
         <div style={{ ...CARD, display: 'flex', flexDirection: 'column' }}>
@@ -505,15 +493,44 @@ export default async function DashboardPage({
                   }}>
                     {fmtHHMM(nextAppt.starts_at)}
                   </p>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: C.ink, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: C.ink, marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {nextAppt.service}
                   </p>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                    <Avatar name={nextAppt.client} size={30} />
-                    <p style={{ fontSize: 12, color: C.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {nextAppt.client}{nextAppt.master ? ` · ${nextAppt.master}` : ''}
-                    </p>
+
+                  {/* Client row */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <Avatar name={nextAppt.client} size={28} />
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ fontSize: 11, color: C.muted }}>Клиент</p>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {nextAppt.client}
+                      </p>
+                    </div>
                   </div>
+
+                  {/* Master row */}
+                  {nextAppt.master && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                      <Avatar name={nextAppt.master} size={28} color="#f0ede6" textColor={C.ink2} />
+                      <div style={{ minWidth: 0 }}>
+                        <p style={{ fontSize: 11, color: C.muted }}>Мастер</p>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {nextAppt.master}
+                        </p>
+                      </div>
+                      {/* Photo placeholder — будет заменён фото из профиля мастера */}
+                      <div style={{
+                        marginLeft: 'auto', flexShrink: 0,
+                        width: 40, height: 40, borderRadius: 10,
+                        background: C.pageBg, border: `1px dashed ${C.sageSoft}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 9, color: C.sageSoft, textAlign: 'center', lineHeight: 1.3,
+                      }}>
+                        📷
+                      </div>
+                    </div>
+                  )}
+
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px', borderRadius: 8, background: C.sageTint, marginTop: 'auto' }}>
                     <Calendar size={13} strokeWidth={1.5} style={{ color: C.sage, flexShrink: 0 }} />
                     <p style={{ fontSize: 11, color: C.sage, lineHeight: 1.4 }}>
