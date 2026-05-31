@@ -14,11 +14,12 @@ export async function PATCH(req: NextRequest) {
     const { payload } = await jwtVerify(authHeader.slice(7), jwtSecret)
     const clientId = payload.sub as string
 
-    const body = await req.json() as { phone?: string; first_name?: string; last_name?: string }
+    const body = await req.json() as { phone?: string; first_name?: string; last_name?: string; birth_date?: string }
     const updates: Record<string, string> = {}
     if (body.phone) updates.phone = body.phone.trim()
     if (body.first_name) updates.first_name = body.first_name.trim()
     if (body.last_name !== undefined) updates.last_name = body.last_name.trim()
+    if (body.birth_date) updates.birth_date = body.birth_date.trim()
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
@@ -53,7 +54,7 @@ export async function GET(req: NextRequest) {
     const [clientRes, aiSettingsRes, usual] = await Promise.all([
       supabase
         .from('clients')
-        .select('id, first_name, last_name, telegram_id, telegram_username, phone, loyalty_points, total_visits, is_blocked')
+        .select('id, first_name, last_name, telegram_id, telegram_username, phone, loyalty_points, total_visits, is_blocked, birth_date')
         .eq('id', clientId)
         .single(),
       supabase

@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 interface Props {
   initialFirstName?: string | null
   initialLastName?: string | null
-  onComplete: (data: { first_name: string; last_name: string; phone: string }) => void
+  onComplete: (data: { first_name: string; last_name: string; phone: string; birth_date?: string }) => void
 }
 
 type TgContact = {
@@ -21,6 +21,7 @@ export function RegistrationModal({ initialFirstName, initialLastName, onComplet
   const [firstName, setFirstName] = useState(initialFirstName ?? '')
   const [lastName, setLastName] = useState(initialLastName ?? '')
   const [phone, setPhone] = useState('')
+  const [birthDate, setBirthDate] = useState('')
   const [showManualPhone, setShowManualPhone] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -42,7 +43,7 @@ export function RegistrationModal({ initialFirstName, initialLastName, onComplet
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, ...(birthDate ? { birth_date: birthDate } : {}) }),
     })
 
     if (!res.ok) {
@@ -101,6 +102,7 @@ export function RegistrationModal({ initialFirstName, initialLastName, onComplet
           first_name: firstName.trim(),
           last_name: lastName.trim(),
           phone: sharedPhone,
+          ...(birthDate ? { birth_date: birthDate } : {}),
         }
         const ok = await persist(data)
         if (ok) onComplete(data)
@@ -120,6 +122,7 @@ export function RegistrationModal({ initialFirstName, initialLastName, onComplet
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         phone: phone.trim(),
+        ...(birthDate ? { birth_date: birthDate } : {}),
       }
       const ok = await persist(data)
       if (ok) onComplete(data)
@@ -180,6 +183,22 @@ export function RegistrationModal({ initialFirstName, initialLastName, onComplet
               />
             </div>
           )}
+
+          <div>
+            <label className="text-xs text-tg-hint mb-1.5 block">
+              Дата рождения <span className="opacity-50">(необязательно)</span>
+            </label>
+            <input
+              type="date"
+              value={birthDate}
+              onChange={e => setBirthDate(e.target.value)}
+              max={new Date().toISOString().split('T')[0]}
+              className="w-full px-4 py-3 rounded-2xl bg-tg-secondary text-tg-text text-base outline-none"
+            />
+            <p className="text-xs text-tg-hint mt-1.5 opacity-70">
+              Используется для поздравления и скидки в день рождения 🎂
+            </p>
+          </div>
         </div>
 
         {!showManualPhone ? (

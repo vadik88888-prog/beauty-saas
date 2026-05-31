@@ -44,6 +44,7 @@ type Client = {
   last_name: string | null
   telegram_username: string | null
   phone: string | null
+  birth_date: string | null
   total_visits: number
   loyalty_points: number
   created_at: string
@@ -326,6 +327,7 @@ function EditDialog({
   const [firstName, setFirstName] = useState(client.first_name ?? '')
   const [lastName, setLastName] = useState(client.last_name ?? '')
   const [phone, setPhone] = useState(client.phone ?? '')
+  const [birthDate, setBirthDate] = useState(client.birth_date ?? '')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -333,6 +335,7 @@ function EditDialog({
       setFirstName(client.first_name ?? '')
       setLastName(client.last_name ?? '')
       setPhone(client.phone ?? '')
+      setBirthDate(client.birth_date ?? '')
     }
   }, [open, client])
 
@@ -344,13 +347,13 @@ function EditDialog({
       const res = await fetch('/api/auth/me', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ first_name: firstName, last_name: lastName, phone }),
+        body: JSON.stringify({ first_name: firstName, last_name: lastName, phone, ...(birthDate ? { birth_date: birthDate } : {}) }),
       })
       if (!res.ok) {
         const j = (await res.json().catch(() => ({}))) as { error?: string }
         throw new Error(j.error ?? 'Не удалось сохранить')
       }
-      onSaved({ first_name: firstName, last_name: lastName, phone })
+      onSaved({ first_name: firstName, last_name: lastName, phone, birth_date: birthDate || null })
       toast.success('Данные сохранены')
       window.Telegram?.WebApp.HapticFeedback?.notificationOccurred?.('success')
       onClose()
@@ -380,6 +383,24 @@ function EditDialog({
           <label className="block">
             <span className="text-[11px] font-medium text-muted-foreground mb-1 block">Телефон</span>
             <input value={phone} onChange={e => setPhone(e.target.value)} type="tel" className={inputCls} placeholder="+7 999 123-45-67" />
+          </label>
+          <label className="block">
+            <span className="text-[11px] font-medium text-muted-foreground mb-1 block">
+              Дата рождения
+              {client.birth_date && <span className="text-sage ml-1.5 text-[10px]">✓ указана</span>}
+            </span>
+            <input
+              value={birthDate}
+              onChange={e => setBirthDate(e.target.value)}
+              type="date"
+              max={new Date().toISOString().split('T')[0]}
+              className={inputCls}
+            />
+            {!client.birth_date && (
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Используется для скидки в день рождения 🎂
+              </p>
+            )}
           </label>
           <button
             type="button"

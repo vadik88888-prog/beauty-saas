@@ -11,6 +11,7 @@ import {
 import { getAiStats } from '@/lib/admin/get-ai-stats'
 import { AlinaCareOrb } from '@/components/motion/AlinaCareOrb'
 import { DateNav } from './_components/DateNav'
+import { AtRiskSection } from './_components/AtRiskSection'
 import { formatPrice } from '@/lib/utils/format'
 
 // ── Design tokens (TMA-aligned: cream + sage) ────────────────────────────────
@@ -183,27 +184,32 @@ export default async function DashboardPage({
       icon: BookOpen, label: 'Записей через SERA',
       value: String(ai.bookings_today),
       trend: trendPct(ai.bookings_today, ai.bookings_yesterday),
+      href: '/calendar',
     },
     {
       icon: Clock, label: 'Сэкономлено времени',
       value: `${ai.saved_hours} ч`,
       trend: trendPct(Math.round(ai.saved_hours * 10), Math.round(ai.saved_hours_yesterday * 10)),
+      href: '/analytics',
     },
     {
       icon: RefreshCw, label: 'Клиентов возвращено',
       value: String(ai.returning_today),
       trend: null as number | null,
+      href: '/clients',
     },
     {
       icon: MessageSquare, label: 'Диалогов с клиентами',
       value: String(ai.conversations_today),
       trend: trendPct(ai.conversations_today, ai.conversations_yesterday),
+      href: '/chats',
     },
     {
       icon: AlertTriangle, label: 'Требуют внимания',
       value: String(stats.at_risk.count),
       trend: null as number | null,
       alert: stats.at_risk.count > 0,
+      href: '/clients',
     },
   ]
 
@@ -311,18 +317,24 @@ export default async function DashboardPage({
             </div>
           </div>
 
-          {/* 5 KPIs — horizontal row */}
+          {/* 5 KPIs — horizontal row, each clickable */}
           <div className="flex flex-wrap md:flex-nowrap flex-1">
             {kpis.map((kpi, i) => (
-              <div
+              <Link
                 key={i}
+                href={kpi.href}
                 className="flex-1"
                 style={{
                   padding: '20px 18px',
                   borderRight: i < kpis.length - 1 ? `1px solid ${C.cardBorder}` : 'none',
                   minWidth: 110,
                   borderBottom: 'none',
+                  textDecoration: 'none',
+                  display: 'block',
+                  transition: 'background 120ms ease',
                 }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(27,42,34,0.03)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                   <kpi.icon
@@ -343,7 +355,7 @@ export default async function DashboardPage({
                   ? <span style={{ fontSize: 11, color: C.muted }}>клиентов</span>
                   : <span style={{ fontSize: 11, color: C.muted }}>постоянные</span>
                 }
-              </div>
+              </Link>
             ))}
           </div>
         </div>
@@ -373,13 +385,18 @@ export default async function DashboardPage({
               </div>
             ) : (
               stats.recent_activity.slice(0, 5).map((act, i) => (
-                <div
+                <Link
                   key={i}
+                  href="/activity"
                   style={{
                     display: 'flex', alignItems: 'flex-start', gap: 10,
                     padding: '9px 16px',
                     borderBottom: i < 4 ? `1px solid ${C.cardBorder}` : 'none',
+                    textDecoration: 'none',
+                    transition: 'background 120ms ease',
                   }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(27,42,34,0.03)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                 >
                   <span style={{ fontSize: 11, color: C.muted, fontVariantNumeric: 'tabular-nums', width: 36, flexShrink: 0, paddingTop: 1 }}>
                     {fmtHHMM(act.time)}
@@ -402,7 +419,7 @@ export default async function DashboardPage({
                       </p>
                     )}
                   </div>
-                </div>
+                </Link>
               ))
             )}
           </div>
@@ -419,43 +436,10 @@ export default async function DashboardPage({
             </Link>
           </div>
           <div style={{ flex: 1 }}>
-            {stats.at_risk.top3.length === 0 ? (
-              <div style={{ padding: '28px 16px', textAlign: 'center' }}>
-                <p style={{ fontSize: 22 }}>🎉</p>
-                <p style={{ fontSize: 13, fontWeight: 600, color: C.ink, marginTop: 8 }}>Всё отлично!</p>
-                <p style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>Нет клиентов, которые давно не приходили</p>
-              </div>
-            ) : (
-              stats.at_risk.top3.map((client, i) => (
-                <div
-                  key={client.id}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px',
-                    borderBottom: i < stats.at_risk.top3.length - 1 ? `1px solid ${C.cardBorder}` : 'none',
-                  }}
-                >
-                  <Avatar name={client.name} size={36} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {client.name}
-                    </p>
-                    <p style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>
-                      Не была {client.days_absent} дней
-                    </p>
-                  </div>
-                  <Link
-                    href="/chats"
-                    style={{
-                      flexShrink: 0, padding: '5px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                      border: `1px solid ${C.cardBorder}`, color: C.sage,
-                      textDecoration: 'none', background: C.sageTint, whiteSpace: 'nowrap',
-                    }}
-                  >
-                    Вернуть
-                  </Link>
-                </div>
-              ))
-            )}
+            <AtRiskSection
+              clients={stats.at_risk.top3}
+              totalCount={stats.at_risk.count}
+            />
           </div>
         </div>
 
@@ -570,12 +554,17 @@ export default async function DashboardPage({
                 {stats.upcoming.slice(0, 4).map((appt, i) => {
                   const { label: tu, urgent } = timeUntil(appt.starts_at)
                   return (
-                    <div
+                    <Link
                       key={appt.id}
+                      href="/calendar"
                       style={{
                         display: 'flex', alignItems: 'center', gap: 10, padding: '9px 16px',
                         borderBottom: i < Math.min(stats.upcoming.length, 4) - 1 ? `1px solid ${C.cardBorder}` : 'none',
+                        textDecoration: 'none',
+                        transition: 'background 120ms ease',
                       }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(27,42,34,0.03)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                     >
                       <div style={{ flexShrink: 0, width: 40, textAlign: 'center' }}>
                         <p style={{ fontSize: 14, fontWeight: 700, color: C.ink, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
@@ -598,7 +587,7 @@ export default async function DashboardPage({
                       }}>
                         {tu}
                       </span>
-                    </div>
+                    </Link>
                   )
                 })}
                 <div style={{ padding: '10px 16px', borderTop: `1px solid ${C.cardBorder}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -666,37 +655,47 @@ export default async function DashboardPage({
                 value: String(ai.returning_today),
                 sub: 'вернулись сегодня',
                 icon: <Users size={16} strokeWidth={1.5} style={{ color: C.sage }} />,
+                href: '/clients',
               },
               {
                 label: 'Диалогов обработано',
                 value: String(ai.conversations_today),
                 sub: `${ai.saved_hours} ч сэкономлено`,
                 icon: <MessageSquare size={16} strokeWidth={1.5} style={{ color: '#3b82f6' }} />,
+                href: '/chats',
               },
               {
                 label: 'Клиентов под риском',
                 value: String(stats.at_risk.count),
                 sub: 'давно не приходили',
                 icon: <AlertTriangle size={16} strokeWidth={1.5} style={{ color: stats.at_risk.count > 0 ? C.error : C.sageSoft }} />,
+                href: '/clients',
               },
               ...(business.revenue_today > 0 ? [{
                 label: 'Выручка сегодня',
                 value: formatPrice(business.revenue_today, 'BYN'),
                 sub: 'по записям',
                 icon: <TrendingUp size={16} strokeWidth={1.5} style={{ color: '#3d8a4e' }} />,
+                href: '/analytics',
               }] : [{
                 label: 'Записей завтра',
                 value: String(business.tomorrow_appts),
                 sub: 'запланировано',
                 icon: <Calendar size={16} strokeWidth={1.5} style={{ color: C.sage }} />,
+                href: '/calendar',
               }]),
             ].map((row, i, arr) => (
-              <div
+              <Link
                 key={i}
+                href={row.href}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px',
                   borderBottom: i < arr.length - 1 ? `1px solid ${C.cardBorder}` : 'none',
+                  textDecoration: 'none',
+                  transition: 'background 120ms ease',
                 }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(27,42,34,0.03)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
               >
                 <div style={{ width: 32, height: 32, borderRadius: 8, background: C.pageBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   {row.icon}
@@ -708,7 +707,7 @@ export default async function DashboardPage({
                 <p style={{ fontSize: 20, fontWeight: 700, color: C.ink, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
                   {row.value}
                 </p>
-              </div>
+              </Link>
             ))}
           </div>
         </div>
