@@ -1,0 +1,201 @@
+/**
+ * DASHBOARD SCALING FIX
+ * =====================
+ * Применить в Claude Code:
+ * 
+ * 1. Добавить className="dashboard-wrapper" к главному div в dashboard/page.tsx
+ * 2. Добавить эти стили в конец globals.css
+ * 3. Добавить className="admin-main" к <main> в layout.tsx
+ *
+ * ПРОБЛЕМА:
+ * - gridTemplateRows: 'auto auto 1fr 0.62fr auto' работает ТОЛЬКО если <main> 
+ *   точно равен viewport height
+ * - При 100% zoom на экранах < 800px высоты — нижние строки обрезаются
+ * - На мобильном admin panel нечитаем
+ *
+ * РЕШЕНИЕ:
+ * - При малой высоте (< 700px) или мобильном (< 768px) → flex column + auto scroll
+ * - Все три колонки → одна колонка
+ */
+
+/* ============================================================
+   ВСТАВИТЬ В КОНЕЦ: src/app/globals.css
+   ============================================================ */
+
+/* ── Admin Dashboard — responsive scaling ─────────────────── */
+
+/* На больших экранах — без изменений (работает CSS Grid) */
+.dashboard-wrapper {
+  /* Уже задаётся inline в page.tsx */
+}
+
+/* Fallback при малой высоте (например 13" ноутбук с системными панелями) */
+@media (max-height: 720px) and (min-width: 769px) {
+  .dashboard-wrapper {
+    height: auto !important;
+    overflow: visible !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px;
+    padding-bottom: 20px !important;
+  }
+  
+  /* Внутренние гриды тоже разворачиваем вертикально */
+  .dashboard-row-middle,
+  .dashboard-row-bottom {
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: visible !important;
+    min-height: auto !important;
+  }
+  
+  /* Карточки не должны стремиться к 100% высоте */
+  .dashboard-row-middle > *,
+  .dashboard-row-bottom > * {
+    height: auto !important;
+    min-height: 200px;
+  }
+}
+
+/* Мобильный admin — полная адаптация */
+@media (max-width: 768px) {
+  /* Dashboard wrapper — вертикальный список */
+  .dashboard-wrapper {
+    height: auto !important;
+    overflow: visible !important;
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 12px 12px 80px !important; /* 80px для bottom nav если будет */
+    gap: 10px;
+  }
+
+  /* 3-колонные ряды → 1 колонка */
+  .dashboard-row-middle,
+  .dashboard-row-bottom {
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: visible !important;
+    min-height: auto !important;
+  }
+  
+  /* Карточки в рядах — авто высота */
+  .dashboard-row-middle > *,
+  .dashboard-row-bottom > * {
+    height: auto !important;
+  }
+  
+  /* Hero секция — KPI в 2 колонки на мобиле */
+  .dashboard-kpi-row {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    flex-wrap: wrap;
+  }
+  
+  /* Orb — скрыть на мобиле (уже hidden md:flex) */
+  .dashboard-orb-col {
+    display: none !important;
+  }
+  
+  /* Боковой сайдбар — уже hamburger */
+}
+
+/* ── Admin Main — убрать overflow clip ────────────────────── */
+/* Добавь className="admin-main" к <main> в (admin)/layout.tsx */
+.admin-main {
+  min-height: 0; /* КРИТИЧНО для flex child */
+}
+
+/* На мобиле main должен скроллиться свободно */
+@media (max-width: 768px) {
+  .admin-main {
+    overflow-y: auto !important;
+    height: auto !important;
+  }
+}
+
+/* ── Admin общие страницы — таблицы на мобиле ─────────────── */
+
+/* Скрыть таблицы на мобиле */
+@media (max-width: 768px) {
+  .admin-table-desktop {
+    display: none !important;
+  }
+  
+  .admin-cards-mobile {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px;
+  }
+}
+
+/* На desktop — обратное */
+@media (min-width: 769px) {
+  .admin-table-desktop {
+    display: table !important;
+  }
+  
+  .admin-cards-mobile {
+    display: none !important;
+  }
+}
+
+/* ── TMA safe area фиксы ──────────────────────────────────── */
+
+/* Bottom nav уже имеет safe-bottom, но контент нужно паддить */
+.tma-root {
+  padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Chat страница — особый случай (без bottom nav) */
+.tma-chat-page {
+  padding-bottom: 0;
+  height: 100dvh; /* Dynamic viewport height — для iOS Safari */
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Viewport height fix для iOS ─────────────────────────── */
+/* iOS Safari меняет viewport height при появлении/скрытии клавиатуры */
+/* 100dvh = dynamic viewport height (меняется автоматически) */
+/* 100svh = small viewport height (минимальный — с клавиатурой) */
+/* 100lvh = large viewport height (максимальный — без клавиатуры) */
+
+/* Для TMA full-screen: */
+.tma-fullscreen {
+  height: 100dvh;
+  height: 100svh; /* fallback для старых iOS */
+}
+
+
+/* =============================================================
+   КАК ПРИМЕНИТЬ В CLAUDE CODE:
+   =============================================================
+   
+   1. GLOBALS.CSS — добавить всё что выше в конец файла
+   
+   2. DASHBOARD PAGE.TSX — добавить className к div:
+   
+   // Главный wrapper:
+   <div
+     className="dashboard-wrapper"
+     style={{ height: '100%', overflow: 'hidden', display: 'grid', ... }}
+   >
+   
+   // Средний ряд:
+   <div
+     className="dashboard-row-middle"  
+     style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', ... }}
+   >
+   
+   // Нижний ряд:
+   <div
+     className="dashboard-row-bottom"
+     style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', ... }}
+   >
+   
+   3. ADMIN LAYOUT.TSX — добавить className к main:
+   
+   <main className="flex-1 overflow-y-auto pt-14 md:pt-0 admin-main">
+   
+   =============================================================
+*/
