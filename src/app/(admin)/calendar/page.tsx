@@ -10,6 +10,7 @@ import { AiBadge } from '@/components/shared/AiBadge'
 import { SeraOrb } from '@/components/sera'
 import { formatPrice } from '@/lib/utils/format'
 import { NewAppointmentModal, type NewApptDefaults } from '@/components/admin/NewAppointmentModal'
+import { Avatar } from '@/components/shared/Avatar'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -132,37 +133,6 @@ function calendarMonth(year: number, month: number): (number|null)[][] {
   return weeks
 }
 
-// ── Master avatar ─────────────────────────────────────────────────────────────
-
-const MASTER_PALETTE = [
-  { bg: 'var(--sage-soft)',  text: 'var(--sage-deep)'  },
-  { bg: 'var(--gold-pearl)', text: '#7A5A1E'            },
-  { bg: 'var(--info-soft)',  text: 'var(--info)'        },
-  { bg: 'var(--rose)',       text: '#8A3A3A'            },
-  { bg: 'var(--lilac)',      text: '#5A4A7A'            },
-  { bg: 'var(--peach)',      text: '#6B3A1E'            },
-]
-
-function masterColor(id: string): { bg: string; text: string } {
-  let h = 0
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xfffffff
-  return MASTER_PALETTE[h % MASTER_PALETTE.length]
-}
-
-function MasterAvatar({ name, id, size = 16 }: { name: string; id: string; size?: number }) {
-  const col = masterColor(id)
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: '50%',
-      background: col.bg, color: col.text,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: Math.round(size * 0.5), fontWeight: 700, flexShrink: 0,
-      lineHeight: 1,
-    }}>
-      {name.charAt(0).toUpperCase()}
-    </div>
-  )
-}
 
 // ── Grid primitives ───────────────────────────────────────────────────────────
 
@@ -364,7 +334,7 @@ export default function CalendarPage() {
         {/* Master — always at bottom when room allows */}
         {height > 58 && appt.master && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 2, flexShrink: 0 }}>
-            <MasterAvatar name={appt.master.name} id={appt.master.id} size={compact ? 12 : 14} />
+            <Avatar name={appt.master.name} id={appt.master.id} size={compact ? 12 : 14} />
             <span style={{ fontSize: 9, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
               {appt.master.name}
             </span>

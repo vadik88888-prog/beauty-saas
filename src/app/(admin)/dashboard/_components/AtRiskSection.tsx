@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ChevronRight, Send, X } from 'lucide-react'
 import { toast } from 'sonner'
 import type { AtRiskClient } from '@/lib/admin/get-ai-stats'
+import { Avatar } from '@/components/shared/Avatar'
 
 const C = {
   cardBorder: '#e8e2d9',
@@ -14,10 +15,6 @@ const C = {
   sageTint:   '#e7eee2',
   error:      '#b94040',
   pageBg:     '#efe9dd',
-}
-
-function initials(name: string) {
-  return name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
 }
 
 type Template = 'winback' | 'birthday' | 'new_slot' | 'custom'
@@ -113,15 +110,7 @@ export function AtRiskSection({ clients, totalCount }: Props) {
               borderBottom: i < clients.length - 1 ? `1px solid ${C.cardBorder}` : 'none',
             }}
           >
-            {/* Avatar */}
-            <div style={{
-              width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-              background: C.sageTint, color: C.sage,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 13, fontWeight: 700,
-            }}>
-              {initials(client.name)}
-            </div>
+            <Avatar name={client.name} id={client.id} size={36} />
 
             {/* Name + days */}
             <div style={{ flex: 1, minWidth: 0 }}>

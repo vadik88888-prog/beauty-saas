@@ -13,6 +13,7 @@ import { AlinaCareOrb } from '@/components/motion/AlinaCareOrb'
 import { DateNav } from './_components/DateNav'
 import { AtRiskSection } from './_components/AtRiskSection'
 import { formatPrice } from '@/lib/utils/format'
+import { Avatar } from '@/components/shared/Avatar'
 
 // ── Design tokens (TMA-aligned: cream + sage) ────────────────────────────────
 const C = {
@@ -106,11 +107,6 @@ function fmtFullDate(): string {
   return new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })
 }
 
-// Returns initials from full name
-function initials(name: string): string {
-  return name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
-}
-
 // Activity dot color
 function actColor(type: string): string {
   if (type === 'booking')  return C.sage
@@ -158,19 +154,6 @@ function Delta({ trend, label = 'к вчера' }: { trend: number | null; label
   )
 }
 
-// Avatar with initials
-function Avatar({ name, size = 36, color = C.sageTint, textColor = C.sage }: { name: string; size?: number; color?: string; textColor?: string }) {
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: '50%', flexShrink: 0,
-      background: color, color: textColor,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: size * 0.36, fontWeight: 700, lineHeight: 1,
-    }}>
-      {initials(name)}
-    </div>
-  )
-}
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 export default async function DashboardPage({
@@ -508,7 +491,7 @@ export default async function DashboardPage({
                   {/* Master row */}
                   {nextAppt.master && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                      <Avatar name={nextAppt.master} size={28} color="#f0ede6" textColor={C.ink2} />
+                      <Avatar name={nextAppt.master} size={28} />
                       <div style={{ minWidth: 0 }}>
                         <p style={{ fontSize: 11, color: C.muted }}>Мастер</p>
                         <p style={{ fontSize: 12, fontWeight: 600, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
