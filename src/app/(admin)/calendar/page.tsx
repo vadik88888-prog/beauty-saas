@@ -8,6 +8,7 @@ import {
 import { toast } from 'sonner'
 import { AiBadge } from '@/components/shared/AiBadge'
 import { SeraOrb } from '@/components/sera'
+import { formatPrice } from '@/lib/utils/format'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -57,6 +58,17 @@ function getMonday(d: Date): Date {
 }
 function addDays(d: Date, n: number): Date { const r = new Date(d); r.setDate(r.getDate() + n); return r }
 function isoDate(d: Date): string { return d.toISOString().slice(0, 10) }
+// LOCAL date string — fixes UTC-day mismatch for salons in UTC+
+function localIsoDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+}
+function localDateOf(iso: string): string { return localIsoDate(new Date(iso)) }
+function localDayStart(d: Date): string {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0).toISOString()
+}
+function localDayEnd(d: Date): string {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999).toISOString()
+}
 function fmtTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
 }
@@ -194,10 +206,11 @@ export default function CalendarPage() {
   const [miniMonth, setMiniMonth]     = useState(() => new Date().getMonth())
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
-  const todayStr = isoDate(new Date())
+  const todayStr = localIsoDate(new Date())
 
-  const from = view === 'day' ? `${isoDate(selectedDay)}T00:00:00Z` : `${isoDate(weekStart)}T00:00:00Z`
-  const to   = view === 'day' ? `${isoDate(selectedDay)}T23:59:59Z` : `${isoDate(addDays(weekStart, 6))}T23:59:59Z`
+  // Use local-midnight UTC strings so the API covers the full local day
+  const from = view === 'day' ? localDayStart(selectedDay) : localDayStart(weekStart)
+  const to   = view === 'day' ? localDayEnd(selectedDay)   : localDayEnd(addDays(weekStart, 6))
 
   const load = useCallback(async () => {
     setIsLoading(true)
@@ -219,13 +232,13 @@ export default function CalendarPage() {
 
   const byDay: Record<string, Appointment[]> = {}
   for (const a of filtered) {
-    const k = a.starts_at.slice(0, 10)
+    const k = localDateOf(a.starts_at)   // group by LOCAL date, not UTC
     if (!byDay[k]) byDay[k] = []
     byDay[k].push(a)
   }
 
   // Right-rail: load for selectedDay
-  const displayStr  = isoDate(selectedDay)
+  const displayStr  = localIsoDate(selectedDay)
   const dayAppts    = appointments.filter(a => a.starts_at.startsWith(displayStr))
   const busyMin     = dayAppts.reduce((s,a) => s + (new Date(a.ends_at).getTime() - new Date(a.starts_at).getTime()) / 60000, 0)
   const workMin     = getWorkMin(workingHours, selectedMasterId, selectedDay)
@@ -364,7 +377,7 @@ export default function CalendarPage() {
 
   // ── Day view ──
   function DayView() {
-    const appts = byDay[isoDate(selectedDay)] ?? []
+    const appts = byDay[localIsoDate(selectedDay)] ?? []
     return (
       <div style={{ display: 'flex', flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <TimeLabels />
@@ -386,7 +399,7 @@ export default function CalendarPage() {
         </div>
         {/* Day columns */}
         {weekDays.map(day => {
-          const ds      = isoDate(day)
+          const ds      = localIsoDate(day)
           const isToday = ds === todayStr
           const appts   = byDay[ds] ?? []
           return (
@@ -437,7 +450,7 @@ export default function CalendarPage() {
           <button onClick={prev} className="sera-btn-icon" aria-label="Назад"><ChevronLeft size={15} /></button>
           <button onClick={goToday} className="sera-btn sera-btn--secondary sera-btn--sm">Сегодня</button>
           <button onClick={next} className="sera-btn-icon" aria-label="Вперёд"><ChevronRight size={15} /></button>
-          <span style={{ fontSize: 13, color: 'var(--muted)', marginLeft: 4, whiteSpace: 'nowrap' }}>{rangeLabel}</span>
+          <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-2)', marginLeft: 4, whiteSpace: 'nowrap' }}>{rangeLabel}</span>
         </div>
 
         {/* View toggle */}
@@ -446,7 +459,7 @@ export default function CalendarPage() {
             <button key={v} onClick={() => setView(v)} style={{
               padding: '5px 12px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer',
               background: view === v ? 'var(--ink)' : 'transparent',
-              color:      view === v ? 'var(--page)' : 'var(--muted)',
+              color:      view === v ? 'var(--page)' : 'var(--ink-2)',
               transition: 'all 0.15s',
             }}>
               {v === 'day' ? 'День' : 'Неделя'}
@@ -500,7 +513,7 @@ export default function CalendarPage() {
           {/* Legend */}
           <div style={{ flexShrink: 0, padding: '7px 14px', borderBottom: '1px solid var(--line-soft)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             {Object.entries(STATUS).map(([key, s]) => (
-              <span key={key} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--muted)' }}>
+              <span key={key} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--ink-2)' }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.dot, flexShrink: 0 }} /> {s.label}
               </span>
             ))}
@@ -510,7 +523,7 @@ export default function CalendarPage() {
             <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--gold)' }}>
               <Sparkles size={10} /> Через SERA
             </span>
-            <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--muted)' }}>
+            <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--ink-2)' }}>
               Записей: <strong style={{ color: 'var(--ink)' }}>{appointments.length}</strong>
             </span>
           </div>
@@ -538,7 +551,7 @@ export default function CalendarPage() {
             <div style={{ height: 6, borderRadius: 3, background: 'var(--line)', overflow: 'hidden' }}>
               <div style={{ height: '100%', width: `${loadPct}%`, background: loadPct > 80 ? 'var(--sage)' : 'var(--sage-2)', borderRadius: 3, transition: 'width 0.5s' }} />
             </div>
-            <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
+            <p style={{ fontSize: 11, color: 'var(--ink-2)', marginTop: 6 }}>
               {Math.floor(busyMin / 60)}ч {Math.round(busyMin % 60)}м занято · {freeH}ч {freeMin2}м свободно
             </p>
           </div>
@@ -581,10 +594,10 @@ export default function CalendarPage() {
                 {week.map((day, di) => {
                   if (!day) return <div key={di} />
                   const d   = new Date(miniYear, miniMonth, day)
-                  const ds  = isoDate(d)
+                  const ds  = localIsoDate(d)
                   const isT = ds === todayStr
-                  const isSel = ds === isoDate(selectedDay)
-                  const hasDots = appointments.some(a => a.starts_at.startsWith(ds))
+                  const isSel = ds === localIsoDate(selectedDay)
+                  const hasDots = appointments.some(a => localDateOf(a.starts_at) === ds)
                   return (
                     <button key={di} onClick={() => goToDay(miniYear, miniMonth, day)} style={{
                       width: '100%', aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -650,10 +663,12 @@ export default function CalendarPage() {
       {/* ── Appointment detail modal ─────────────────────────────────── */}
       {selectedAppt && (
         <div
-          style={{ position:'fixed',inset:0,zIndex:50,display:'flex',alignItems:'flex-end',justifyContent:'center',background:'rgba(27,42,34,0.4)',backdropFilter:'blur(4px)' }}
+          style={{ position:'fixed',inset:0,zIndex:100,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(27,42,34,0.45)',backdropFilter:'blur(4px)',padding:16 }}
           onClick={e => { if (e.target===e.currentTarget) setSelectedAppt(null) }}
+          onKeyDown={e => { if (e.key==='Escape') setSelectedAppt(null) }}
+          tabIndex={-1}
         >
-          <div style={{ background:'var(--page-alt)',borderRadius:'20px 20px 0 0',width:'100%',maxWidth:480,padding:'20px',maxHeight:'85dvh',overflowY:'auto',boxShadow:'var(--shadow-hero)',border:'1px solid var(--card-border)' }}>
+          <div style={{ background:'var(--page-alt)',borderRadius:20,width:'100%',maxWidth:480,padding:'22px',maxHeight:'85dvh',overflowY:'auto',boxShadow:'var(--shadow-hero)',border:'1px solid var(--card-border)' }}>
             <div style={{ display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:14 }}>
               <div style={{ display:'flex',alignItems:'center',gap:8 }}>
                 <h2 style={{ fontFamily:'var(--font-display)',fontSize:20,fontWeight:600,color:'var(--ink)',margin:0 }}>Детали записи</h2>
@@ -678,7 +693,7 @@ export default function CalendarPage() {
                 { label:'Мастер',    value:selectedAppt.master?.name??'—' },
                 { label:'Начало',    value:new Date(selectedAppt.starts_at).toLocaleString('ru-RU',{dateStyle:'short',timeStyle:'short'}) },
                 { label:'Конец',     value:fmtTime(selectedAppt.ends_at) },
-                ...(selectedAppt.price!=null?[{label:'Стоимость',value:`${selectedAppt.price} руб.`}]:[]),
+                ...(selectedAppt.price!=null?[{label:'Стоимость',value:formatPrice(selectedAppt.price,'BYN')}]:[]),
                 ...(selectedAppt.notes?[{label:'Заметки',value:selectedAppt.notes}]:[]),
               ].map(({label,value})=>(
                 <div key={label} style={{ display:'flex',gap:10 }}>
