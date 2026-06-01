@@ -215,7 +215,7 @@ export default async function DashboardPage({
   ]
 
   return (
-    <div style={{
+    <div className="dashboard-wrapper" style={{
       height: '100%', overflow: 'hidden',
       display: 'grid',
       gridTemplateRows: 'auto auto 1fr 0.62fr auto',
@@ -369,7 +369,7 @@ export default async function DashboardPage({
       {/* ═══════════════════════════════════════════════════════════════════
           MIDDLE ROW — Activity | At-risk clients | Next appointment
       ═══════════════════════════════════════════════════════════════════ */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, overflow: 'hidden', minHeight: 0 }}>
+      <div className="dashboard-row-middle" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, overflow: 'hidden', minHeight: 0 }}>
 
         {/* Col 1: Activity feed */}
         <div style={{ ...CARD_FILL, display: 'flex', flexDirection: 'column' }}>
@@ -525,7 +525,7 @@ export default async function DashboardPage({
       {/* ═══════════════════════════════════════════════════════════════════
           BOTTOM ROW — Upcoming events | Recommendations | Day summary
       ═══════════════════════════════════════════════════════════════════ */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, overflow: 'hidden', minHeight: 0 }}>
+      <div className="dashboard-row-bottom" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, overflow: 'hidden', minHeight: 0 }}>
 
         {/* Col 1: Upcoming events */}
         <div style={{ ...CARD_FILL, display: 'flex', flexDirection: 'column' }}>

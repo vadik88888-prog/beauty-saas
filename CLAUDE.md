@@ -1,6 +1,6 @@
 # BeautySaaS — Project Context for Claude
 
-> **Last update:** 2026-05-31. Status — production stable. **Phase 3 TMA redesign COMPLETE**. **Phase 4 Dashboard redesign COMPLETE** (v7: cream/sage palette, CSS Grid layout, hero orb+KPIs, activity feed, at-risk clients, next appointment, upcoming events, recommendations, day summary). Active TODOs: Navigation phase (trigger-client-message, clickable KPIs, TMA birth_date). Old Phase descriptions live in [`docs/HISTORY.md`](docs/HISTORY.md).
+> **Last update:** 2026-06-01. Status — production stable. **Phase 3 TMA redesign COMPLETE**. **Phase 4 Dashboard COMPLETE**. **SERA Design System foundation COMPLETE** (tokens.css + 10 компонентов sera/). Идёт поэтапный редизайн admin-страниц — следующая: `/calendar`. Old Phase descriptions live in [`docs/HISTORY.md`](docs/HISTORY.md).
 
 ## What This Is
 Multi-tenant B2B SaaS — Telegram Mini App для beauty-салонов с AI-администратором.
@@ -188,51 +188,101 @@ If a master has no `working_hours` rows → default Mon–Sat 9:00–18:00 (in `
 | `(tma)/promotions` | ✓ redesigned (real discount/savings, image_url, unified CTA) | 3.5+ |
 | `(tma)/profile` | ✓ redesigned (`/api/profile` stats, edit dialog) | 3.6 |
 | `(admin)/dashboard` + AdminSidebar | ✓ redesigned (SERA tokens v7: cream/sage, CSS Grid no-scroll, hero orb+5KPI, activity/at-risk/next-appt/upcoming/reco/summary, birth_date TMA) | 4 |
-| Other admin pages (calendar/clients/services/masters/chats/promo/ai-settings/analytics/settings) | legacy | 4 |
+| SERA Design System foundation | ✓ tokens.css, SeraOrb + 9 компонентов sera/, lang=ru, metadata | 5.0 |
+| `(admin)/calendar` | → в работе (API обновлён: categories + working_hours) | 5.1 |
+| Other admin pages (clients/services/masters/chats/promo/ai-settings/analytics/settings) | legacy | — |
 
 Component library (Phase 2) — all 27 components in `src/components/{motion,shared,shared/microinteractions,admin,ui}/`. See `docs/HISTORY.md` for the full list.
+SERA component library (Phase 5.0) — 10 компонентов в `src/components/sera/`. Barrel: `@/components/sera`.
 
 ---
 
-## SERA Brand & Design System (2026-05-31)
+## SERA Brand & Design System (2026-06-01)
 
-**SERA** = имя AI везде. «Алина» полностью заменена. Запрещены слова: ядро, движок, система, нейросеть, бот.
+### Бренд
 
-Phrases: «SERA онлайн», «SERA записала», «Совет от SERA», «Написать SERA».
+**SERA** = единственное имя AI во всём продукте.
+**Запрещены:** бот, система, движок, нейросеть, Алина, Администратор, AI Beauty, BeautySaaS.
+**Разрешённые фразы:** «SERA онлайн», «SERA записала», «Совет от SERA», «Написать SERA».
 
-### SERA Design Tokens (admin panel)
+### Токены — src/styles/tokens.css
 
-```
-Page bg:        #F8F5EF  (Warm Ivory)
-Card bg:        #F4F9F5  (слегка зелёноватый)
-Card border:    rgba(16,56,47,0.08)
-Card radius:    24px (default) / 32px (large/hero)
-Card shadow:    0 4px 16px rgba(16,56,47,0.04)
+**Единственный источник цветов, шрифтов, теней, отступов.** Файл импортируется первой строкой `globals.css`.
 
-Sidebar:        linear-gradient(180deg, #10382F, #18483D) width 280px
-AI Hero:        linear-gradient(135deg, #10382F 0%, #18483D 100%) radius 32px
-                shadow 0 20px 60px rgba(16,56,47,0.18)
-Glass card:     rgba(255,255,255,0.08) border rgba(255,255,255,0.12) radius 14px
+**Никогда не хардкодить цвета** — только CSS-переменные из tokens.css:
 
-Primary green:  #10382F / #18483D
-Sage:           #AFC5B0
-Success:        #4F8A68
-Error:          #D46A6A
-Gold accent:    #E8D6AE
-
-KPI numbers:    font-size 36px / font-weight 700
-Page title:     font-size 32px / font-weight 600 (Cormorant)
-Section title:  font-size 20px / font-weight 600
-Body:           font-size 14px / font-weight 400 / line-height 1.6
-Icons:          Lucide, stroke 1.5px, size 18-20px
+```css
+/* Поверхности */        --page, --page-alt, --card, --card-sunken, --card-border
+/* Текст */              --ink, --ink-2, --muted, --muted-2
+/* SERA Green */         --sage, --sage-2, --sage-deep, --sage-soft, --sage-tint, --sage-glow
+/* Акцент Gold */        --gold, --gold-soft, --gold-pearl
+/* Статусы */            --success, --success-soft, --warning, --warning-soft, --error, --error-soft, --info, --info-soft
+/* Линии */              --line, --line-soft
+/* Радиусы */            --radius-sm(8) --radius-md(12) --radius-lg(14) --radius-xl(20) --radius-2xl(24)
+/* Тени */               --shadow-xs, --shadow-sm, --shadow-md, --shadow-lg, --shadow-hero
+/* Шрифты */             --font-display (Cormorant), --font-body (Inter), --font-mono (Geist Mono)
+/* Анимации */           --ease-silk, --ease-luxe, --ease-glide, --ease-breath, --dur-fast, --dur-base, --dur-slow
 ```
 
-### Orb (AlinaCareOrb)
-- В hero дашборда: 160px, колонка `1fr` из `1fr 2fr 1.5fr` (занимает ~25% ширины)
-- В статус-блоке: 80px
-- 12 состояний: idle/online/thinking/responding/booking/success/reminder/followUp/handover/learning/celebrating/resting
-- Референсные изображения 12 состояний: `C:\Users\Вадим\Desktop\РЕДИЗАЙН\` (файлы от 30.05.2026)
-- В будущем: живой Orb заменит жемчужину в hero
+Тёмная тема — через `[data-theme="dark"]` в tokens.css (next-themes готов).
+
+### Компоненты — src/components/sera/
+
+Импорт: `import { … } from '@/components/sera'`
+
+Все новые **admin-страницы строить из этих компонентов**:
+
+| Компонент | Назначение | Ключевые props |
+|---|---|---|
+| `PageHeader` | Заголовок страницы (Cormorant 32px) + subtitle + action-кнопка | `title, subtitle?, action?` |
+| `KpiStrip` | Ряд KPI-карточек, автогрид, href → кликабельная | `items: { label, value, delta?, deltaType?, href? }[]` |
+| `FiltersBar` | Строка поиска + фильтры + сортировка | `onSearch?, filters?, sort?` |
+| `AiHelperBanner` | Нижний баннер «Как SERA помогает» | `title, items: { icon, title, text }[]` |
+| `DataCard` | Белая карточка с заголовком секции | `label?, action?, children` |
+| `RightRail` | Правая колонка 320px (скрывается на mobile) | `children` |
+| `EmptyState` | Пустое состояние с SeraOrb + текст + CTA | `orbState?, title, description?, action?` |
+| `StatusPill` | Пилюля статуса записи | `status: AppointmentStatus, label` |
+| `SectionLabel` | Uppercase-лейбл секции (.sera-label) | `children` |
+| `SeraOrb` | Орб SERA (13 состояний) | `state?: OrbState, size?: number` |
+
+**Каркас новой admin-страницы:**
+```
+PageHeader → KpiStrip → FiltersBar → [основной контент в DataCard] → AiHelperBanner
+Правая колонка (опц.): RightRail > DataCard
+Пустые данные: EmptyState
+```
+
+### SeraOrb — стабильный API (не менять)
+
+`<SeraOrb state="online" size={80} />`
+
+- 13 состояний: `idle | online | thinking | responding | booking | success | reminder | followUp | handover | learning | celebrating | resting | alert`
+- Сейчас — CSS-заглушка (div с radial-gradient). **Владелец заменит внутренности на анимированный орб.** Вызовы на страницах трогать нельзя.
+- Существующий `AlinaCareOrb` в `src/components/motion/` — оставить для обратной совместимости dashboard; новые страницы используют `SeraOrb`.
+
+### Сайдбар — СВЕТЛЫЙ
+
+Текущий сайдбар светлый (кремовый). Переменные тёмного варианта (`--sage-deep`, `--sage-deep-2`) в tokens.css есть, но к сайдбару не применяются. Менять сайдбар на тёмный — только по явному заданию.
+
+### Редизайн страниц — порядок
+
+Документ с полным планом: [`dogs1/SERA_PLAN_ALL_PAGES.md`](dogs1/SERA_PLAN_ALL_PAGES.md)
+
+```
+✓ Фундамент    — tokens.css подключён, lang=ru, title SERA
+✓ Компоненты   — 10 компонентов в src/components/sera/
+→ /calendar    — следующий (API готов: categories + working_hours добавлены)
+  /clients
+  /chats
+  /analytics
+  /promo
+  /masters
+  /ai-settings
+  /services
+  /settings
+```
+
+**Правило реальности:** не показывать данные которых нет в БД. Фейковые метрики (ROI акций, «залы», шаблоны записей) — убирать или метить «скоро». Подробный разбор что реально/фейк — в [`dogs1/SERA_PLAN_ALL_PAGES.md`](dogs1/SERA_PLAN_ALL_PAGES.md) раздел «Часть 1».
 
 ---
 

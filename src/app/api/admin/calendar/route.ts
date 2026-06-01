@@ -22,20 +22,21 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const from = searchParams.get('from')
-  const to = searchParams.get('to')
+  const to   = searchParams.get('to')
 
   if (!from || !to) return NextResponse.json({ error: 'from and to required' }, { status: 400 })
 
   const supabase = createAdminClient()
 
-  const [apptRes, mastersRes] = await Promise.all([
+  const [apptRes, mastersRes, categoriesRes, workingHoursRes] = await Promise.all([
+    // Appointments — service includes category_id for category filtering
     supabase
       .from('appointments')
       .select(`
         id, starts_at, ends_at, status, price, notes, source,
         client:clients(first_name, last_name, phone, telegram_id, telegram_username),
         master:masters(id, name),
-        service:services(name, duration_min)
+        service:services(name, duration_min, category_id)
       `)
       .eq('tenant_id', tenantId)
       .gte('starts_at', from)
@@ -43,16 +44,33 @@ export async function GET(req: NextRequest) {
       .not('status', 'eq', 'cancelled')
       .order('starts_at'),
 
+    // Active masters for filter chips
     supabase
       .from('masters')
       .select('id, name')
       .eq('tenant_id', tenantId)
       .eq('is_active', true)
       .order('sort_order'),
+
+    // Service categories — replaces hardcoded fake "zones"
+    supabase
+      .from('service_categories')
+      .select('id, name, icon, sort_order')
+      .eq('tenant_id', tenantId)
+      .order('sort_order'),
+
+    // Working hours — all masters; used by frontend to compute honest % load
+    // day_of_week: 0=Sun … 6=Sat (JS convention)
+    supabase
+      .from('working_hours')
+      .select('master_id, day_of_week, start_time, end_time, is_working')
+      .eq('tenant_id', tenantId),
   ])
 
   return NextResponse.json({
-    appointments: apptRes.data ?? [],
-    masters: mastersRes.data ?? [],
+    appointments:  apptRes.data    ?? [],
+    masters:       mastersRes.data ?? [],
+    categories:    categoriesRes.data ?? [],
+    working_hours: workingHoursRes.data ?? [],
   })
 }

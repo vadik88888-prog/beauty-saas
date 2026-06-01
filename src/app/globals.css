@@ -340,3 +340,14 @@
     @apply text-[17px] md:text-[19px] tracking-[0.02em] leading-snug;
   }
 }
+
+/* ── Admin layout main — required for dashboard no-clip fix ── */
+.admin-main {
+  min-height: 0; /* critical for flex child height calculation */
+}
+@media (max-width: 768px) {
+  .admin-main {
+    overflow-y: auto !important;
+    height: auto !important;
+  }
+}
