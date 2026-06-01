@@ -218,9 +218,9 @@ export default async function DashboardPage({
     <div className="dashboard-wrapper" style={{
       height: '100%', overflow: 'hidden',
       display: 'grid',
-      gridTemplateRows: 'auto auto 1fr 0.62fr auto',
-      gap: 10,
-      padding: '12px 20px 8px',
+      gridTemplateRows: 'auto auto 1fr 0.75fr auto',
+      gap: 8,
+      padding: '10px 16px 6px',
       background: C.pageBg, boxSizing: 'border-box',
     }}>
 
@@ -234,7 +234,7 @@ export default async function DashboardPage({
             className="flex items-center gap-2 flex-wrap"
             style={{
               fontFamily: 'var(--font-cormorant, Georgia, serif)',
-              fontSize: 'clamp(22px, 3vw, 30px)',
+              fontSize: 'clamp(20px, 2.5vw, 26px)',
               fontWeight: 600, color: C.ink, lineHeight: 1.15,
             }}
           >
@@ -285,23 +285,23 @@ export default async function DashboardPage({
           <div
             className="hidden md:flex"
             style={{
-              width: 168, flexShrink: 0,
+              width: 148, flexShrink: 0,
               alignItems: 'center', justifyContent: 'center',
-              padding: '20px 16px',
+              padding: '12px 12px',
               borderRight: `1px solid ${C.cardBorder}`,
               background: '#ffffff',
             }}
           >
-            <AlinaCareOrb state={isToday ? 'online' : 'idle'} size={116} />
+            <AlinaCareOrb state={isToday ? 'online' : 'idle'} size={96} />
           </div>
 
           {/* SERA identity card */}
           <div
             style={{
-              padding: '16px 16px',
+              padding: '12px 14px',
               borderRight: `1px solid ${C.cardBorder}`,
-              display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 8,
-              minWidth: 156, flexShrink: 0,
+              display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6,
+              minWidth: 140, flexShrink: 0,
             }}
           >
             <div className="flex md:hidden items-center gap-3 mb-1">
@@ -333,7 +333,7 @@ export default async function DashboardPage({
                 href={kpi.href}
                 className="flex-1 hover:bg-black/[0.025] transition-colors"
                 style={{
-                  padding: '16px 14px',
+                  padding: '12px 12px',
                   borderRight: i < kpis.length - 1 ? `1px solid ${C.cardBorder}` : 'none',
                   minWidth: 0,
                   borderBottom: 'none',
@@ -341,7 +341,7 @@ export default async function DashboardPage({
                   display: 'block',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                   <kpi.icon
                     size={14} strokeWidth={1.5}
                     style={{ color: kpi.alert ? C.error : C.sage, flexShrink: 0 }}
@@ -349,8 +349,8 @@ export default async function DashboardPage({
                   <span style={{ fontSize: 12, color: C.muted, lineHeight: 1.3 }}>{kpi.label}</span>
                 </div>
                 <p style={{
-                  fontSize: 32, fontWeight: 700, color: kpi.alert && stats.at_risk.count > 0 ? C.error : C.ink,
-                  lineHeight: 1, fontVariantNumeric: 'tabular-nums', marginBottom: 6,
+                  fontSize: 28, fontWeight: 700, color: kpi.alert && stats.at_risk.count > 0 ? C.error : C.ink,
+                  lineHeight: 1, fontVariantNumeric: 'tabular-nums', marginBottom: 4,
                 }}>
                   {kpi.value}
                 </p>
@@ -369,7 +369,7 @@ export default async function DashboardPage({
       {/* ═══════════════════════════════════════════════════════════════════
           MIDDLE ROW — Activity | At-risk clients | Next appointment
       ═══════════════════════════════════════════════════════════════════ */}
-      <div className="dashboard-row-middle" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, overflow: 'hidden', minHeight: 0 }}>
+      <div className="dashboard-row-middle" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, overflow: 'hidden', minHeight: 0 }}>
 
         {/* Col 1: Activity feed */}
         <div style={{ ...CARD_FILL, display: 'flex', flexDirection: 'column' }}>
@@ -525,7 +525,7 @@ export default async function DashboardPage({
       {/* ═══════════════════════════════════════════════════════════════════
           BOTTOM ROW — Upcoming events | Recommendations | Day summary
       ═══════════════════════════════════════════════════════════════════ */}
-      <div className="dashboard-row-bottom" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, overflow: 'hidden', minHeight: 0 }}>
+      <div className="dashboard-row-bottom" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, overflow: 'hidden', minHeight: 0 }}>
 
         {/* Col 1: Upcoming events */}
         <div style={{ ...CARD_FILL, display: 'flex', flexDirection: 'column' }}>
@@ -706,11 +706,11 @@ export default async function DashboardPage({
           FOOTER BANNER
       ═══════════════════════════════════════════════════════════════════ */}
       <div style={{
-        borderRadius: 12, padding: '12px 20px',
+        borderRadius: 10, padding: '7px 16px',
         background: C.sageTint, border: `1px solid ${C.sageSoft}`,
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
       }}>
-        <span style={{ fontSize: 13, color: C.sage, fontWeight: 500, textAlign: 'center' }}>
+        <span style={{ fontSize: 12, color: C.sage, fontWeight: 500, textAlign: 'center' }}>
           SERA заботится о вашем бизнесе и помогает вашему бизнесу расти ✨
         </span>
       </div>
