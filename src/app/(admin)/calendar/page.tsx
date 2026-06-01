@@ -38,7 +38,7 @@ const SLOT_H     = 60  // px per hour — enough height to read labels
 const STATUS: Record<string, { bg: string; accent: string; dot: string; label: string }> = {
   pending:   { bg: 'var(--gold-soft)',   accent: 'var(--gold)',  dot: 'var(--gold)',  label: 'Ожидает'      },
   confirmed: { bg: 'var(--sage-tint)',   accent: 'var(--sage)',  dot: 'var(--sage)',  label: 'Подтверждена' },
-  completed: { bg: '#f0efed',            accent: 'var(--muted)', dot: 'var(--muted)', label: 'Завершена'    },
+  completed: { bg: '#f0efed',            accent: 'var(--ink-2)', dot: 'var(--ink-2)', label: 'Завершена'    },
   no_show:   { bg: 'var(--error-soft)', accent: 'var(--error)', dot: 'var(--error)', label: 'No-show'      },
   cancelled: { bg: 'var(--error-soft)', accent: 'var(--error)', dot: 'var(--error)', label: 'Отменена'     },
 }
@@ -697,8 +697,8 @@ export default function CalendarPage() {
                 ...(selectedAppt.notes?[{label:'Заметки',value:selectedAppt.notes}]:[]),
               ].map(({label,value})=>(
                 <div key={label} style={{ display:'flex',gap:10 }}>
-                  <span style={{ fontSize:12,color:'var(--muted)',width:80,flexShrink:0 }}>{label}</span>
-                  <span style={{ fontSize:13,fontWeight:500,color:'var(--ink)' }}>{value}</span>
+                  <span style={{ fontSize:12,color:'var(--ink-2)',width:80,flexShrink:0 }}>{label}</span>
+                  <span style={{ fontSize:13,fontWeight:600,color:'var(--ink)' }}>{value}</span>
                 </div>
               ))}
             </div>
