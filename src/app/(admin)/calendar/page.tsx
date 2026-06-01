@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 import { AiBadge } from '@/components/shared/AiBadge'
 import { SeraOrb } from '@/components/sera'
 import { formatPrice } from '@/lib/utils/format'
-import { formatTime } from '@/lib/utils/date'
+import { formatTime, localIsoDate, getToday } from '@/lib/utils/date'
 import { NewAppointmentModal, type NewApptDefaults } from '@/components/admin/NewAppointmentModal'
 import { Avatar } from '@/components/shared/Avatar'
 
@@ -60,11 +60,6 @@ function getMonday(d: Date): Date {
   return r
 }
 function addDays(d: Date, n: number): Date { const r = new Date(d); r.setDate(r.getDate() + n); return r }
-function isoDate(d: Date): string { return d.toISOString().slice(0, 10) }
-// LOCAL date string — fixes UTC-day mismatch for salons in UTC+
-function localIsoDate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
-}
 function localDateOf(iso: string): string { return localIsoDate(new Date(iso)) }
 function localDayStart(d: Date): string {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0).toISOString()
@@ -227,7 +222,7 @@ export default function CalendarPage() {
   const [newApptDef, setNewApptDef]   = useState<NewApptDefaults>({ date: new Date() })
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
-  const todayStr = localIsoDate(new Date())
+  const todayStr = getToday()
 
   // Use local-midnight UTC strings so the API covers the full local day
   const from = view === 'day' ? localDayStart(selectedDay) : localDayStart(weekStart)

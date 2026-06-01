@@ -12,6 +12,7 @@ import { getAiStats } from '@/lib/admin/get-ai-stats'
 import { AlinaCareOrb } from '@/components/motion/AlinaCareOrb'
 import { DateNav } from './_components/DateNav'
 import { AtRiskSection } from './_components/AtRiskSection'
+import { TodayDate } from '@/components/admin/TodayDate'
 import { formatPrice } from '@/lib/utils/format'
 import { formatTime, formatApptLabel, localIsoDate } from '@/lib/utils/date'
 import { Avatar } from '@/components/shared/Avatar'
@@ -80,10 +81,6 @@ function timeUntil(iso: string): { label: string; urgent: boolean } {
   const h = Math.floor(mins / 60)
   if (h < 24) return { label: `Через ${h} ч`, urgent: false }
   return { label: formatApptLabel(iso), urgent: false }
-}
-
-function fmtFullDate(): string {
-  return new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })
 }
 
 // Activity dot color
@@ -218,8 +215,8 @@ export default async function DashboardPage({
 
         {/* Date + nav + bell */}
         <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-          <span style={{ fontSize: 13, color: C.muted }}>{fmtFullDate()}</span>
-          <DateNav dateStr={dateStr} />
+          <TodayDate style={{ fontSize: 13, color: C.muted }} />
+          <DateNav dateStr={dateStr} isDefaultDate={!dateParam} />
           <Link
             href="/chats"
             style={{

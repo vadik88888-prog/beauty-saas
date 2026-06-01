@@ -7,20 +7,26 @@ import { localIsoDate } from '@/lib/utils/date'
 const RU_MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря']
 const RU_DAYS   = ['вс','пн','вт','ср','чт','пт','сб']
 
-export function DateNav({ dateStr }: { dateStr: string }) {
+// isDefaultDate=true when no ?date= param — means server passed UTC "today" which may differ
+// from client local date. In that case we use the browser's local date as the anchor.
+export function DateNav({ dateStr, isDefaultDate = false }: { dateStr: string; isDefaultDate?: boolean }) {
   const router   = useRouter()
   const pathname = usePathname()
   const basePath = pathname.split('?')[0]
-  const today    = localIsoDate(new Date())   // local date, not UTC — avoids mismatch in UTC+
-  const isToday  = dateStr === today
+  const today    = localIsoDate(new Date())   // always browser-local
 
-  const d  = new Date(dateStr + 'T12:00:00')
+  // When no ?date= param the server may have sent yesterday's UTC date.
+  // Treat the current local date as "today" in that case.
+  const effectiveDateStr = isDefaultDate ? today : dateStr
+  const isToday          = effectiveDateStr === today
+
+  const d     = new Date(effectiveDateStr + 'T12:00:00')
   const label = isToday
     ? `Сегодня, ${d.getDate()} ${RU_MONTHS[d.getMonth()]}`
     : `${d.getDate()} ${RU_MONTHS[d.getMonth()]}, ${RU_DAYS[d.getDay()]}`
 
   function go(offset: number) {
-    const nd = new Date(d)
+    const nd = new Date(effectiveDateStr + 'T12:00:00')
     nd.setDate(nd.getDate() + offset)
     const next = localIsoDate(nd)
     if (next > today) return
