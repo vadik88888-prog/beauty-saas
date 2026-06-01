@@ -218,7 +218,7 @@ export default async function DashboardPage({
     <div className="dashboard-wrapper" style={{
       height: '100%', overflow: 'hidden',
       display: 'grid',
-      gridTemplateRows: 'auto 1fr 1fr',
+      gridTemplateRows: 'auto minmax(180px, 1fr) minmax(160px, 1fr)',
       gap: 8,
       padding: '10px 16px 8px',
       minHeight: 0,

@@ -332,9 +332,10 @@
    АДАПТИВНОСТЬ + ФИКС МАСШТАБА ДАШБОРДА
    ============================================================= */
 
-/* Малая высота ИЛИ < 1280px — переключение с grid на скролл.
-   Grid (компактный, без скролла) работает только при height ≥ 800px И width ≥ 1280px. */
-@media (max-height: 799px), (max-width: 1279px) {
+/* Только мобильный — grid переключается на flex-column.
+   На десктопе/планшете (>768px) min-height:0 + overflow-y:auto в карточках
+   сами обеспечивают корректную посадку на любой высоте экрана. */
+@media (max-width: 768px) {
   .dashboard-wrapper {
     height: auto !important;
     overflow: visible !important;
@@ -342,6 +343,7 @@
     flex-direction: column !important;
     padding-bottom: 20px !important;
   }
+  .dashboard-row-hero,
   .dashboard-row-middle,
   .dashboard-row-bottom {
     display: flex !important;
@@ -349,8 +351,9 @@
     overflow: visible !important;
     min-height: auto !important;
   }
+  .dashboard-row-hero > *,
   .dashboard-row-middle > *,
-  .dashboard-row-bottom > * { height: auto !important; min-height: 200px; }
+  .dashboard-row-bottom > * { height: auto !important; min-height: 160px; }
 }
 
 /* Mobile */
