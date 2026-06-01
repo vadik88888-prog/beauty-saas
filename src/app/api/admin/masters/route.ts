@@ -28,11 +28,37 @@ const MasterSchema = z.object({
   sort_order: z.number().int().default(0),
 })
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const ctx = await getStaffContext()
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const serviceId = new URL(req.url).searchParams.get('serviceId')
   const supabase = createAdminClient()
+
+  if (serviceId) {
+    // Filter to masters assigned to this service; fall back to all active if none assigned
+    const { data: ms } = await supabase
+      .from('master_services')
+      .select('master_id')
+      .eq('service_id', serviceId)
+
+    const masterIds = ms && ms.length > 0 ? (ms as { master_id: string }[]).map(r => r.master_id) : null
+
+    let query = supabase
+      .from('masters')
+      .select('id, name, bio, speciality, phone, photo_url, is_active, sort_order, created_at')
+      .eq('tenant_id', ctx.tenantId)
+      .eq('is_active', true)
+      .order('sort_order')
+
+    if (masterIds) query = query.in('id', masterIds)
+
+    const { data, error } = await query
+    if (error) return NextResponse.json({ error: 'Server error' }, { status: 500 })
+    return NextResponse.json({ data })
+  }
+
+  // Default: return all masters (for management page — includes inactive)
   const { data, error } = await supabase
     .from('masters')
     .select('id, name, bio, speciality, phone, photo_url, is_active, sort_order, created_at')

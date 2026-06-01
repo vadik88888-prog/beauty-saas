@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -43,4 +44,33 @@ export async function GET(req: NextRequest) {
   if (error) return NextResponse.json({ error: 'Server error' }, { status: 500 })
 
   return NextResponse.json({ data, total: count ?? 0, page, limit })
+}
+
+const NewClientSchema = z.object({
+  first_name:        z.string().min(1).max(100),
+  last_name:         z.string().max(100).optional().nullable(),
+  phone:             z.string().min(1).max(50),
+  telegram_username: z.string().max(100).optional().nullable(),
+})
+
+export async function POST(req: NextRequest) {
+  const tenantId = await getStaffTenantId()
+  if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const body = await req.json()
+  const parsed = NewClientSchema.safeParse(body)
+  if (!parsed.success) return NextResponse.json({ error: 'Invalid data' }, { status: 400 })
+
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from('clients')
+    .insert({ ...parsed.data, tenant_id: tenantId })
+    .select('id, first_name, last_name, phone, telegram_username')
+    .single()
+
+  if (error) {
+    console.error('Admin client create error:', error)
+    return NextResponse.json({ error: 'Ошибка создания клиента' }, { status: 500 })
+  }
+  return NextResponse.json({ data }, { status: 201 })
 }

@@ -3,12 +3,13 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   ChevronLeft, ChevronRight, X, Phone,
-  MessageCircle, CheckCircle, XCircle, Sparkles, Plus,
+  MessageCircle, CheckCircle, XCircle, Sparkles, Plus, UserPlus,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { AiBadge } from '@/components/shared/AiBadge'
 import { SeraOrb } from '@/components/sera'
 import { formatPrice } from '@/lib/utils/format'
+import { NewAppointmentModal, type NewApptDefaults } from '@/components/admin/NewAppointmentModal'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -204,6 +205,8 @@ export default function CalendarPage() {
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null)
   const [miniYear, setMiniYear]       = useState(() => new Date().getFullYear())
   const [miniMonth, setMiniMonth]     = useState(() => new Date().getMonth())
+  const [newApptOpen, setNewApptOpen] = useState(false)
+  const [newApptDef, setNewApptDef]   = useState<NewApptDefaults>({ date: new Date() })
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
   const todayStr = localIsoDate(new Date())
@@ -271,6 +274,16 @@ export default function CalendarPage() {
     setSelectedDay(dt); setWeekStart(getMonday(dt)); setView('day')
   }
 
+  function openNewAppt(opts: NewApptDefaults) {
+    setNewApptDef(opts)
+    setNewApptOpen(true)
+  }
+
+  function handleAppointmentCreated(appt: unknown) {
+    setAppointments(prev => [...prev, appt as Appointment])
+    toast.success('Запись создана')
+  }
+
   const rangeLabel = view === 'day'
     ? `${selectedDay.getDate()} ${MONTHS_GEN[selectedDay.getMonth()]} ${selectedDay.getFullYear()}`
     : `${fmtDateLabel(weekDays[0])} – ${fmtDateLabel(weekDays[6])}`
@@ -282,7 +295,7 @@ export default function CalendarPage() {
     const { top, height } = apptPos(appt)
     return (
       <div
-        onClick={() => setSelectedAppt(appt)}
+        onClick={e => { e.stopPropagation(); setSelectedAppt(appt) }}
         onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(0.95)')}
         onMouseLeave={e => (e.currentTarget.style.filter = '')}
         style={{
@@ -325,13 +338,13 @@ export default function CalendarPage() {
   }
 
   // ── Free slot card ──
-  function FreeSlotCard({ startH, endH, compact = false }: { startH: number; endH: number; compact?: boolean }) {
+  function FreeSlotCard({ startH, endH, compact = false, day }: { startH: number; endH: number; compact?: boolean; day: Date }) {
     const top    = (startH - HOUR_START) * SLOT_H
     const height = Math.max((endH - startH) * SLOT_H - 4, 24)
     const label  = `${fmtHM(startH)}–${fmtHM(endH)}`
     return (
       <div
-        onClick={() => toast.info('Создание записи — в разработке')}
+        onClick={e => { e.stopPropagation(); openNewAppt({ date: day, time: fmtHM(startH), masterId: selectedMasterId ?? undefined }) }}
         onMouseEnter={e => (e.currentTarget.style.opacity = '0.8')}
         onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
         style={{
@@ -365,10 +378,26 @@ export default function CalendarPage() {
   function DayContent({ day, appts, compact = false }: { day: Date; appts: Appointment[]; compact?: boolean }) {
     const isToday = isoDate(day) === todayStr
     const freeSlots = getFreeSlots(appts)
+
+    function handleGridClick(e: React.MouseEvent<HTMLDivElement>) {
+      const rect  = e.currentTarget.getBoundingClientRect()
+      const rawH  = HOUR_START + (e.clientY - rect.top) / SLOT_H
+      const h     = Math.floor(rawH)
+      const snMin = Math.round((rawH - h) * 60 / 30) * 30
+      const fh    = snMin === 60 ? h + 1 : h
+      const fm    = snMin === 60 ? 0     : snMin
+      if (fh >= HOUR_START && fh < HOUR_END) {
+        openNewAppt({ date: day, time: `${String(fh).padStart(2,'0')}:${String(fm).padStart(2,'0')}`, masterId: selectedMasterId ?? undefined })
+      }
+    }
+
     return (
-      <div style={{ position: 'relative', height: GRID_H, background: isToday ? 'rgba(231,238,226,0.18)' : 'transparent' }}>
+      <div
+        onClick={handleGridClick}
+        style={{ position: 'relative', height: GRID_H, background: isToday ? 'rgba(231,238,226,0.18)' : 'transparent', cursor: 'crosshair' }}
+      >
         <HourLines />
-        {freeSlots.map((s, i) => <FreeSlotCard key={i} startH={s.startH} endH={s.endH} compact={compact} />)}
+        {freeSlots.map((s, i) => <FreeSlotCard key={i} startH={s.startH} endH={s.endH} compact={compact} day={day} />)}
         {appts.map(a => <ApptCard key={a.id} appt={a} compact={compact} />)}
         {isToday && <NowLine />}
       </div>
@@ -482,7 +511,10 @@ export default function CalendarPage() {
 
         <div style={{ flex: 1 }} />
 
-        <button onClick={() => toast.info('Создание записи — в разработке')} className="sera-btn sera-btn--sera" style={{ gap: 6 }}>
+        <button onClick={() => openNewAppt({ date: selectedDay, focusClient: true })} className="sera-btn sera-btn--secondary sera-btn--sm" style={{ gap: 5 }}>
+          <UserPlus size={13} /> Записать клиента
+        </button>
+        <button onClick={() => openNewAppt({ date: selectedDay })} className="sera-btn sera-btn--sera" style={{ gap: 6 }}>
           <Plus size={14} /> Новая запись
         </button>
       </div>
@@ -659,6 +691,19 @@ export default function CalendarPage() {
           })()}
         </div>
       </div>
+
+      {/* ── New appointment modal ───────────────────────────────────── */}
+      <NewAppointmentModal
+        isOpen={newApptOpen}
+        onClose={() => setNewApptOpen(false)}
+        onCreated={handleAppointmentCreated}
+        defaultDate={newApptDef.date}
+        defaultTime={newApptDef.time}
+        defaultMasterId={newApptDef.masterId}
+        allMasters={masters}
+        workingHours={workingHours}
+        focusClient={newApptDef.focusClient}
+      />
 
       {/* ── Appointment detail modal ─────────────────────────────────── */}
       {selectedAppt && (
