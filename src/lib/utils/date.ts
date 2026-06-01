@@ -59,6 +59,13 @@ export function getUTCOffsetHours(timezone: string): number {
   return (new Date(local).getTime() - new Date(utc).getTime()) / 3_600_000
 }
 
+// Local date string YYYY-MM-DD — avoids UTC/local mismatch for salons in UTC+.
+// Use for any "today" comparison in UI (display, labels, navigation).
+// Do NOT use for server-side DB queries — use ISO UTC there.
+export function localIsoDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
 export function formatDuration(minutes: number): string {
   if (minutes < 60) return `${minutes} мин`
   const h = Math.floor(minutes / 60)

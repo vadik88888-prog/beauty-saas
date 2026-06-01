@@ -2,6 +2,7 @@
 
 import { useRouter, usePathname } from 'next/navigation'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { localIsoDate } from '@/lib/utils/date'
 
 const RU_MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря']
 const RU_DAYS   = ['вс','пн','вт','ср','чт','пт','сб']
@@ -10,7 +11,7 @@ export function DateNav({ dateStr }: { dateStr: string }) {
   const router   = useRouter()
   const pathname = usePathname()
   const basePath = pathname.split('?')[0]
-  const today    = new Date().toISOString().slice(0, 10)
+  const today    = localIsoDate(new Date())   // local date, not UTC — avoids mismatch in UTC+
   const isToday  = dateStr === today
 
   const d  = new Date(dateStr + 'T12:00:00')
@@ -21,7 +22,7 @@ export function DateNav({ dateStr }: { dateStr: string }) {
   function go(offset: number) {
     const nd = new Date(d)
     nd.setDate(nd.getDate() + offset)
-    const next = nd.toISOString().slice(0, 10)
+    const next = localIsoDate(nd)
     if (next > today) return
     if (next === today) router.push(basePath)
     else router.push(`${basePath}?date=${next}`)

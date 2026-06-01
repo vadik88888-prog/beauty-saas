@@ -13,7 +13,7 @@ import { AlinaCareOrb } from '@/components/motion/AlinaCareOrb'
 import { DateNav } from './_components/DateNav'
 import { AtRiskSection } from './_components/AtRiskSection'
 import { formatPrice } from '@/lib/utils/format'
-import { formatTime, formatApptLabel } from '@/lib/utils/date'
+import { formatTime, formatApptLabel, localIsoDate } from '@/lib/utils/date'
 import { Avatar } from '@/components/shared/Avatar'
 
 // ── Design tokens (TMA-aligned: cream + sage) ────────────────────────────────
@@ -141,7 +141,7 @@ export default async function DashboardPage({
   searchParams: Promise<{ date?: string }>
 }) {
   const { date: dateParam } = await searchParams
-  const today   = new Date().toISOString().slice(0, 10)
+  const today   = localIsoDate(new Date())
   const dateStr = dateParam ?? today
   const isToday = dateStr === today
 
