@@ -38,7 +38,7 @@ const CARD: CSSProperties = {
   borderRadius: 14,
   overflow:     'hidden',
 }
-const CARD_FILL: CSSProperties = { ...CARD, height: '100%' }
+const CARD_FILL: CSSProperties = { ...CARD, height: '100%', minHeight: 0 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 async function getTenantContext() {
@@ -218,15 +218,15 @@ export default async function DashboardPage({
     <div className="dashboard-wrapper" style={{
       height: '100%', overflow: 'hidden',
       display: 'grid',
-      gridTemplateRows: 'auto auto 1fr 0.75fr auto',
+      gridTemplateRows: 'auto 1fr 1fr',
       gap: 8,
-      padding: '10px 16px 6px',
+      padding: '10px 16px 8px',
+      minHeight: 0,
       background: C.pageBg, boxSizing: 'border-box',
     }}>
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          HEADER
-      ═══════════════════════════════════════════════════════════════════ */}
+      {/* ═══ ROW 1 (auto): header + hero в одном grid-child ══════════════════ */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0 }}>
       <header className="flex flex-wrap items-start justify-between gap-3">
         {/* Greeting */}
         <div>
@@ -365,6 +365,7 @@ export default async function DashboardPage({
           </div>
         </div>
       </section>
+      </div>{/* end row-1 wrapper */}
 
       {/* ═══════════════════════════════════════════════════════════════════
           MIDDLE ROW — Activity | At-risk clients | Next appointment
@@ -381,7 +382,7 @@ export default async function DashboardPage({
               Смотреть все <ChevronRight size={12} />
             </Link>
           </div>
-          <div style={{ flex: 1, padding: '4px 0' }}>
+          <div style={{ flex: 1, padding: '4px 0', overflowY: 'auto', minHeight: 0 }}>
             {stats.recent_activity.length === 0 ? (
               <div style={{ padding: '28px 16px', textAlign: 'center' }}>
                 <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.6 }}>
@@ -438,7 +439,7 @@ export default async function DashboardPage({
               Смотреть все <ChevronRight size={12} />
             </Link>
           </div>
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
             <AtRiskSection
               clients={stats.at_risk.top3}
               totalCount={stats.at_risk.count}
@@ -456,7 +457,7 @@ export default async function DashboardPage({
               Открыть календарь <ChevronRight size={12} />
             </Link>
           </div>
-          <div style={{ flex: 1, padding: '16px 16px 14px', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, padding: '16px 16px 14px', display: 'flex', flexDirection: 'column', overflowY: 'auto', minHeight: 0 }}>
             {nextAppt == null ? (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 0' }}>
                 <Calendar size={28} strokeWidth={1.5} style={{ color: C.sageSoft }} />
@@ -534,7 +535,7 @@ export default async function DashboardPage({
               БЛИЖАЙШИЕ СОБЫТИЯ
             </span>
           </div>
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
             {stats.upcoming.length === 0 ? (
               <div style={{ padding: '24px 16px', textAlign: 'center' }}>
                 <p style={{ fontSize: 13, color: C.muted }}>Нет ближайших записей</p>
@@ -604,7 +605,7 @@ export default async function DashboardPage({
               Все <ChevronRight size={12} />
             </Link>
           </div>
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
             {stats.smart_tips.slice(0, 4).map((tip, i) => {
               const ic = tipIcon(tip.href, i)
               const Icon = ic.icon
@@ -639,7 +640,7 @@ export default async function DashboardPage({
               СВОДКА ДНЯ
             </span>
           </div>
-          <div style={{ flex: 1, padding: '8px 0' }}>
+          <div style={{ flex: 1, padding: '8px 0', overflowY: 'auto', minHeight: 0 }}>
             {[
               {
                 label: 'Постоянных клиентов',
@@ -702,18 +703,6 @@ export default async function DashboardPage({
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════════════
-          FOOTER BANNER
-      ═══════════════════════════════════════════════════════════════════ */}
-      <div style={{
-        borderRadius: 10, padding: '7px 16px',
-        background: C.sageTint, border: `1px solid ${C.sageSoft}`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-      }}>
-        <span style={{ fontSize: 12, color: C.sage, fontWeight: 500, textAlign: 'center' }}>
-          SERA заботится о вашем бизнесе и помогает вашему бизнесу расти ✨
-        </span>
-      </div>
     </div>
   )
 }
