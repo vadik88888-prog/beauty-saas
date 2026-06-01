@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   ChevronLeft, ChevronRight, X, Phone,
-  MessageCircle, CheckCircle, XCircle, Sparkles, Plus, UserPlus,
+  MessageCircle, CheckCircle, XCircle, Sparkles, Plus,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { AiBadge } from '@/components/shared/AiBadge'
@@ -40,7 +40,7 @@ const SLOT_H     = 60  // px per hour — enough height to read labels
 const STATUS: Record<string, { bg: string; accent: string; dot: string; label: string }> = {
   pending:   { bg: 'var(--gold-pearl)',  accent: 'var(--gold)',   dot: 'var(--gold)',    label: 'Ожидает'      },
   confirmed: { bg: 'var(--sage-soft)',   accent: 'var(--sage)',   dot: 'var(--sage)',    label: 'Подтверждена' },
-  completed: { bg: 'var(--line)',        accent: 'var(--muted)',  dot: 'var(--muted-2)', label: 'Завершена'    },
+  completed: { bg: 'var(--line)',        accent: 'var(--ink-2)', dot: 'var(--ink-2)',   label: 'Завершена'    },
   no_show:   { bg: 'var(--rose)',        accent: 'var(--error)',  dot: 'var(--error)',   label: 'No-show'      },
   cancelled: { bg: 'var(--rose)',        accent: 'var(--error)',  dot: 'var(--error)',   label: 'Отменена'     },
 }
@@ -98,20 +98,45 @@ function getWorkMin(wh: WorkingHour[], masterId: string | null, d: Date): number
   return rows.reduce((s,w) => s + timeToMin(w.end_time) - timeToMin(w.start_time), 0)
 }
 
-// Compute free time slots between appointments
-function getFreeSlots(appts: Appointment[], workStartH = HOUR_START, workEndH = HOUR_END): Array<{startH: number; endH: number}> {
-  const sorted = [...appts].sort((a,b) => a.starts_at.localeCompare(b.starts_at))
-  const slots: Array<{startH:number; endH:number}> = []
-  let cursor = workStartH
-  for (const a of sorted) {
-    const sh = new Date(a.starts_at).getHours() + new Date(a.starts_at).getMinutes() / 60
-    const eh = new Date(a.ends_at).getHours()   + new Date(a.ends_at).getMinutes()   / 60
-    const gap = sh - cursor
-    if (gap >= 0.5) slots.push({ startH: cursor, endH: sh })
-    if (eh > cursor) cursor = eh
+// Compute free time slots between appointments within working hours.
+// Algorithm: clamp each appt to [HOUR_START, HOUR_END], merge overlaps, then
+// return the gaps. This prevents phantom full-day slots when appts fall outside
+// working hours or overlap each other.
+function getFreeSlots(appts: Appointment[]): Array<{startH: number; endH: number}> {
+  if (appts.length === 0) return [{ startH: HOUR_START, endH: HOUR_END }]
+
+  // Convert to local-hour floats, clamp to working window, discard if outside
+  const intervals = appts
+    .map(a => {
+      const s = new Date(a.starts_at), e = new Date(a.ends_at)
+      return {
+        start: Math.max(s.getHours() + s.getMinutes() / 60, HOUR_START),
+        end:   Math.min(e.getHours() + e.getMinutes() / 60, HOUR_END),
+      }
+    })
+    .filter(iv => iv.end - iv.start > 0)
+    .sort((a, b) => a.start - b.start)
+
+  if (intervals.length === 0) return [{ startH: HOUR_START, endH: HOUR_END }]
+
+  // Merge overlapping/adjacent intervals
+  const merged: { start: number; end: number }[] = []
+  for (const iv of intervals) {
+    const last = merged[merged.length - 1]
+    if (last && iv.start <= last.end) last.end = Math.max(last.end, iv.end)
+    else merged.push({ ...iv })
   }
-  if (workEndH - cursor >= 0.5) slots.push({ startH: cursor, endH: workEndH })
-  return slots
+
+  // Gaps between merged busy intervals = free slots
+  const free: Array<{startH: number; endH: number}> = []
+  let cursor = HOUR_START
+  for (const iv of merged) {
+    if (iv.start - cursor >= 0.5) free.push({ startH: cursor, endH: iv.start })
+    cursor = Math.max(cursor, iv.end)
+  }
+  if (HOUR_END - cursor >= 0.5) free.push({ startH: cursor, endH: HOUR_END })
+
+  return free
 }
 
 function apptPos(a: Appointment): { top: number; height: number } {
@@ -169,24 +194,18 @@ function HourLines() {
   )
 }
 
-// Current time indicator — only rendered for today's column
+// Current time indicator — synchronous: no useState/useEffect, always correct on render.
+// Inner components (DayContent) remount on parent re-render, so async setState was
+// causing the line to flash invisible. Computing inline avoids the async gap entirely.
 function NowLine() {
-  const [top, setTop] = useState<number | null>(null)
-  useEffect(() => {
-    function update() {
-      const now = new Date()
-      const h = now.getHours() + now.getMinutes() / 60
-      setTop(h >= HOUR_START && h <= HOUR_END ? (h - HOUR_START) * SLOT_H : null)
-    }
-    update()
-    const t = setInterval(update, 60000)
-    return () => clearInterval(t)
-  }, [])
-  if (top === null) return null
+  const now = new Date()
+  const h   = now.getHours() + now.getMinutes() / 60
+  if (h < HOUR_START || h > HOUR_END) return null
+  const top = (h - HOUR_START) * SLOT_H
   return (
     <div style={{ position: 'absolute', left: 0, right: 0, top, zIndex: 20, pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>
       <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--error)', flexShrink: 0, marginLeft: -4 }} />
-      <div style={{ flex: 1, height: 2, background: 'var(--error)', opacity: 0.6 }} />
+      <div style={{ flex: 1, height: 2, background: 'var(--error)', opacity: 0.8 }} />
     </div>
   )
 }
@@ -315,7 +334,7 @@ export default function CalendarPage() {
         }}
       >
         {/* Time */}
-        <p style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: st.accent, lineHeight: 1, fontWeight: 600, margin: '0 0 1px' }}>
+        <p style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)', lineHeight: 1, fontWeight: 600, margin: '0 0 1px' }}>
           {fmtTime(appt.starts_at)}–{fmtTime(appt.ends_at)}
         </p>
         {/* Client name */}
@@ -325,17 +344,17 @@ export default function CalendarPage() {
         </p>
         {/* Service — pushes master to bottom */}
         {height > 44 && appt.service && (
-          <p style={{ fontSize: 9, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: '1px 0 0', flex: 1 }}>
+          <p style={{ fontSize: 9, color: 'var(--ink-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: '1px 0 0', flex: 1 }}>
             {appt.service.name}
           </p>
         )}
         {/* Spacer when no service shown */}
         {height <= 44 && <div style={{ flex: 1 }} />}
         {/* Master — always at bottom when room allows */}
-        {height > 58 && appt.master && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 2, flexShrink: 0 }}>
-            <Avatar name={appt.master.name} id={appt.master.id} size={compact ? 12 : 14} />
-            <span style={{ fontSize: 9, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+        {height > 60 && appt.master && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2, flexShrink: 0 }}>
+            <Avatar name={appt.master.name} id={appt.master.id} size={compact ? 14 : 20} />
+            <span style={{ fontSize: 10, color: 'var(--ink-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
               {appt.master.name}
             </span>
           </div>
@@ -532,9 +551,6 @@ export default function CalendarPage() {
 
         <div style={{ flex: 1 }} />
 
-        <button onClick={() => openNewAppt({ date: selectedDay, focusClient: true })} className="sera-btn sera-btn--secondary sera-btn--sm" style={{ gap: 5 }}>
-          <UserPlus size={13} /> Записать клиента
-        </button>
         <button onClick={() => openNewAppt({ date: selectedDay })} className="sera-btn sera-btn--sera" style={{ gap: 6 }}>
           <Plus size={14} /> Новая запись
         </button>
