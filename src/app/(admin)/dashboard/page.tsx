@@ -13,6 +13,7 @@ import { AlinaCareOrb } from '@/components/motion/AlinaCareOrb'
 import { DateNav } from './_components/DateNav'
 import { AtRiskSection } from './_components/AtRiskSection'
 import { formatPrice } from '@/lib/utils/format'
+import { formatTime, formatApptLabel } from '@/lib/utils/date'
 import { Avatar } from '@/components/shared/Avatar'
 
 // ── Design tokens (TMA-aligned: cream + sage) ────────────────────────────────
@@ -71,28 +72,6 @@ function trendPct(a: number, b: number): number | null {
   return Math.round(((a - b) / b) * 100)
 }
 
-function fmtHHMM(iso: string): string {
-  const d = new Date(iso)
-  return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`
-}
-
-function fmtApptLabel(iso: string): string {
-  // Compare YYYY-MM-DD in UTC — single source of "today", no timezone drift
-  const apptDay = iso.slice(0, 10)
-  const todayUTC = new Date().toISOString().slice(0, 10)
-  const base = new Date(todayUTC + 'T00:00:00Z')
-  const tmrw = new Date(base.getTime() + 86400000).toISOString().slice(0, 10)
-  const d2   = new Date(base.getTime() + 2 * 86400000).toISOString().slice(0, 10)
-
-  if (apptDay === todayUTC) return 'Сегодня'
-  if (apptDay === tmrw)     return 'Завтра'
-  if (apptDay === d2)       return 'Послезавтра'
-
-  const m = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек']
-  const d = new Date(iso)
-  return `${d.getUTCDate()} ${m[d.getUTCMonth()]}`
-}
-
 function timeUntil(iso: string): { label: string; urgent: boolean } {
   const diff = new Date(iso).getTime() - Date.now()
   if (diff <= 0) return { label: 'Идёт', urgent: true }
@@ -100,7 +79,7 @@ function timeUntil(iso: string): { label: string; urgent: boolean } {
   if (mins < 60) return { label: `Через ${mins} мин`, urgent: mins < 30 }
   const h = Math.floor(mins / 60)
   if (h < 24) return { label: `Через ${h} ч`, urgent: false }
-  return { label: fmtApptLabel(iso), urgent: false }
+  return { label: formatApptLabel(iso), urgent: false }
 }
 
 function fmtFullDate(): string {
@@ -395,7 +374,7 @@ export default async function DashboardPage({
                   }}
                 >
                   <span style={{ fontSize: 11, color: C.muted, fontVariantNumeric: 'tabular-nums', width: 36, flexShrink: 0, paddingTop: 1 }}>
-                    {fmtHHMM(act.time)}
+                    {formatTime(act.time)}
                   </span>
                   <span style={{
                     width: 24, height: 24, borderRadius: 8, flexShrink: 0,
@@ -471,7 +450,7 @@ export default async function DashboardPage({
                     fontFamily: 'var(--font-inter, sans-serif)',
                     marginBottom: 6,
                   }}>
-                    {fmtHHMM(nextAppt.starts_at)}
+                    {formatTime(nextAppt.starts_at)}
                   </p>
                   <p style={{ fontSize: 14, fontWeight: 600, color: C.ink, marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {nextAppt.service}
@@ -552,9 +531,9 @@ export default async function DashboardPage({
                     >
                       <div style={{ flexShrink: 0, width: 40, textAlign: 'center' }}>
                         <p style={{ fontSize: 14, fontWeight: 700, color: C.ink, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
-                          {fmtHHMM(appt.starts_at)}
+                          {formatTime(appt.starts_at)}
                         </p>
-                        <p style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{fmtApptLabel(appt.starts_at)}</p>
+                        <p style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{formatApptLabel(appt.starts_at)}</p>
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ fontSize: 12, fontWeight: 500, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

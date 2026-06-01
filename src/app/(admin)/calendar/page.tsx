@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { AiBadge } from '@/components/shared/AiBadge'
 import { SeraOrb } from '@/components/sera'
 import { formatPrice } from '@/lib/utils/format'
+import { formatTime } from '@/lib/utils/date'
 import { NewAppointmentModal, type NewApptDefaults } from '@/components/admin/NewAppointmentModal'
 import { Avatar } from '@/components/shared/Avatar'
 
@@ -70,9 +71,6 @@ function localDayStart(d: Date): string {
 }
 function localDayEnd(d: Date): string {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999).toISOString()
-}
-function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
 }
 function fmtHM(h: number): string {
   const hh = Math.floor(h), mm = Math.round((h - hh) * 60)
@@ -336,7 +334,7 @@ export default function CalendarPage() {
       >
         {/* Time */}
         <p style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)', lineHeight: 1, fontWeight: 600, margin: '0 0 1px' }}>
-          {fmtTime(appt.starts_at)}–{fmtTime(appt.ends_at)}
+          {formatTime(appt.starts_at)}–{formatTime(appt.ends_at)}
         </p>
         {/* Client name */}
         <p style={{ fontSize: compact ? 10 : 11, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0, display: 'flex', alignItems: 'center', gap: 3 }}>
@@ -719,7 +717,7 @@ export default function CalendarPage() {
                       </div>
                       <div style={{ display:'flex',alignItems:'center',gap:4,flexShrink:0 }}>
                         <span style={{ width:6,height:6,borderRadius:'50%',background:st.dot }} />
-                        <span style={{ fontSize:11,fontFamily:'var(--font-mono)',color:'var(--muted)',fontWeight:600 }}>{fmtTime(a.starts_at)}</span>
+                        <span style={{ fontSize:11,fontFamily:'var(--font-mono)',color:'var(--muted)',fontWeight:600 }}>{formatTime(a.starts_at)}</span>
                       </div>
                     </button>
                   )
@@ -775,7 +773,7 @@ export default function CalendarPage() {
                 { label:'Услуга',    value:selectedAppt.service?.name??'—' },
                 { label:'Мастер',    value:selectedAppt.master?.name??'—' },
                 { label:'Начало',    value:new Date(selectedAppt.starts_at).toLocaleString('ru-RU',{dateStyle:'short',timeStyle:'short'}) },
-                { label:'Конец',     value:fmtTime(selectedAppt.ends_at) },
+                { label:'Конец',     value:formatTime(selectedAppt.ends_at) },
                 ...(selectedAppt.price!=null?[{label:'Стоимость',value:formatPrice(selectedAppt.price,'BYN')}]:[]),
                 ...(selectedAppt.notes?[{label:'Заметки',value:selectedAppt.notes}]:[]),
               ].map(({label,value})=>(

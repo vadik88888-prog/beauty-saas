@@ -65,3 +65,21 @@ export function formatDuration(minutes: number): string {
   const m = minutes % 60
   return m ? `${h} ч ${m} мин` : `${h} ч`
 }
+
+// UTC-safe appointment date label for admin server components.
+// Compares by UTC date (iso.slice(0,10)) — prevents local-timezone drift: an
+// appointment at 23:00 UTC may be "tomorrow" locally in UTC+ but still "today" in UTC.
+export function formatApptLabel(iso: string): string {
+  const apptDay  = iso.slice(0, 10)
+  const todayUTC = new Date().toISOString().slice(0, 10)
+  const base     = new Date(todayUTC + 'T00:00:00Z')
+  const tmrw     = new Date(base.getTime() + 86_400_000).toISOString().slice(0, 10)
+  const d2       = new Date(base.getTime() + 172_800_000).toISOString().slice(0, 10)
+
+  if (apptDay === todayUTC) return 'Сегодня'
+  if (apptDay === tmrw)     return 'Завтра'
+  if (apptDay === d2)       return 'Послезавтра'
+
+  const d = new Date(iso)
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`
+}
