@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import {
-  ChevronLeft, ChevronRight, Calendar, X, Phone,
+  ChevronLeft, ChevronRight, X, Phone,
   MessageCircle, CheckCircle, XCircle, Sparkles, Plus,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -23,28 +23,28 @@ type Appointment = {
   master: { id: string; name: string } | null
   service: { name: string; duration_min: number; category_id?: string | null } | null
 }
-type Master        = { id: string; name: string }
-type Category      = { id: string; name: string; icon: string | null; sort_order: number }
-type WorkingHour   = { master_id: string; day_of_week: number; start_time: string; end_time: string; is_working: boolean }
+type Master      = { id: string; name: string }
+type Category    = { id: string; name: string; icon: string | null; sort_order: number }
+type WorkingHour = { master_id: string; day_of_week: number; start_time: string; end_time: string; is_working: boolean }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const HOUR_START = 9
 const HOUR_END   = 21
 const HOURS      = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i)
-const SLOT_H     = 56  // px per hour
+const SLOT_H     = 60  // px per hour — enough height to read labels
 
 const STATUS: Record<string, { bg: string; accent: string; dot: string; label: string }> = {
-  pending:   { bg: 'var(--gold-soft)',    accent: 'var(--gold)',    dot: 'var(--gold)',    label: 'Ожидает'       },
-  confirmed: { bg: 'var(--sage-tint)',    accent: 'var(--sage)',    dot: 'var(--sage)',    label: 'Подтверждена'  },
-  completed: { bg: 'var(--card-sunken)', accent: 'var(--muted-2)', dot: 'var(--muted-2)', label: 'Завершена'     },
-  no_show:   { bg: 'var(--error-soft)',  accent: 'var(--error)',   dot: 'var(--error)',   label: 'No-show'       },
-  cancelled: { bg: 'var(--error-soft)',  accent: 'var(--error)',   dot: 'var(--error)',   label: 'Отменена'      },
+  pending:   { bg: 'var(--gold-soft)',   accent: 'var(--gold)',  dot: 'var(--gold)',  label: 'Ожидает'      },
+  confirmed: { bg: 'var(--sage-tint)',   accent: 'var(--sage)',  dot: 'var(--sage)',  label: 'Подтверждена' },
+  completed: { bg: '#f0efed',            accent: 'var(--muted)', dot: 'var(--muted)', label: 'Завершена'    },
+  no_show:   { bg: 'var(--error-soft)', accent: 'var(--error)', dot: 'var(--error)', label: 'No-show'      },
+  cancelled: { bg: 'var(--error-soft)', accent: 'var(--error)', dot: 'var(--error)', label: 'Отменена'     },
 }
 
-const DAYS_RU = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб']
+const DAYS_RU   = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб']
 const MONTHS_RU = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь']
-const MONTHS_GEN = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря']
+const MONTHS_GEN= ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря']
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -55,24 +55,24 @@ function getMonday(d: Date): Date {
   r.setHours(0, 0, 0, 0)
   return r
 }
-
-function addDays(d: Date, n: number): Date {
-  const r = new Date(d); r.setDate(r.getDate() + n); return r
-}
-
+function addDays(d: Date, n: number): Date { const r = new Date(d); r.setDate(r.getDate() + n); return r }
 function isoDate(d: Date): string { return d.toISOString().slice(0, 10) }
-
 function fmtTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
 }
-
-function fmtDateLabel(d: Date): string {
-  return `${d.getDate()} ${MONTHS_GEN[d.getMonth()]}`
+function fmtHM(h: number): string {
+  const hh = Math.floor(h), mm = Math.round((h - hh) * 60)
+  return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`
 }
+function fmtDateLabel(d: Date): string { return `${d.getDate()} ${MONTHS_GEN[d.getMonth()]}` }
+function timeToMin(t: string): number { const [h,m] = t.split(':').map(Number); return h*60+m }
 
-function timeToMin(t: string): number {
-  const [h, m] = t.split(':').map(Number)
-  return h * 60 + m
+function pluralOkno(n: number): string {
+  const a = Math.abs(n) % 100, l = a % 10
+  if (a > 10 && a < 20) return 'окон'
+  if (l > 1 && l < 5)   return 'окна'
+  if (l === 1)           return 'окно'
+  return 'окон'
 }
 
 function getWorkMin(wh: WorkingHour[], masterId: string | null, d: Date): number {
@@ -80,61 +80,128 @@ function getWorkMin(wh: WorkingHour[], masterId: string | null, d: Date): number
   const rows = masterId
     ? wh.filter(w => w.master_id === masterId && w.day_of_week === dow && w.is_working)
     : wh.filter(w => w.day_of_week === dow && w.is_working)
-  if (rows.length === 0) return 9 * 60  // fallback 9h
-  return rows.reduce((s, w) => s + timeToMin(w.end_time) - timeToMin(w.start_time), 0)
+  if (rows.length === 0) return 9 * 60
+  return rows.reduce((s,w) => s + timeToMin(w.end_time) - timeToMin(w.start_time), 0)
 }
 
-// Apt position in the time grid
-function apptStyle(a: Appointment): { top: number; height: number } {
+// Compute free time slots between appointments
+function getFreeSlots(appts: Appointment[], workStartH = HOUR_START, workEndH = HOUR_END): Array<{startH: number; endH: number}> {
+  const sorted = [...appts].sort((a,b) => a.starts_at.localeCompare(b.starts_at))
+  const slots: Array<{startH:number; endH:number}> = []
+  let cursor = workStartH
+  for (const a of sorted) {
+    const sh = new Date(a.starts_at).getHours() + new Date(a.starts_at).getMinutes() / 60
+    const eh = new Date(a.ends_at).getHours()   + new Date(a.ends_at).getMinutes()   / 60
+    const gap = sh - cursor
+    if (gap >= 0.5) slots.push({ startH: cursor, endH: sh })
+    if (eh > cursor) cursor = eh
+  }
+  if (workEndH - cursor >= 0.5) slots.push({ startH: cursor, endH: workEndH })
+  return slots
+}
+
+function apptPos(a: Appointment): { top: number; height: number } {
   const s = new Date(a.starts_at), e = new Date(a.ends_at)
   const sh = s.getHours() + s.getMinutes() / 60
   const eh = e.getHours() + e.getMinutes() / 60
-  return { top: (sh - HOUR_START) * SLOT_H, height: Math.max((eh - sh) * SLOT_H, 28) }
+  return { top: (sh - HOUR_START) * SLOT_H, height: Math.max((eh - sh) * SLOT_H, 32) }
 }
 
-// Mini-calendar helpers
-function calendarMonth(year: number, month: number): (number | null)[][] {
+function calendarMonth(year: number, month: number): (number|null)[][] {
   const first = new Date(year, month, 1)
-  let dow = first.getDay() - 1   // Mon=0
-  if (dow < 0) dow = 6
+  let dow = first.getDay() - 1; if (dow < 0) dow = 6
   const days = new Date(year, month + 1, 0).getDate()
-  const cells: (number | null)[] = [...Array(dow).fill(null)]
+  const cells: (number|null)[] = [...Array(dow).fill(null)]
   for (let i = 1; i <= days; i++) cells.push(i)
   while (cells.length % 7 !== 0) cells.push(null)
-  const weeks: (number | null)[][] = []
+  const weeks: (number|null)[][] = []
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))
   return weeks
+}
+
+// ── Grid primitives ───────────────────────────────────────────────────────────
+
+const GRID_H = HOURS.length * SLOT_H
+
+// Vertical time labels — left column
+function TimeLabels() {
+  return (
+    <div style={{ width: 52, flexShrink: 0, position: 'relative', height: GRID_H }}>
+      {HOURS.map(h => (
+        <div key={h} style={{ position: 'absolute', top: (h - HOUR_START) * SLOT_H - 7, right: 6, textAlign: 'right' }}>
+          <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--ink-2)', fontFamily: 'var(--font-mono)', lineHeight: 1 }}>
+            {String(h).padStart(2,'0')}:00
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// Horizontal hour lines inside a column
+function HourLines() {
+  return (
+    <>
+      {HOURS.map(h => (
+        <div key={h} style={{
+          position: 'absolute', left: 0, right: 0,
+          top: (h - HOUR_START) * SLOT_H,
+          borderTop: `1px solid var(--line-soft)`,
+          pointerEvents: 'none',
+        }} />
+      ))}
+    </>
+  )
+}
+
+// Current time indicator — only rendered for today's column
+function NowLine() {
+  const [top, setTop] = useState<number | null>(null)
+  useEffect(() => {
+    function update() {
+      const now = new Date()
+      const h = now.getHours() + now.getMinutes() / 60
+      setTop(h >= HOUR_START && h <= HOUR_END ? (h - HOUR_START) * SLOT_H : null)
+    }
+    update()
+    const t = setInterval(update, 60000)
+    return () => clearInterval(t)
+  }, [])
+  if (top === null) return null
+  return (
+    <div style={{ position: 'absolute', left: 0, right: 0, top, zIndex: 20, pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>
+      <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--error)', flexShrink: 0, marginLeft: -4 }} />
+      <div style={{ flex: 1, height: 2, background: 'var(--error)', opacity: 0.6 }} />
+    </div>
+  )
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function CalendarPage() {
-  const [view, setView]         = useState<'day' | 'week'>('day')
+  const [view, setView]               = useState<'day' | 'week'>('week')  // default: week
   const [selectedDay, setSelectedDay] = useState<Date>(() => new Date())
   const [weekStart, setWeekStart]     = useState<Date>(() => getMonday(new Date()))
   const [appointments, setAppointments] = useState<Appointment[]>([])
-  const [masters, setMasters]     = useState<Master[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
+  const [masters, setMasters]         = useState<Master[]>([])
+  const [categories, setCategories]   = useState<Category[]>([])
   const [workingHours, setWorkingHours] = useState<WorkingHour[]>([])
-  const [selectedMasterId, setSelectedMasterId] = useState<string | null>(null)
+  const [selectedMasterId, setSelectedMasterId]     = useState<string | null>(null)
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading]     = useState(true)
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null)
-  const [miniYear, setMiniYear]   = useState(() => new Date().getFullYear())
-  const [miniMonth, setMiniMonth] = useState(() => new Date().getMonth())
+  const [miniYear, setMiniYear]       = useState(() => new Date().getFullYear())
+  const [miniMonth, setMiniMonth]     = useState(() => new Date().getMonth())
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+  const todayStr = isoDate(new Date())
 
-  const from = view === 'day'
-    ? `${isoDate(selectedDay)}T00:00:00Z`
-    : `${isoDate(weekStart)}T00:00:00Z`
-  const to = view === 'day'
-    ? `${isoDate(selectedDay)}T23:59:59Z`
-    : `${isoDate(addDays(weekStart, 6))}T23:59:59Z`
+  const from = view === 'day' ? `${isoDate(selectedDay)}T00:00:00Z` : `${isoDate(weekStart)}T00:00:00Z`
+  const to   = view === 'day' ? `${isoDate(selectedDay)}T23:59:59Z` : `${isoDate(addDays(weekStart, 6))}T23:59:59Z`
 
   const load = useCallback(async () => {
     setIsLoading(true)
-    const res = await fetch(`/api/admin/calendar?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
+    const res  = await fetch(`/api/admin/calendar?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
     const json = await res.json()
     setAppointments(json.appointments ?? [])
     setMasters(json.masters ?? [])
@@ -146,10 +213,9 @@ export default function CalendarPage() {
 
   useEffect(() => { load() }, [load])
 
-  // Filtered appointments
   const filtered = appointments
-    .filter(a => selectedMasterId     ? a.master?.id         === selectedMasterId     : true)
-    .filter(a => selectedCategoryId   ? a.service?.category_id === selectedCategoryId : true)
+    .filter(a => selectedMasterId   ? a.master?.id          === selectedMasterId   : true)
+    .filter(a => selectedCategoryId ? a.service?.category_id === selectedCategoryId : true)
 
   const byDay: Record<string, Appointment[]> = {}
   for (const a of filtered) {
@@ -158,17 +224,17 @@ export default function CalendarPage() {
     byDay[k].push(a)
   }
 
-  // Right-rail stats for selectedDay
-  const displayStr = isoDate(selectedDay)
-  const dayAppts   = appointments.filter(a => a.starts_at.startsWith(displayStr))
-  const busyMin    = dayAppts.reduce((s, a) =>
-    s + (new Date(a.ends_at).getTime() - new Date(a.starts_at).getTime()) / 60000, 0)
-  const workMin    = getWorkMin(workingHours, selectedMasterId, selectedDay)
-  const loadPct    = Math.min(100, Math.round(busyMin / workMin * 100))
-  const freeH      = Math.max(0, Math.floor((workMin - busyMin) / 60))
-  const freeMin2   = Math.max(0, Math.round((workMin - busyMin) % 60))
+  // Right-rail: load for selectedDay
+  const displayStr  = isoDate(selectedDay)
+  const dayAppts    = appointments.filter(a => a.starts_at.startsWith(displayStr))
+  const busyMin     = dayAppts.reduce((s,a) => s + (new Date(a.ends_at).getTime() - new Date(a.starts_at).getTime()) / 60000, 0)
+  const workMin     = getWorkMin(workingHours, selectedMasterId, selectedDay)
+  const loadPct     = Math.min(100, Math.round(busyMin / workMin * 100))
+  const freeH       = Math.max(0, Math.floor((workMin - busyMin) / 60))
+  const freeMin2    = Math.max(0, Math.round((workMin - busyMin) % 60))
+  const freeWinDay  = getFreeSlots(dayAppts).length
 
-  // PATCH appointment status
+  // PATCH status
   async function handleAction(id: string, status: 'confirmed' | 'cancelled' | 'completed') {
     const res = await fetch(`/api/admin/appointments/${id}`, {
       method: 'PATCH',
@@ -178,82 +244,66 @@ export default function CalendarPage() {
     if (res.ok) {
       setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a))
       setSelectedAppt(prev => prev?.id === id ? { ...prev, status } : prev)
-      const msg = status === 'confirmed' ? 'Подтверждена' : status === 'completed' ? 'Завершена' : 'Отменена'
-      toast.success(`Запись ${msg.toLowerCase()}`)
+      toast.success(status === 'confirmed' ? 'Запись подтверждена' : status === 'completed' ? 'Запись завершена' : 'Запись отменена')
     } else {
       toast.error('Ошибка обновления')
     }
   }
 
-  // Navigate
-  function prev() {
-    if (view === 'day') setSelectedDay(d => addDays(d, -1))
-    else setWeekStart(d => addDays(d, -7))
-  }
-  function next() {
-    if (view === 'day') setSelectedDay(d => addDays(d, 1))
-    else setWeekStart(d => addDays(d, 7))
-  }
-  function goToday() {
-    const t = new Date()
-    setSelectedDay(t)
-    setWeekStart(getMonday(t))
-  }
-  function goToDay(year: number, month: number, day: number) {
-    const d = new Date(year, month, day)
-    setSelectedDay(d)
-    setWeekStart(getMonday(d))
-    setView('day')
+  function prev()    { view === 'day' ? setSelectedDay(d => addDays(d,-1)) : setWeekStart(d => addDays(d,-7)) }
+  function next()    { view === 'day' ? setSelectedDay(d => addDays(d, 1)) : setWeekStart(d => addDays(d, 7)) }
+  function goToday() { const t = new Date(); setSelectedDay(t); setWeekStart(getMonday(t)) }
+  function goToDay(y: number, mo: number, d: number) {
+    const dt = new Date(y, mo, d)
+    setSelectedDay(dt); setWeekStart(getMonday(dt)); setView('day')
   }
 
-  // Date range label
   const rangeLabel = view === 'day'
     ? `${selectedDay.getDate()} ${MONTHS_GEN[selectedDay.getMonth()]} ${selectedDay.getFullYear()}`
     : `${fmtDateLabel(weekDays[0])} – ${fmtDateLabel(weekDays[6])}`
 
-  const todayStr = isoDate(new Date())
-
-  // ── Appointment card in grid ──
+  // ── Appointment card ──
   function ApptCard({ appt, compact = false }: { appt: Appointment; compact?: boolean }) {
-    const st    = STATUS[appt.status] ?? STATUS.pending
-    const name  = [appt.client?.first_name, appt.client?.last_name].filter(Boolean).join(' ') || 'Клиент'
-    const { top, height } = apptStyle(appt)
+    const st   = STATUS[appt.status] ?? STATUS.pending
+    const name = [appt.client?.first_name, appt.client?.last_name].filter(Boolean).join(' ') || 'Клиент'
+    const { top, height } = apptPos(appt)
     return (
       <div
         onClick={() => setSelectedAppt(appt)}
+        onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(0.95)')}
+        onMouseLeave={e => (e.currentTarget.style.filter = '')}
         style={{
-          position: 'absolute',
-          left: 2, right: 2,
-          top, height,
+          position: 'absolute', left: 3, right: 3, top, height,
           background: st.bg,
           borderLeft: `3px solid ${st.accent}`,
-          borderRadius: '0 6px 6px 0',
-          padding: compact ? '2px 5px' : '4px 7px',
-          overflow: 'hidden',
-          cursor: 'pointer',
-          boxSizing: 'border-box',
-          transition: 'filter 0.1s',
+          borderRadius: '0 7px 7px 0',
+          padding: compact ? '3px 5px' : '5px 8px',
+          overflow: 'hidden', cursor: 'pointer',
+          boxSizing: 'border-box', transition: 'filter 0.1s',
+          boxShadow: '0 1px 4px rgba(27,42,34,0.06)',
         }}
-        onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(0.96)')}
-        onMouseLeave={e => (e.currentTarget.style.filter = '')}
       >
-        <p style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--muted)', lineHeight: 1, marginBottom: 2, tabularNums: true } as React.CSSProperties}>
+        {/* Time range */}
+        <p style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--muted)', lineHeight: 1, marginBottom: 2 }}>
           {fmtTime(appt.starts_at)}–{fmtTime(appt.ends_at)}
         </p>
-        <p style={{ fontSize: compact ? 10 : 11, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {/* Client name */}
+        <p style={{ fontSize: compact ? 10 : 12, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 1 }}>
           {name}
         </p>
-        {height > 44 && appt.service && (
-          <p style={{ fontSize: 10, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
+        {/* Service */}
+        {height > 48 && appt.service && (
+          <p style={{ fontSize: 10, color: 'var(--ink-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 2 }}>
             {appt.service.name}
           </p>
         )}
-        {height > 64 && appt.master && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
-            <div style={{ width: 14, height: 14, borderRadius: '50%', background: 'var(--sage-tint)', color: 'var(--sage)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, flexShrink: 0 }}>
+        {/* Master */}
+        {height > 70 && appt.master && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div style={{ width: 15, height: 15, borderRadius: '50%', background: 'var(--sage-tint)', color: 'var(--sage)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, flexShrink: 0 }}>
               {appt.master.name.charAt(0)}
             </div>
-            <span style={{ fontSize: 9, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{appt.master.name}</span>
+            <span style={{ fontSize: 10, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{appt.master.name}</span>
             {appt.source === 'ai' && <Sparkles size={9} style={{ color: 'var(--gold)', flexShrink: 0 }} />}
           </div>
         )}
@@ -261,33 +311,65 @@ export default function CalendarPage() {
     )
   }
 
-  // ── Time axis + content column ──
-  function TimeGrid({ day, dayAppts, compact }: { day: Date; dayAppts: Appointment[]; compact?: boolean }) {
+  // ── Free slot card ──
+  function FreeSlotCard({ startH, endH, compact = false }: { startH: number; endH: number; compact?: boolean }) {
+    const top    = (startH - HOUR_START) * SLOT_H
+    const height = Math.max((endH - startH) * SLOT_H - 4, 24)
+    const label  = `${fmtHM(startH)}–${fmtHM(endH)}`
     return (
-      <div style={{ position: 'relative', height: HOURS.length * SLOT_H }}>
-        {HOURS.map(h => (
-          <div key={h} style={{ position: 'absolute', width: '100%', top: (h - HOUR_START) * SLOT_H, borderTop: '1px solid var(--line-soft)', pointerEvents: 'none' }}>
-            {!compact && <span style={{ position: 'absolute', left: -38, fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--font-mono)', lineHeight: 1, top: -6 }}>{String(h).padStart(2,'0')}:00</span>}
-          </div>
-        ))}
-        {dayAppts.map(a => <ApptCard key={a.id} appt={a} compact={compact} />)}
+      <div
+        onClick={() => toast.info('Создание записи — в разработке')}
+        onMouseEnter={e => (e.currentTarget.style.opacity = '0.8')}
+        onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+        style={{
+          position: 'absolute', left: 3, right: 3, top, height,
+          background: 'var(--sage-tint)',
+          border: '1.5px dashed var(--sage-soft)',
+          borderRadius: 7,
+          padding: compact ? '3px 5px' : '5px 8px',
+          overflow: 'hidden', cursor: 'pointer',
+          boxSizing: 'border-box', transition: 'opacity 0.15s',
+          display: 'flex', flexDirection: 'column', justifyContent: 'center',
+        }}
+      >
+        {compact ? (
+          <p style={{ fontSize: 9, color: 'var(--sage)', fontWeight: 600, lineHeight: 1 }}>Свободно</p>
+        ) : (
+          <>
+            <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--sage)', lineHeight: 1.2, marginBottom: 1 }}>
+              Свободное окно · {label}
+            </p>
+            {height > 44 && (
+              <p style={{ fontSize: 10, color: 'var(--sage-2)', lineHeight: 1.3 }}>Заполнить через SERA</p>
+            )}
+          </>
+        )}
+      </div>
+    )
+  }
+
+  // ── Day column content (lines + appointments + free slots + now line) ──
+  function DayContent({ day, appts, compact = false }: { day: Date; appts: Appointment[]; compact?: boolean }) {
+    const isToday = isoDate(day) === todayStr
+    const freeSlots = getFreeSlots(appts)
+    return (
+      <div style={{ position: 'relative', height: GRID_H, background: isToday ? 'rgba(231,238,226,0.18)' : 'transparent' }}>
+        <HourLines />
+        {freeSlots.map((s, i) => <FreeSlotCard key={i} startH={s.startH} endH={s.endH} compact={compact} />)}
+        {appts.map(a => <ApptCard key={a.id} appt={a} compact={compact} />)}
+        {isToday && <NowLine />}
       </div>
     )
   }
 
   // ── Day view ──
   function DayView() {
-    const dayStr   = isoDate(selectedDay)
-    const dayAppts = byDay[dayStr] ?? []
+    const appts = byDay[isoDate(selectedDay)] ?? []
     return (
       <div style={{ display: 'flex', flex: 1, minHeight: 0, overflowY: 'auto' }}>
-        {/* Time labels */}
-        <div style={{ width: 48, flexShrink: 0, paddingTop: 8 }}>
-          <TimeGrid day={selectedDay} dayAppts={[]} />
-        </div>
-        {/* Column */}
-        <div style={{ flex: 1, paddingTop: 8, paddingLeft: 4, minWidth: 0 }}>
-          <TimeGrid day={selectedDay} dayAppts={dayAppts} />
+        <TimeLabels />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <DayContent day={selectedDay} appts={appts} />
         </div>
       </div>
     )
@@ -297,16 +379,10 @@ export default function CalendarPage() {
   function WeekView() {
     return (
       <div style={{ display: 'flex', flex: 1, minHeight: 0, overflowY: 'auto' }}>
-        {/* Time labels */}
-        <div style={{ width: 44, flexShrink: 0 }}>
-          <div style={{ height: 36 }} />
-          <div style={{ paddingTop: 8 }}>
-            {HOURS.map(h => (
-              <div key={h} style={{ height: SLOT_H, display: 'flex', alignItems: 'flex-start', paddingTop: 2 }}>
-                <span style={{ fontSize: 9, color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>{String(h).padStart(2,'0')}:00</span>
-              </div>
-            ))}
-          </div>
+        {/* Time axis */}
+        <div style={{ width: 52, flexShrink: 0 }}>
+          <div style={{ height: 40 }} />{/* spacer for day headers */}
+          <TimeLabels />
         </div>
         {/* Day columns */}
         {weekDays.map(day => {
@@ -315,25 +391,26 @@ export default function CalendarPage() {
           const appts   = byDay[ds] ?? []
           return (
             <div key={ds} style={{ flex: 1, minWidth: 0, borderLeft: '1px solid var(--line-soft)' }}>
-              {/* Day header */}
+              {/* Day header — click → day view */}
               <div
                 onClick={() => { setSelectedDay(day); setView('day') }}
                 style={{
-                  height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                  height: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1,
                   cursor: 'pointer', background: isToday ? 'var(--sage-tint)' : 'transparent',
                   borderBottom: '1px solid var(--line)', flexShrink: 0,
+                  transition: 'background 0.15s',
                 }}
+                onMouseEnter={e => { if (!isToday) (e.currentTarget as HTMLElement).style.background = 'var(--page-alt)' }}
+                onMouseLeave={e => { if (!isToday) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
               >
-                <span style={{ fontSize: 10, fontWeight: 700, color: isToday ? 'var(--sage)' : 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                <span style={{ fontSize: 9, fontWeight: 700, color: isToday ? 'var(--sage)' : 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                   {DAYS_RU[day.getDay()]}
                 </span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: isToday ? 'var(--sage)' : 'var(--ink)' }}>
+                <span style={{ fontSize: 15, fontWeight: 700, color: isToday ? 'var(--sage)' : 'var(--ink)', lineHeight: 1 }}>
                   {day.getDate()}
                 </span>
               </div>
-              <div style={{ position: 'relative', paddingTop: 8 }}>
-                <TimeGrid day={day} dayAppts={appts} compact />
-              </div>
+              <DayContent day={day} appts={appts} compact />
             </div>
           )
         })}
@@ -343,28 +420,14 @@ export default function CalendarPage() {
 
   // ── Mini calendar ──
   const weeks = calendarMonth(miniYear, miniMonth)
-  const today = new Date()
 
   // ── Render ────────────────────────────────────────────────────────────────────
-
   return (
-    <div
-      style={{
-        height: '100%', overflow: 'hidden', minHeight: 0,
-        display: 'flex', flexDirection: 'column',
-        background: 'var(--page)', boxSizing: 'border-box',
-      }}
-    >
+    <div style={{ height: '100%', overflow: 'hidden', minHeight: 0, display: 'flex', flexDirection: 'column', background: 'var(--page)', boxSizing: 'border-box' }}>
 
       {/* ── Toolbar ─────────────────────────────────────────────────── */}
-      <div style={{
-        flexShrink: 0, padding: '10px 16px',
-        borderBottom: '1px solid var(--line)',
-        background: 'var(--page-alt)',
-        display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
-      }}>
+      <div style={{ flexShrink: 0, padding: '10px 16px', borderBottom: '1px solid var(--line)', background: 'var(--page-alt)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
 
-        {/* Title */}
         <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, color: 'var(--ink)', margin: 0, lineHeight: 1.1, whiteSpace: 'nowrap' }}>
           Расписание
         </h1>
@@ -380,43 +443,25 @@ export default function CalendarPage() {
         {/* View toggle */}
         <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--line)', flexShrink: 0 }}>
           {(['day','week'] as const).map(v => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              style={{
-                padding: '5px 12px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer',
-                background: view === v ? 'var(--ink)' : 'transparent',
-                color:      view === v ? 'var(--page)' : 'var(--muted)',
-                transition: 'all 0.15s',
-              }}
-            >
+            <button key={v} onClick={() => setView(v)} style={{
+              padding: '5px 12px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer',
+              background: view === v ? 'var(--ink)' : 'transparent',
+              color:      view === v ? 'var(--page)' : 'var(--muted)',
+              transition: 'all 0.15s',
+            }}>
               {v === 'day' ? 'День' : 'Неделя'}
             </button>
           ))}
         </div>
 
-        {/* Master filter */}
+        {/* Master chips */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-          <button
-            onClick={() => setSelectedMasterId(null)}
-            style={{
+          {[{ id: null, name: 'Все мастера' }, ...masters].map(m => (
+            <button key={m.id ?? '__all'} onClick={() => setSelectedMasterId(m.id ?? null)} style={{
               padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer',
-              background: selectedMasterId === null ? 'var(--sage)' : 'var(--sage-tint)',
-              color:      selectedMasterId === null ? '#fff' : 'var(--sage)',
-            }}
-          >
-            Все мастера
-          </button>
-          {masters.map(m => (
-            <button
-              key={m.id}
-              onClick={() => setSelectedMasterId(m.id)}
-              style={{
-                padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer',
-                background: selectedMasterId === m.id ? 'var(--sage)' : 'var(--sage-tint)',
-                color:      selectedMasterId === m.id ? '#fff' : 'var(--sage)',
-              }}
-            >
+              background: selectedMasterId === (m.id ?? null) ? 'var(--sage)' : 'var(--sage-tint)',
+              color:      selectedMasterId === (m.id ?? null) ? '#fff' : 'var(--sage)',
+            }}>
               {m.name}
             </button>
           ))}
@@ -424,47 +469,22 @@ export default function CalendarPage() {
 
         <div style={{ flex: 1 }} />
 
-        {/* Primary action */}
-        <button
-          onClick={() => toast.info('Создание записи — в разработке')}
-          className="sera-btn sera-btn--sera"
-          style={{ gap: 6 }}
-        >
+        <button onClick={() => toast.info('Создание записи — в разработке')} className="sera-btn sera-btn--sera" style={{ gap: 6 }}>
           <Plus size={14} /> Новая запись
         </button>
       </div>
 
-      {/* ── Category filter (only if categories exist) ──────────────── */}
+      {/* ── Category filter ──────────────────────────────────────────── */}
       {categories.length > 0 && (
-        <div style={{
-          flexShrink: 0, padding: '6px 16px',
-          borderBottom: '1px solid var(--line-soft)',
-          background: 'var(--page-alt)',
-          display: 'flex', alignItems: 'center', gap: 4, overflowX: 'auto',
-        }}>
+        <div style={{ flexShrink: 0, padding: '6px 16px', borderBottom: '1px solid var(--line-soft)', background: 'var(--page-alt)', display: 'flex', alignItems: 'center', gap: 4, overflowX: 'auto' }}>
           <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0, marginRight: 4 }}>Категория:</span>
-          <button
-            onClick={() => setSelectedCategoryId(null)}
-            style={{
+          {[{ id: null, name: 'Все' }, ...categories].map(c => (
+            <button key={c.id ?? '__all'} onClick={() => setSelectedCategoryId(c.id ?? null)} style={{
               padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', flexShrink: 0,
-              background: selectedCategoryId === null ? 'var(--ink)' : 'var(--card)',
-              color:      selectedCategoryId === null ? 'var(--page)' : 'var(--muted)',
-              border: `1px solid ${selectedCategoryId === null ? 'transparent' : 'var(--line)'}`,
-            }}
-          >
-            Все
-          </button>
-          {categories.map(c => (
-            <button
-              key={c.id}
-              onClick={() => setSelectedCategoryId(c.id === selectedCategoryId ? null : c.id)}
-              style={{
-                padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', flexShrink: 0,
-                background: selectedCategoryId === c.id ? 'var(--ink)' : 'var(--card)',
-                color:      selectedCategoryId === c.id ? 'var(--page)' : 'var(--muted)',
-                border: `1px solid ${selectedCategoryId === c.id ? 'transparent' : 'var(--line)'}`,
-              }}
-            >
+              background: selectedCategoryId === (c.id ?? null) ? 'var(--ink)' : 'var(--card)',
+              color:      selectedCategoryId === (c.id ?? null) ? 'var(--page)' : 'var(--muted)',
+              border:     `1px solid ${selectedCategoryId === (c.id ?? null) ? 'transparent' : 'var(--line)'}`,
+            }}>
               {c.name}
             </button>
           ))}
@@ -472,19 +492,21 @@ export default function CalendarPage() {
       )}
 
       {/* ── Main content ─────────────────────────────────────────────── */}
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden', gap: 8, padding: '8px 0 8px 8px' }}>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden', gap: 8, padding: '8px 8px 8px 0' }}>
 
         {/* ── Calendar grid ─── */}
-        <div style={{ flex: 1, minWidth: 0, background: 'var(--card)', border: '1px solid var(--card-border)', borderRadius: 14, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, minWidth: 0, background: 'var(--card)', border: '1px solid var(--card-border)', borderRadius: 14, overflow: 'hidden', display: 'flex', flexDirection: 'column', marginLeft: 8 }}>
 
-          {/* Status legend */}
+          {/* Legend */}
           <div style={{ flexShrink: 0, padding: '7px 14px', borderBottom: '1px solid var(--line-soft)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             {Object.entries(STATUS).map(([key, s]) => (
               <span key={key} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--muted)' }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.dot, flexShrink: 0 }} />
-                {s.label}
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.dot, flexShrink: 0 }} /> {s.label}
               </span>
             ))}
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--sage)' }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--sage-tint)', border: '1.5px dashed var(--sage-soft)', flexShrink: 0 }} /> Свободное окно
+            </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--gold)' }}>
               <Sparkles size={10} /> Через SERA
             </span>
@@ -495,7 +517,7 @@ export default function CalendarPage() {
 
           {isLoading ? (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: 13 }}>
-              Загрузка...
+              Загрузка расписания...
             </div>
           ) : view === 'day' ? (
             <DayView />
@@ -514,33 +536,29 @@ export default function CalendarPage() {
               <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>{loadPct}%</span>
             </div>
             <div style={{ height: 6, borderRadius: 3, background: 'var(--line)', overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${loadPct}%`, background: loadPct > 80 ? 'var(--sage)' : 'var(--sage-2)', borderRadius: 3, transition: 'width 0.4s' }} />
+              <div style={{ height: '100%', width: `${loadPct}%`, background: loadPct > 80 ? 'var(--sage)' : 'var(--sage-2)', borderRadius: 3, transition: 'width 0.5s' }} />
             </div>
             <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
               {Math.floor(busyMin / 60)}ч {Math.round(busyMin % 60)}м занято · {freeH}ч {freeMin2}м свободно
             </p>
           </div>
 
-          {/* SERA insight — only when free slots */}
-          {freeH > 0 && (
+          {/* SERA insight — only if free windows */}
+          {freeWinDay > 0 && (
             <div style={{ background: 'var(--sage-tint)', border: '1px solid var(--sage-soft)', borderRadius: 14, padding: '12px 14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 <SeraOrb state="online" size={32} />
                 <div>
                   <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)', margin: 0 }}>Совет от SERA</p>
                   <p style={{ fontSize: 11, color: 'var(--sage)', margin: 0 }}>
-                    {freeH} {freeH === 1 ? 'свободное окно' : 'свободных окна'}
+                    {freeWinDay} свободных {pluralOkno(freeWinDay)}
                   </p>
                 </div>
               </div>
               <p style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.5, marginBottom: 8 }}>
                 Есть свободное время — хороший момент запустить акцию и заполнить расписание.
               </p>
-              <button
-                onClick={() => toast.info('Функция в разработке')}
-                className="sera-btn sera-btn--secondary sera-btn--sm"
-                style={{ width: '100%' }}
-              >
+              <button onClick={() => toast.info('Функция в разработке')} className="sera-btn sera-btn--secondary sera-btn--sm" style={{ width: '100%' }}>
                 Предложить добор
               </button>
             </div>
@@ -548,60 +566,35 @@ export default function CalendarPage() {
 
           {/* Mini calendar */}
           <div style={{ background: 'var(--card)', border: '1px solid var(--card-border)', borderRadius: 14, padding: '12px 14px' }}>
-            {/* Month nav */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <button
-                onClick={() => {
-                  if (miniMonth === 0) { setMiniMonth(11); setMiniYear(y => y - 1) }
-                  else setMiniMonth(m => m - 1)
-                }}
-                className="sera-btn-icon" style={{ width: 24, height: 24 }}
-              ><ChevronLeft size={12} /></button>
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)' }}>
-                {MONTHS_RU[miniMonth]} {miniYear}
-              </span>
-              <button
-                onClick={() => {
-                  if (miniMonth === 11) { setMiniMonth(0); setMiniYear(y => y + 1) }
-                  else setMiniMonth(m => m + 1)
-                }}
-                className="sera-btn-icon" style={{ width: 24, height: 24 }}
-              ><ChevronRight size={12} /></button>
+              <button onClick={() => { if (miniMonth===0){setMiniMonth(11);setMiniYear(y=>y-1)}else setMiniMonth(m=>m-1) }} className="sera-btn-icon" style={{ width:24,height:24 }}><ChevronLeft size={12}/></button>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)' }}>{MONTHS_RU[miniMonth]} {miniYear}</span>
+              <button onClick={() => { if (miniMonth===11){setMiniMonth(0);setMiniYear(y=>y+1)}else setMiniMonth(m=>m+1) }} className="sera-btn-icon" style={{ width:24,height:24 }}><ChevronRight size={12}/></button>
             </div>
-
-            {/* Day-of-week header */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: 2 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', marginBottom: 2 }}>
               {['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(d => (
                 <span key={d} style={{ textAlign: 'center', fontSize: 9, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>{d}</span>
               ))}
             </div>
-
-            {/* Days grid */}
             {weeks.map((week, wi) => (
-              <div key={wi} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+              <div key={wi} style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)' }}>
                 {week.map((day, di) => {
                   if (!day) return <div key={di} />
-                  const d = new Date(miniYear, miniMonth, day)
-                  const ds = isoDate(d)
+                  const d   = new Date(miniYear, miniMonth, day)
+                  const ds  = isoDate(d)
                   const isT = ds === todayStr
                   const isSel = ds === isoDate(selectedDay)
-                  const hasAppts = appointments.some(a => a.starts_at.startsWith(ds))
+                  const hasDots = appointments.some(a => a.starts_at.startsWith(ds))
                   return (
-                    <button
-                      key={di}
-                      onClick={() => goToDay(miniYear, miniMonth, day)}
-                      style={{
-                        width: '100%', aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                        borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: isSel || isT ? 700 : 400,
-                        background: isSel ? 'var(--ink)' : isT ? 'var(--sage-tint)' : 'transparent',
-                        color: isSel ? 'var(--page)' : isT ? 'var(--sage)' : 'var(--ink)',
-                        position: 'relative',
-                      }}
-                    >
+                    <button key={di} onClick={() => goToDay(miniYear, miniMonth, day)} style={{
+                      width: '100%', aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: isSel || isT ? 700 : 400,
+                      background: isSel ? 'var(--ink)' : isT ? 'var(--sage-tint)' : 'transparent',
+                      color: isSel ? 'var(--page)' : isT ? 'var(--sage)' : 'var(--ink)',
+                      position: 'relative',
+                    }}>
                       {day}
-                      {hasAppts && !isSel && (
-                        <span style={{ position: 'absolute', bottom: 2, width: 4, height: 4, borderRadius: '50%', background: 'var(--sage)' }} />
-                      )}
+                      {hasDots && !isSel && <span style={{ position:'absolute',bottom:2,width:4,height:4,borderRadius:'50%',background:'var(--sage)' }} />}
                     </button>
                   )
                 })}
@@ -610,13 +603,13 @@ export default function CalendarPage() {
           </div>
 
           {/* Upcoming today */}
-          {view === 'day' && (() => {
-            const nowIso = new Date().toISOString()
+          {(() => {
+            const nowIso  = new Date().toISOString()
             const upcoming = [...dayAppts]
               .filter(a => a.starts_at > nowIso && a.status !== 'cancelled')
-              .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+              .sort((a,b) => a.starts_at.localeCompare(b.starts_at))
               .slice(0, 4)
-            if (upcoming.length === 0) return null
+            if (!upcoming.length) return null
             return (
               <div style={{ background: 'var(--card)', border: '1px solid var(--card-border)', borderRadius: 14, overflow: 'hidden' }}>
                 <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid var(--line-soft)' }}>
@@ -626,28 +619,24 @@ export default function CalendarPage() {
                   const name = [a.client?.first_name, a.client?.last_name].filter(Boolean).join(' ') || 'Клиент'
                   const st   = STATUS[a.status] ?? STATUS.pending
                   return (
-                    <button
-                      key={a.id}
-                      onClick={() => setSelectedAppt(a)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px',
-                        width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer',
-                        background: 'transparent', borderBottom: i < upcoming.length - 1 ? '1px solid var(--line-soft)' : 'none',
-                        transition: 'background 0.1s',
-                      }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--sage-tint)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                    >
-                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--sage-tint)', color: 'var(--sage)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+                    <button key={a.id} onClick={() => setSelectedAppt(a)} style={{
+                      display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px',
+                      width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer',
+                      background: 'transparent', borderBottom: i < upcoming.length - 1 ? '1px solid var(--line-soft)' : 'none',
+                      transition: 'background 0.1s',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--sage-tint)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                      <div style={{ width:28,height:28,borderRadius:'50%',background:'var(--sage-tint)',color:'var(--sage)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,flexShrink:0 }}>
                         {name.charAt(0)}
                       </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>{name}</p>
-                        <p style={{ fontSize: 10, color: 'var(--muted)', margin: 0 }}>{a.service?.name ?? '—'}</p>
+                      <div style={{ flex:1,minWidth:0 }}>
+                        <p style={{ fontSize:12,fontWeight:600,color:'var(--ink)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',margin:0 }}>{name}</p>
+                        <p style={{ fontSize:10,color:'var(--muted)',margin:0 }}>{a.service?.name ?? '—'}</p>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: st.dot }} />
-                        <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--muted)', fontWeight: 600 }}>{fmtTime(a.starts_at)}</span>
+                      <div style={{ display:'flex',alignItems:'center',gap:4,flexShrink:0 }}>
+                        <span style={{ width:6,height:6,borderRadius:'50%',background:st.dot }} />
+                        <span style={{ fontSize:11,fontFamily:'var(--font-mono)',color:'var(--muted)',fontWeight:600 }}>{fmtTime(a.starts_at)}</span>
                       </div>
                     </button>
                   )
@@ -661,75 +650,69 @@ export default function CalendarPage() {
       {/* ── Appointment detail modal ─────────────────────────────────── */}
       {selectedAppt && (
         <div
-          style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'rgba(27,42,34,0.4)', backdropFilter: 'blur(4px)' }}
-          onClick={e => { if (e.target === e.currentTarget) setSelectedAppt(null) }}
+          style={{ position:'fixed',inset:0,zIndex:50,display:'flex',alignItems:'flex-end',justifyContent:'center',background:'rgba(27,42,34,0.4)',backdropFilter:'blur(4px)' }}
+          onClick={e => { if (e.target===e.currentTarget) setSelectedAppt(null) }}
         >
-          <div style={{ background: 'var(--page-alt)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '20px', maxHeight: '85dvh', overflowY: 'auto', boxShadow: 'var(--shadow-hero)', border: '1px solid var(--card-border)' }}>
-
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 600, color: 'var(--ink)', margin: 0 }}>Детали записи</h2>
+          <div style={{ background:'var(--page-alt)',borderRadius:'20px 20px 0 0',width:'100%',maxWidth:480,padding:'20px',maxHeight:'85dvh',overflowY:'auto',boxShadow:'var(--shadow-hero)',border:'1px solid var(--card-border)' }}>
+            <div style={{ display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:14 }}>
+              <div style={{ display:'flex',alignItems:'center',gap:8 }}>
+                <h2 style={{ fontFamily:'var(--font-display)',fontSize:20,fontWeight:600,color:'var(--ink)',margin:0 }}>Детали записи</h2>
                 {selectedAppt.source === 'ai' && <AiBadge />}
               </div>
-              <button onClick={() => setSelectedAppt(null)} className="sera-btn-icon"><X size={15} /></button>
+              <button onClick={() => setSelectedAppt(null)} className="sera-btn-icon"><X size={15}/></button>
             </div>
 
-            {/* Status */}
             {(() => {
               const st = STATUS[selectedAppt.status] ?? STATUS.pending
               return (
-                <span className="sera-pill" style={{ background: st.bg, color: st.accent, marginBottom: 12, display: 'inline-flex' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: st.accent }} />{st.label}
+                <span className="sera-pill" style={{ background:st.bg,color:st.accent,marginBottom:12,display:'inline-flex',gap:5 }}>
+                  <span style={{ width:6,height:6,borderRadius:'50%',background:st.accent,flexShrink:0,alignSelf:'center' }}/>{st.label}
                 </span>
               )
             })()}
 
-            {/* Details */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+            <div style={{ display:'flex',flexDirection:'column',gap:10,marginBottom:14 }}>
               {[
-                { label: 'Клиент',   value: [selectedAppt.client?.first_name, selectedAppt.client?.last_name].filter(Boolean).join(' ') || 'Клиент' },
-                { label: 'Услуга',   value: selectedAppt.service?.name ?? '—' },
-                { label: 'Мастер',   value: selectedAppt.master?.name ?? '—' },
-                { label: 'Начало',   value: new Date(selectedAppt.starts_at).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' }) },
-                { label: 'Конец',    value: fmtTime(selectedAppt.ends_at) },
-                ...(selectedAppt.price != null ? [{ label: 'Стоимость', value: `${selectedAppt.price} руб.` }] : []),
-                ...(selectedAppt.notes ? [{ label: 'Заметки', value: selectedAppt.notes }] : []),
-              ].map(({ label, value }) => (
-                <div key={label} style={{ display: 'flex', gap: 10 }}>
-                  <span style={{ fontSize: 12, color: 'var(--muted)', width: 80, flexShrink: 0 }}>{label}</span>
-                  <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink)' }}>{value}</span>
+                { label:'Клиент',    value:[selectedAppt.client?.first_name,selectedAppt.client?.last_name].filter(Boolean).join(' ')||'Клиент' },
+                { label:'Услуга',    value:selectedAppt.service?.name??'—' },
+                { label:'Мастер',    value:selectedAppt.master?.name??'—' },
+                { label:'Начало',    value:new Date(selectedAppt.starts_at).toLocaleString('ru-RU',{dateStyle:'short',timeStyle:'short'}) },
+                { label:'Конец',     value:fmtTime(selectedAppt.ends_at) },
+                ...(selectedAppt.price!=null?[{label:'Стоимость',value:`${selectedAppt.price} руб.`}]:[]),
+                ...(selectedAppt.notes?[{label:'Заметки',value:selectedAppt.notes}]:[]),
+              ].map(({label,value})=>(
+                <div key={label} style={{ display:'flex',gap:10 }}>
+                  <span style={{ fontSize:12,color:'var(--muted)',width:80,flexShrink:0 }}>{label}</span>
+                  <span style={{ fontSize:13,fontWeight:500,color:'var(--ink)' }}>{value}</span>
                 </div>
               ))}
             </div>
 
-            {/* Contacts */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
+            <div style={{ display:'flex',flexDirection:'column',gap:6,marginBottom:14 }}>
               {selectedAppt.client?.phone && (
-                <a href={`tel:${selectedAppt.client.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--sage)', textDecoration: 'none', fontWeight: 500 }}>
-                  <Phone size={14} /> {selectedAppt.client.phone}
+                <a href={`tel:${selectedAppt.client.phone}`} style={{ display:'flex',alignItems:'center',gap:6,fontSize:13,color:'var(--sage)',textDecoration:'none',fontWeight:500 }}>
+                  <Phone size={14}/>{selectedAppt.client.phone}
                 </a>
               )}
               {selectedAppt.client?.telegram_username && (
-                <a href={`https://t.me/${selectedAppt.client.telegram_username}`} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--sage)', textDecoration: 'none', fontWeight: 500 }}>
-                  <MessageCircle size={14} /> @{selectedAppt.client.telegram_username}
+                <a href={`https://t.me/${selectedAppt.client.telegram_username}`} target="_blank" rel="noreferrer" style={{ display:'flex',alignItems:'center',gap:6,fontSize:13,color:'var(--sage)',textDecoration:'none',fontWeight:500 }}>
+                  <MessageCircle size={14}/>@{selectedAppt.client.telegram_username}
                 </a>
               )}
             </div>
 
-            {/* Actions */}
             {selectedAppt.status !== 'cancelled' && selectedAppt.status !== 'completed' && (
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', borderTop: '1px solid var(--line)', paddingTop: 14 }}>
+              <div style={{ display:'flex',gap:8,flexWrap:'wrap',borderTop:'1px solid var(--line)',paddingTop:14 }}>
                 {selectedAppt.status === 'pending' && (
-                  <button onClick={() => handleAction(selectedAppt.id, 'confirmed')} className="sera-btn sera-btn--secondary" style={{ flex: 1, gap: 6 }}>
-                    <CheckCircle size={14} /> Подтвердить
+                  <button onClick={()=>handleAction(selectedAppt.id,'confirmed')} className="sera-btn sera-btn--secondary" style={{ flex:1,gap:6 }}>
+                    <CheckCircle size={14}/> Подтвердить
                   </button>
                 )}
-                <button onClick={() => handleAction(selectedAppt.id, 'completed')} className="sera-btn" style={{ flex: 1, gap: 6, background: 'var(--success)', color: '#fff' }}>
-                  <CheckCircle size={14} /> Завершить
+                <button onClick={()=>handleAction(selectedAppt.id,'completed')} className="sera-btn" style={{ flex:1,gap:6,background:'var(--success)',color:'#fff' }}>
+                  <CheckCircle size={14}/> Завершить
                 </button>
-                <button onClick={() => handleAction(selectedAppt.id, 'cancelled')} className="sera-btn sera-btn--danger" style={{ flex: 1, gap: 6 }}>
-                  <XCircle size={14} /> Отменить
+                <button onClick={()=>handleAction(selectedAppt.id,'cancelled')} className="sera-btn sera-btn--danger" style={{ flex:1,gap:6 }}>
+                  <XCircle size={14}/> Отменить
                 </button>
               </div>
             )}
