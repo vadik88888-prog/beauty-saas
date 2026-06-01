@@ -194,18 +194,17 @@ function HourLines() {
   )
 }
 
-// Current time indicator — synchronous: no useState/useEffect, always correct on render.
-// Inner components (DayContent) remount on parent re-render, so async setState was
-// causing the line to flash invisible. Computing inline avoids the async gap entirely.
+// Current time indicator — always shown in today's column, position clamped to grid.
+// No outside-hours guard: if salon opens at 9 and it's 8:45, line shows at top edge.
 function NowLine() {
   const now = new Date()
   const h   = now.getHours() + now.getMinutes() / 60
-  if (h < HOUR_START || h > HOUR_END) return null
-  const top = (h - HOUR_START) * SLOT_H
+  // Clamp to grid bounds so the line is always visible when isToday = true
+  const top = Math.max(0, Math.min((h - HOUR_START) * SLOT_H, GRID_H - 2))
   return (
-    <div style={{ position: 'absolute', left: 0, right: 0, top, zIndex: 20, pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>
+    <div style={{ position: 'absolute', left: 0, right: 0, top, zIndex: 30, pointerEvents: 'none', display: 'flex', alignItems: 'center' }}>
       <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--error)', flexShrink: 0, marginLeft: -4 }} />
-      <div style={{ flex: 1, height: 2, background: 'var(--error)', opacity: 0.8 }} />
+      <div style={{ flex: 1, height: 2, background: 'var(--error)', opacity: 1 }} />
     </div>
   )
 }
@@ -263,7 +262,9 @@ export default function CalendarPage() {
 
   // Right-rail: load for selectedDay
   const displayStr  = localIsoDate(selectedDay)
-  const dayAppts    = appointments.filter(a => a.starts_at.startsWith(displayStr))
+  // Use localDateOf (not startsWith) — starts_at is UTC ISO, displayStr is local date.
+  // startsWith would miss appointments whose UTC date differs from local date (UTC+ timezones).
+  const dayAppts    = appointments.filter(a => localDateOf(a.starts_at) === displayStr)
   const busyMin     = dayAppts.reduce((s,a) => s + (new Date(a.ends_at).getTime() - new Date(a.starts_at).getTime()) / 60000, 0)
   const workMin     = getWorkMin(workingHours, selectedMasterId, selectedDay)
   const loadPct     = Math.min(100, Math.round(busyMin / workMin * 100))
@@ -614,7 +615,7 @@ export default function CalendarPage() {
           {/* Load % */}
           <div style={{ background: 'var(--card)', border: '1px solid var(--card-border)', borderRadius: 14, padding: '12px 14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Загрузка дня</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-2)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Загрузка дня</span>
               <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>{loadPct}%</span>
             </div>
             <div style={{ height: 6, borderRadius: 3, background: 'var(--line)', overflow: 'hidden' }}>
@@ -633,7 +634,7 @@ export default function CalendarPage() {
                 <div>
                   <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)', margin: 0 }}>Совет от SERA</p>
                   <p style={{ fontSize: 11, color: 'var(--sage)', margin: 0 }}>
-                    {freeWinDay} свободных {pluralOkno(freeWinDay)}
+                    {freeWinDay} свободных {pluralOkno(freeWinDay)} сегодня
                   </p>
                 </div>
               </div>
@@ -655,7 +656,7 @@ export default function CalendarPage() {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', marginBottom: 2 }}>
               {['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(d => (
-                <span key={d} style={{ textAlign: 'center', fontSize: 9, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>{d}</span>
+                <span key={d} style={{ textAlign: 'center', fontSize: 9, fontWeight: 700, color: 'var(--ink-2)', textTransform: 'uppercase' }}>{d}</span>
               ))}
             </div>
             {weeks.map((week, wi) => (

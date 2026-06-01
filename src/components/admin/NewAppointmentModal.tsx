@@ -75,7 +75,7 @@ const INPUT: React.CSSProperties = {
 }
 
 const LABEL: React.CSSProperties = {
-  fontSize: 11, fontWeight: 700, color: 'var(--muted)',
+  fontSize: 11, fontWeight: 700, color: 'var(--ink-2)',
   textTransform: 'uppercase', letterSpacing: '0.06em',
   marginBottom: 5, display: 'block',
 }
