@@ -37,11 +37,11 @@ const HOURS      = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_
 const SLOT_H     = 60  // px per hour — enough height to read labels
 
 const STATUS: Record<string, { bg: string; accent: string; dot: string; label: string }> = {
-  pending:   { bg: 'var(--gold-soft)',   accent: 'var(--gold)',  dot: 'var(--gold)',  label: 'Ожидает'      },
-  confirmed: { bg: 'var(--sage-tint)',   accent: 'var(--sage)',  dot: 'var(--sage)',  label: 'Подтверждена' },
-  completed: { bg: '#f0efed',            accent: 'var(--ink-2)', dot: 'var(--ink-2)', label: 'Завершена'    },
-  no_show:   { bg: 'var(--error-soft)', accent: 'var(--error)', dot: 'var(--error)', label: 'No-show'      },
-  cancelled: { bg: 'var(--error-soft)', accent: 'var(--error)', dot: 'var(--error)', label: 'Отменена'     },
+  pending:   { bg: 'var(--gold-pearl)',  accent: 'var(--gold)',   dot: 'var(--gold)',    label: 'Ожидает'      },
+  confirmed: { bg: 'var(--sage-soft)',   accent: 'var(--sage)',   dot: 'var(--sage)',    label: 'Подтверждена' },
+  completed: { bg: 'var(--line)',        accent: 'var(--muted)',  dot: 'var(--muted-2)', label: 'Завершена'    },
+  no_show:   { bg: 'var(--rose)',        accent: 'var(--error)',  dot: 'var(--error)',   label: 'No-show'      },
+  cancelled: { bg: 'var(--rose)',        accent: 'var(--error)',  dot: 'var(--error)',   label: 'Отменена'     },
 }
 
 const DAYS_RU   = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб']
@@ -130,6 +130,38 @@ function calendarMonth(year: number, month: number): (number|null)[][] {
   const weeks: (number|null)[][] = []
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))
   return weeks
+}
+
+// ── Master avatar ─────────────────────────────────────────────────────────────
+
+const MASTER_PALETTE = [
+  { bg: 'var(--sage-soft)',  text: 'var(--sage-deep)'  },
+  { bg: 'var(--gold-pearl)', text: '#7A5A1E'            },
+  { bg: 'var(--info-soft)',  text: 'var(--info)'        },
+  { bg: 'var(--rose)',       text: '#8A3A3A'            },
+  { bg: 'var(--lilac)',      text: '#5A4A7A'            },
+  { bg: 'var(--peach)',      text: '#6B3A1E'            },
+]
+
+function masterColor(id: string): { bg: string; text: string } {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xfffffff
+  return MASTER_PALETTE[h % MASTER_PALETTE.length]
+}
+
+function MasterAvatar({ name, id, size = 16 }: { name: string; id: string; size?: number }) {
+  const col = masterColor(id)
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%',
+      background: col.bg, color: col.text,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: Math.round(size * 0.5), fontWeight: 700, flexShrink: 0,
+      lineHeight: 1,
+    }}>
+      {name.charAt(0).toUpperCase()}
+    </div>
+  )
 }
 
 // ── Grid primitives ───────────────────────────────────────────────────────────
@@ -293,44 +325,49 @@ export default function CalendarPage() {
     const st   = STATUS[appt.status] ?? STATUS.pending
     const name = [appt.client?.first_name, appt.client?.last_name].filter(Boolean).join(' ') || 'Клиент'
     const { top, height } = apptPos(appt)
+    const isAi = appt.source === 'ai'
+
     return (
       <div
         onClick={e => { e.stopPropagation(); setSelectedAppt(appt) }}
-        onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(0.95)')}
+        onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(0.94)')}
         onMouseLeave={e => (e.currentTarget.style.filter = '')}
         style={{
           position: 'absolute', left: 3, right: 3, top, height,
           background: st.bg,
           borderLeft: `3px solid ${st.accent}`,
           borderRadius: '0 7px 7px 0',
-          padding: compact ? '3px 5px' : '5px 8px',
+          padding: compact ? '2px 5px' : '4px 7px',
           overflow: 'hidden', cursor: 'pointer',
-          boxSizing: 'border-box', transition: 'filter 0.1s',
-          boxShadow: '0 1px 4px rgba(27,42,34,0.06)',
+          boxSizing: 'border-box', transition: 'filter 0.15s',
+          boxShadow: 'var(--shadow-sm)',
+          display: 'flex', flexDirection: 'column',
         }}
       >
-        {/* Time range */}
-        <p style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--muted)', lineHeight: 1, marginBottom: 2 }}>
+        {/* Time */}
+        <p style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: st.accent, lineHeight: 1, fontWeight: 600, margin: '0 0 1px' }}>
           {fmtTime(appt.starts_at)}–{fmtTime(appt.ends_at)}
         </p>
         {/* Client name */}
-        <p style={{ fontSize: compact ? 10 : 12, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 1 }}>
-          {name}
+        <p style={{ fontSize: compact ? 10 : 11, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0, display: 'flex', alignItems: 'center', gap: 3 }}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+          {isAi && <Sparkles size={8} style={{ color: 'var(--gold)', flexShrink: 0 }} />}
         </p>
-        {/* Service */}
-        {height > 48 && appt.service && (
-          <p style={{ fontSize: 10, color: 'var(--ink-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 2 }}>
+        {/* Service — pushes master to bottom */}
+        {height > 44 && appt.service && (
+          <p style={{ fontSize: 9, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: '1px 0 0', flex: 1 }}>
             {appt.service.name}
           </p>
         )}
-        {/* Master */}
-        {height > 70 && appt.master && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <div style={{ width: 15, height: 15, borderRadius: '50%', background: 'var(--sage-tint)', color: 'var(--sage)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, flexShrink: 0 }}>
-              {appt.master.name.charAt(0)}
-            </div>
-            <span style={{ fontSize: 10, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{appt.master.name}</span>
-            {appt.source === 'ai' && <Sparkles size={9} style={{ color: 'var(--gold)', flexShrink: 0 }} />}
+        {/* Spacer when no service shown */}
+        {height <= 44 && <div style={{ flex: 1 }} />}
+        {/* Master — always at bottom when room allows */}
+        {height > 58 && appt.master && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginTop: 2, flexShrink: 0 }}>
+            <MasterAvatar name={appt.master.name} id={appt.master.id} size={compact ? 12 : 14} />
+            <span style={{ fontSize: 9, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+              {appt.master.name}
+            </span>
           </div>
         )}
       </div>
@@ -340,33 +377,47 @@ export default function CalendarPage() {
   // ── Free slot card ──
   function FreeSlotCard({ startH, endH, compact = false, day }: { startH: number; endH: number; compact?: boolean; day: Date }) {
     const top    = (startH - HOUR_START) * SLOT_H
-    const height = Math.max((endH - startH) * SLOT_H - 4, 24)
+    const height = Math.max((endH - startH) * SLOT_H - 2, 20)
     const label  = `${fmtHM(startH)}–${fmtHM(endH)}`
     return (
       <div
         onClick={e => { e.stopPropagation(); openNewAppt({ date: day, time: fmtHM(startH), masterId: selectedMasterId ?? undefined }) }}
-        onMouseEnter={e => (e.currentTarget.style.opacity = '0.8')}
-        onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+        onMouseEnter={e => {
+          const el = e.currentTarget as HTMLElement
+          el.style.background = 'var(--sage-soft)'
+          el.style.borderColor = 'var(--sage-glow)'
+        }}
+        onMouseLeave={e => {
+          const el = e.currentTarget as HTMLElement
+          el.style.background = 'var(--sage-tint)'
+          el.style.borderColor = 'var(--sage-soft)'
+        }}
         style={{
           position: 'absolute', left: 3, right: 3, top, height,
           background: 'var(--sage-tint)',
           border: '1.5px dashed var(--sage-soft)',
           borderRadius: 7,
-          padding: compact ? '3px 5px' : '5px 8px',
+          padding: compact ? '2px 5px' : '6px 9px',
           overflow: 'hidden', cursor: 'pointer',
-          boxSizing: 'border-box', transition: 'opacity 0.15s',
+          boxSizing: 'border-box', transition: 'background 0.15s, border-color 0.15s',
           display: 'flex', flexDirection: 'column', justifyContent: 'center',
         }}
       >
         {compact ? (
-          <p style={{ fontSize: 9, color: 'var(--sage)', fontWeight: 600, lineHeight: 1 }}>Свободно</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+            <Plus size={8} style={{ color: 'var(--sage)', flexShrink: 0 }} />
+            <p style={{ fontSize: 8, color: 'var(--sage)', fontWeight: 600, lineHeight: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>{label}</p>
+          </div>
         ) : (
           <>
-            <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--sage)', lineHeight: 1.2, marginBottom: 1 }}>
-              Свободное окно · {label}
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
+              <Plus size={10} style={{ color: 'var(--sage)', flexShrink: 0 }} />
+              <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--sage)', lineHeight: 1.2, margin: 0 }}>
+                {label}
+              </p>
+            </div>
             {height > 44 && (
-              <p style={{ fontSize: 10, color: 'var(--sage-2)', lineHeight: 1.3 }}>Заполнить через SERA</p>
+              <p style={{ fontSize: 9, color: 'var(--sage-2)', lineHeight: 1.3, margin: 0 }}>Заполнить через SERA</p>
             )}
           </>
         )}
@@ -376,7 +427,7 @@ export default function CalendarPage() {
 
   // ── Day column content (lines + appointments + free slots + now line) ──
   function DayContent({ day, appts, compact = false }: { day: Date; appts: Appointment[]; compact?: boolean }) {
-    const isToday = isoDate(day) === todayStr
+    const isToday = localIsoDate(day) === todayStr
     const freeSlots = getFreeSlots(appts)
 
     function handleGridClick(e: React.MouseEvent<HTMLDivElement>) {
@@ -476,9 +527,9 @@ export default function CalendarPage() {
 
         {/* Nav */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <button onClick={prev} className="sera-btn-icon" aria-label="Назад"><ChevronLeft size={15} /></button>
+          <button onClick={prev} className="sera-btn-icon" aria-label="Назад" style={{ color: 'var(--ink-2)', borderColor: 'var(--line)' }}><ChevronLeft size={15} /></button>
           <button onClick={goToday} className="sera-btn sera-btn--secondary sera-btn--sm">Сегодня</button>
-          <button onClick={next} className="sera-btn-icon" aria-label="Вперёд"><ChevronRight size={15} /></button>
+          <button onClick={next} className="sera-btn-icon" aria-label="Вперёд" style={{ color: 'var(--ink-2)', borderColor: 'var(--line)' }}><ChevronRight size={15} /></button>
           <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-2)', marginLeft: 4, whiteSpace: 'nowrap' }}>{rangeLabel}</span>
         </div>
 
@@ -604,7 +655,7 @@ export default function CalendarPage() {
                 Есть свободное время — хороший момент запустить акцию и заполнить расписание.
               </p>
               <button onClick={() => toast.info('Функция в разработке')} className="sera-btn sera-btn--secondary sera-btn--sm" style={{ width: '100%' }}>
-                Предложить добор
+                Заполнить окна
               </button>
             </div>
           )}
@@ -612,9 +663,9 @@ export default function CalendarPage() {
           {/* Mini calendar */}
           <div style={{ background: 'var(--card)', border: '1px solid var(--card-border)', borderRadius: 14, padding: '12px 14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <button onClick={() => { if (miniMonth===0){setMiniMonth(11);setMiniYear(y=>y-1)}else setMiniMonth(m=>m-1) }} className="sera-btn-icon" style={{ width:24,height:24 }}><ChevronLeft size={12}/></button>
+              <button onClick={() => { if (miniMonth===0){setMiniMonth(11);setMiniYear(y=>y-1)}else setMiniMonth(m=>m-1) }} className="sera-btn-icon" style={{ width:24,height:24, color:'var(--ink-2)', borderColor:'var(--line)' }}><ChevronLeft size={12}/></button>
               <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)' }}>{MONTHS_RU[miniMonth]} {miniYear}</span>
-              <button onClick={() => { if (miniMonth===11){setMiniMonth(0);setMiniYear(y=>y+1)}else setMiniMonth(m=>m+1) }} className="sera-btn-icon" style={{ width:24,height:24 }}><ChevronRight size={12}/></button>
+              <button onClick={() => { if (miniMonth===11){setMiniMonth(0);setMiniYear(y=>y+1)}else setMiniMonth(m=>m+1) }} className="sera-btn-icon" style={{ width:24,height:24, color:'var(--ink-2)', borderColor:'var(--line)' }}><ChevronRight size={12}/></button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', marginBottom: 2 }}>
               {['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(d => (
