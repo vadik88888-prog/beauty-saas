@@ -66,6 +66,14 @@ export function localIsoDate(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
+// Single source of truth for "today" in client components.
+// Always returns local date — call this, not new Date().toISOString().slice(0,10).
+// NOTE: on a UTC server (Vercel) this returns the server's UTC date, NOT the user's
+// local date. Use only in 'use client' components or browser-side code.
+export function getToday(): string {
+  return localIsoDate(new Date())
+}
+
 export function formatDuration(minutes: number): string {
   if (minutes < 60) return `${minutes} мин`
   const h = Math.floor(minutes / 60)
