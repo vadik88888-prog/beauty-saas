@@ -406,7 +406,7 @@ export default async function DashboardPage({
             <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               КЛИЕНТЫ, КОТОРЫМ НУЖНО ВНИМАНИЕ
             </span>
-            <Link href="/clients" style={{ fontSize: 12, color: C.sage, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 2, whiteSpace: 'nowrap' }}>
+            <Link href="/clients?filter=attention" style={{ fontSize: 12, color: C.sage, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 2, whiteSpace: 'nowrap' }}>
               Смотреть все <ChevronRight size={12} />
             </Link>
           </div>
@@ -424,7 +424,10 @@ export default async function DashboardPage({
             <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               СЛЕДУЮЩАЯ ЗАПИСЬ
             </span>
-            <Link href="/calendar" style={{ fontSize: 12, color: C.sage, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 2, whiteSpace: 'nowrap' }}>
+            <Link
+              href={nextAppt ? `/calendar?date=${localIsoDate(new Date(nextAppt.starts_at))}&appointment=${nextAppt.id}` : '/calendar'}
+              style={{ fontSize: 12, color: C.sage, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 2, whiteSpace: 'nowrap' }}
+            >
               Открыть календарь <ChevronRight size={12} />
             </Link>
           </div>
@@ -521,7 +524,7 @@ export default async function DashboardPage({
                   return (
                     <Link
                       key={appt.id}
-                      href="/calendar"
+                      href={`/calendar?date=${localIsoDate(new Date(appt.starts_at))}&appointment=${appt.id}`}
                       className="hover:bg-black/[0.025] transition-colors"
                       style={{
                         display: 'flex', alignItems: 'center', gap: 10, padding: '9px 16px',
@@ -572,7 +575,7 @@ export default async function DashboardPage({
             <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               РЕКОМЕНДАЦИИ SERA
             </span>
-            <Link href="/analytics" style={{ fontSize: 12, color: C.sage, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 2, whiteSpace: 'nowrap' }}>
+            <Link href="/recommendations" style={{ fontSize: 12, color: C.sage, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 2, whiteSpace: 'nowrap' }}>
               Все <ChevronRight size={12} />
             </Link>
           </div>
