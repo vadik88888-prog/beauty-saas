@@ -76,11 +76,20 @@ function fmtHHMM(iso: string): string {
 }
 
 function fmtApptLabel(iso: string): string {
-  const d = new Date(iso), t = new Date(), tm = new Date(Date.now() + 86400000)
+  // Compare YYYY-MM-DD in UTC — single source of "today", no timezone drift
+  const apptDay = iso.slice(0, 10)
+  const todayUTC = new Date().toISOString().slice(0, 10)
+  const base = new Date(todayUTC + 'T00:00:00Z')
+  const tmrw = new Date(base.getTime() + 86400000).toISOString().slice(0, 10)
+  const d2   = new Date(base.getTime() + 2 * 86400000).toISOString().slice(0, 10)
+
+  if (apptDay === todayUTC) return 'Сегодня'
+  if (apptDay === tmrw)     return 'Завтра'
+  if (apptDay === d2)       return 'Послезавтра'
+
   const m = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек']
-  if (d.toDateString() === t.toDateString())  return 'Сегодня'
-  if (d.toDateString() === tm.toDateString()) return 'Завтра'
-  return `${d.getDate()} ${m[d.getMonth()]}`
+  const d = new Date(iso)
+  return `${d.getUTCDate()} ${m[d.getUTCMonth()]}`
 }
 
 function timeUntil(iso: string): { label: string; urgent: boolean } {
@@ -90,7 +99,7 @@ function timeUntil(iso: string): { label: string; urgent: boolean } {
   if (mins < 60) return { label: `Через ${mins} мин`, urgent: mins < 30 }
   const h = Math.floor(mins / 60)
   if (h < 24) return { label: `Через ${h} ч`, urgent: false }
-  return { label: 'Завтра', urgent: false }
+  return { label: fmtApptLabel(iso), urgent: false }
 }
 
 function fmtFullDate(): string {
@@ -358,7 +367,7 @@ export default async function DashboardPage({
                   ? <Delta trend={kpi.trend} />
                   : kpi.alert
                   ? <span style={{ fontSize: 11, color: C.muted }}>клиентов</span>
-                  : <span style={{ fontSize: 11, color: C.muted }}>постоянные</span>
+                  : null
                 }
               </Link>
             ))}

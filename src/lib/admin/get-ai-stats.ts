@@ -153,7 +153,7 @@ export async function getAiStats(tenantId: string, dateStr?: string): Promise<Ai
   const bizAppts   = (todayAppts ?? []) as BizAppt[]
   const appointmentsToday = bizAppts.length
   const noShowsToday      = bizAppts.filter(a => a.status === 'no_show').length
-  const revenueAppts      = bizAppts.filter(a => ['confirmed', 'completed'].includes(a.status))
+  const revenueAppts      = bizAppts.filter(a => a.status === 'completed')
   const revenueToday      = revenueAppts.reduce((s, a) => s + (a.price ?? 0), 0)
   const avgTicket         = revenueAppts.length > 0 ? Math.round(revenueToday / revenueAppts.length) : 0
 
