@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import {
-  ChevronLeft, ChevronRight, Calendar, X, Phone, MessageCircle,
-  CheckCircle, XCircle, Sparkles, UserPlus, Bell, MoreHorizontal,
+  ChevronLeft, ChevronRight, Calendar, X, Phone,
+  MessageCircle, CheckCircle, XCircle, Sparkles, Plus,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { AiBadge } from '@/components/shared/AiBadge'
-import { cn } from '@/lib/utils'
-import Link from 'next/link'
+import { SeraOrb } from '@/components/sera'
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type Appointment = {
   id: string
@@ -18,606 +19,723 @@ type Appointment = {
   price: number | null
   notes: string | null
   source: string | null
-  client: {
-    first_name: string | null
-    last_name: string | null
-    phone: string | null
-    telegram_id: number | null
-    telegram_username: string | null
-  } | null
+  client: { first_name: string | null; last_name: string | null; phone: string | null; telegram_username: string | null } | null
   master: { id: string; name: string } | null
-  service: { name: string; duration_min: number } | null
+  service: { name: string; duration_min: number; category_id?: string | null } | null
+}
+type Master        = { id: string; name: string }
+type Category      = { id: string; name: string; icon: string | null; sort_order: number }
+type WorkingHour   = { master_id: string; day_of_week: number; start_time: string; end_time: string; is_working: boolean }
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const HOUR_START = 9
+const HOUR_END   = 21
+const HOURS      = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i)
+const SLOT_H     = 56  // px per hour
+
+const STATUS: Record<string, { bg: string; accent: string; dot: string; label: string }> = {
+  pending:   { bg: 'var(--gold-soft)',    accent: 'var(--gold)',    dot: 'var(--gold)',    label: 'Ожидает'       },
+  confirmed: { bg: 'var(--sage-tint)',    accent: 'var(--sage)',    dot: 'var(--sage)',    label: 'Подтверждена'  },
+  completed: { bg: 'var(--card-sunken)', accent: 'var(--muted-2)', dot: 'var(--muted-2)', label: 'Завершена'     },
+  no_show:   { bg: 'var(--error-soft)',  accent: 'var(--error)',   dot: 'var(--error)',   label: 'No-show'       },
+  cancelled: { bg: 'var(--error-soft)',  accent: 'var(--error)',   dot: 'var(--error)',   label: 'Отменена'      },
 }
 
-type Master = { id: string; name: string }
+const DAYS_RU = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб']
+const MONTHS_RU = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь']
+const MONTHS_GEN = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря']
 
-const HOUR_START = 8
-const HOUR_END = 21
-const HOURS = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i)
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-const STATUS_CARD: Record<string, string> = {
-  pending:   'bg-[#fef4ed] border-l-[#c47a4f]',
-  confirmed: 'bg-[#eef4ec] border-l-[#5e7d5d]',
-  completed: 'bg-[#f5f3ef] border-l-[#9b9b8e]',
-  no_show:   'bg-[#fef2f2] border-l-[#e05252]',
-  cancelled: 'bg-[#f8f6f4] border-l-[#c5c0b8] opacity-60',
+function getMonday(d: Date): Date {
+  const r = new Date(d)
+  const day = r.getDay()
+  r.setDate(r.getDate() - day + (day === 0 ? -6 : 1))
+  r.setHours(0, 0, 0, 0)
+  return r
 }
 
-const STATUS_DOT: Record<string, string> = {
-  pending:   'bg-[#c47a4f]',
-  confirmed: 'bg-[#5e7d5d]',
-  completed: 'bg-[#9b9b8e]',
-  no_show:   'bg-[#e05252]',
-  cancelled: 'bg-[#c5c0b8]',
+function addDays(d: Date, n: number): Date {
+  const r = new Date(d); r.setDate(r.getDate() + n); return r
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  pending:   'Ожидает',
-  confirmed: 'Подтверждена',
-  completed: 'Завершена',
-  no_show:   'No-show',
-  cancelled: 'Отменена',
-}
-
-const ZONES = [
-  { id: 'all',  label: 'Все залы' },
-  { id: 'mani', label: 'Маникюрный зал' },
-  { id: 'cosm', label: 'Косметология' },
-  { id: 'hair', label: 'Парикмахерский зал' },
-]
-const ZONE_KEYWORDS: Record<string, string> = { mani: 'маникюр', cosm: 'косметолог', hair: 'парикмахер' }
-
-function getMonday(date: Date): Date {
-  const d = new Date(date)
-  const day = d.getDay()
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1)
-  d.setDate(diff)
-  d.setHours(0, 0, 0, 0)
-  return d
-}
-
-function addDays(date: Date, days: number): Date {
-  const d = new Date(date)
-  d.setDate(d.getDate() + days)
-  return d
-}
-
-function isoDate(date: Date): string {
-  return date.toISOString().slice(0, 10)
-}
+function isoDate(d: Date): string { return d.toISOString().slice(0, 10) }
 
 function fmtTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
 }
 
-function pl(n: number, f: [string, string, string]): string {
-  const abs = Math.abs(n) % 100, last = abs % 10
-  if (abs > 10 && abs < 20) return f[2]
-  if (last > 1 && last < 5) return f[1]
-  if (last === 1) return f[0]
-  return f[2]
+function fmtDateLabel(d: Date): string {
+  return `${d.getDate()} ${MONTHS_GEN[d.getMonth()]}`
 }
 
-export default function CalendarPage() {
-  const [weekStart, setWeekStart]           = useState<Date>(() => getMonday(new Date()))
-  const [selectedDay, setSelectedDay]       = useState<Date>(() => new Date())
-  const [appointments, setAppointments]     = useState<Appointment[]>([])
-  const [masters, setMasters]               = useState<Master[]>([])
-  const [selectedMasterId, setSelectedMasterId] = useState<string | null>(null)
-  const [isLoading, setIsLoading]           = useState(true)
-  const [isMobile, setIsMobile]             = useState(false)
-  const [selectedAppt, setSelectedAppt]     = useState<Appointment | null>(null)
-  const [selectedZone, setSelectedZone]     = useState('all')
+function timeToMin(t: string): number {
+  const [h, m] = t.split(':').map(Number)
+  return h * 60 + m
+}
 
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768)
-    check()
-    window.addEventListener('resize', check)
-    return () => window.removeEventListener('resize', check)
-  }, [])
+function getWorkMin(wh: WorkingHour[], masterId: string | null, d: Date): number {
+  const dow = d.getDay()
+  const rows = masterId
+    ? wh.filter(w => w.master_id === masterId && w.day_of_week === dow && w.is_working)
+    : wh.filter(w => w.day_of_week === dow && w.is_working)
+  if (rows.length === 0) return 9 * 60  // fallback 9h
+  return rows.reduce((s, w) => s + timeToMin(w.end_time) - timeToMin(w.start_time), 0)
+}
+
+// Apt position in the time grid
+function apptStyle(a: Appointment): { top: number; height: number } {
+  const s = new Date(a.starts_at), e = new Date(a.ends_at)
+  const sh = s.getHours() + s.getMinutes() / 60
+  const eh = e.getHours() + e.getMinutes() / 60
+  return { top: (sh - HOUR_START) * SLOT_H, height: Math.max((eh - sh) * SLOT_H, 28) }
+}
+
+// Mini-calendar helpers
+function calendarMonth(year: number, month: number): (number | null)[][] {
+  const first = new Date(year, month, 1)
+  let dow = first.getDay() - 1   // Mon=0
+  if (dow < 0) dow = 6
+  const days = new Date(year, month + 1, 0).getDate()
+  const cells: (number | null)[] = [...Array(dow).fill(null)]
+  for (let i = 1; i <= days; i++) cells.push(i)
+  while (cells.length % 7 !== 0) cells.push(null)
+  const weeks: (number | null)[][] = []
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))
+  return weeks
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
+export default function CalendarPage() {
+  const [view, setView]         = useState<'day' | 'week'>('day')
+  const [selectedDay, setSelectedDay] = useState<Date>(() => new Date())
+  const [weekStart, setWeekStart]     = useState<Date>(() => getMonday(new Date()))
+  const [appointments, setAppointments] = useState<Appointment[]>([])
+  const [masters, setMasters]     = useState<Master[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [workingHours, setWorkingHours] = useState<WorkingHour[]>([])
+  const [selectedMasterId, setSelectedMasterId] = useState<string | null>(null)
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null)
+  const [miniYear, setMiniYear]   = useState(() => new Date().getFullYear())
+  const [miniMonth, setMiniMonth] = useState(() => new Date().getMonth())
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
 
-  const from = isMobile ? `${isoDate(selectedDay)}T00:00:00Z` : `${isoDate(weekStart)}T00:00:00Z`
-  const to   = isMobile ? `${isoDate(selectedDay)}T23:59:59Z` : `${isoDate(addDays(weekStart, 6))}T23:59:59Z`
+  const from = view === 'day'
+    ? `${isoDate(selectedDay)}T00:00:00Z`
+    : `${isoDate(weekStart)}T00:00:00Z`
+  const to = view === 'day'
+    ? `${isoDate(selectedDay)}T23:59:59Z`
+    : `${isoDate(addDays(weekStart, 6))}T23:59:59Z`
 
   const load = useCallback(async () => {
     setIsLoading(true)
     const res = await fetch(`/api/admin/calendar?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
-    const { appointments: appts, masters: ms } = await res.json()
-    setAppointments(appts ?? [])
-    setMasters(ms ?? [])
-    if (!selectedMasterId && ms?.length > 0) setSelectedMasterId(ms[0].id)
+    const json = await res.json()
+    setAppointments(json.appointments ?? [])
+    setMasters(json.masters ?? [])
+    setCategories(json.categories ?? [])
+    setWorkingHours(json.working_hours ?? [])
     setIsLoading(false)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [from, to])
 
   useEffect(() => { load() }, [load])
 
-  const filteredAppts = selectedMasterId
-    ? appointments.filter(a => a.master?.id === selectedMasterId)
-    : appointments
+  // Filtered appointments
+  const filtered = appointments
+    .filter(a => selectedMasterId     ? a.master?.id         === selectedMasterId     : true)
+    .filter(a => selectedCategoryId   ? a.service?.category_id === selectedCategoryId : true)
 
-  const displayAppts = selectedZone === 'all'
-    ? filteredAppts
-    : filteredAppts.filter(a => a.service?.name?.toLowerCase().includes(ZONE_KEYWORDS[selectedZone] ?? ''))
-
-  const apptsByDay: Record<string, Appointment[]> = {}
-  for (const a of displayAppts) {
-    const day = a.starts_at.slice(0, 10)
-    if (!apptsByDay[day]) apptsByDay[day] = []
-    apptsByDay[day].push(a)
+  const byDay: Record<string, Appointment[]> = {}
+  for (const a of filtered) {
+    const k = a.starts_at.slice(0, 10)
+    if (!byDay[k]) byDay[k] = []
+    byDay[k].push(a)
   }
 
-  // Right panel stats (today)
-  const todayStr   = isoDate(new Date())
-  const todayAppts = appointments.filter(a => a.starts_at.startsWith(todayStr))
-  const busyMin    = todayAppts.reduce((acc, a) =>
-    acc + (new Date(a.ends_at).getTime() - new Date(a.starts_at).getTime()) / 60000, 0)
-  const workDayMin = 10 * 60
-  const loadPct    = Math.min(100, Math.round((busyMin / workDayMin) * 100))
-  const busyH      = Math.floor(busyMin / 60)
-  const busyM      = Math.round(busyMin % 60)
-  const freeWin    = Math.max(0, Math.floor((workDayMin - busyMin) / 60))
+  // Right-rail stats for selectedDay
+  const displayStr = isoDate(selectedDay)
+  const dayAppts   = appointments.filter(a => a.starts_at.startsWith(displayStr))
+  const busyMin    = dayAppts.reduce((s, a) =>
+    s + (new Date(a.ends_at).getTime() - new Date(a.starts_at).getTime()) / 60000, 0)
+  const workMin    = getWorkMin(workingHours, selectedMasterId, selectedDay)
+  const loadPct    = Math.min(100, Math.round(busyMin / workMin * 100))
+  const freeH      = Math.max(0, Math.floor((workMin - busyMin) / 60))
+  const freeMin2   = Math.max(0, Math.round((workMin - busyMin) % 60))
 
-  const nowIso = new Date().toISOString()
-  const upcomingToday = [...todayAppts]
-    .filter(a => a.starts_at > nowIso && a.status !== 'cancelled')
-    .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
-    .slice(0, 4)
-
-  function getApptStyle(appt: Appointment) {
-    const start  = new Date(appt.starts_at)
-    const end    = new Date(appt.ends_at)
-    const startH = start.getHours() + start.getMinutes() / 60
-    const endH   = end.getHours() + end.getMinutes() / 60
-    return { top: (startH - HOUR_START) * 60, height: Math.max((endH - startH) * 60, 30) }
-  }
-
-  async function handleApptAction(apptId: string, status: 'confirmed' | 'cancelled' | 'completed') {
-    const res = await fetch(`/api/admin/appointments/${apptId}`, {
+  // PATCH appointment status
+  async function handleAction(id: string, status: 'confirmed' | 'cancelled' | 'completed') {
+    const res = await fetch(`/api/admin/appointments/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
     })
     if (res.ok) {
-      setAppointments(prev => prev.map(a => a.id === apptId ? { ...a, status } : a))
-      setSelectedAppt(prev => prev?.id === apptId ? { ...prev, status } : prev)
-      toast.success(status === 'confirmed' ? 'Запись подтверждена' : status === 'completed' ? 'Запись завершена' : 'Запись отменена')
+      setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a))
+      setSelectedAppt(prev => prev?.id === id ? { ...prev, status } : prev)
+      const msg = status === 'confirmed' ? 'Подтверждена' : status === 'completed' ? 'Завершена' : 'Отменена'
+      toast.success(`Запись ${msg.toLowerCase()}`)
     } else {
       toast.error('Ошибка обновления')
     }
   }
 
-  function DayColumn({ day }: { day: Date }) {
-    const dateStr = isoDate(day)
-    const dayAppts = apptsByDay[dateStr] ?? []
-    const isToday  = isoDate(new Date()) === dateStr
+  // Navigate
+  function prev() {
+    if (view === 'day') setSelectedDay(d => addDays(d, -1))
+    else setWeekStart(d => addDays(d, -7))
+  }
+  function next() {
+    if (view === 'day') setSelectedDay(d => addDays(d, 1))
+    else setWeekStart(d => addDays(d, 7))
+  }
+  function goToday() {
+    const t = new Date()
+    setSelectedDay(t)
+    setWeekStart(getMonday(t))
+  }
+  function goToDay(year: number, month: number, day: number) {
+    const d = new Date(year, month, day)
+    setSelectedDay(d)
+    setWeekStart(getMonday(d))
+    setView('day')
+  }
+
+  // Date range label
+  const rangeLabel = view === 'day'
+    ? `${selectedDay.getDate()} ${MONTHS_GEN[selectedDay.getMonth()]} ${selectedDay.getFullYear()}`
+    : `${fmtDateLabel(weekDays[0])} – ${fmtDateLabel(weekDays[6])}`
+
+  const todayStr = isoDate(new Date())
+
+  // ── Appointment card in grid ──
+  function ApptCard({ appt, compact = false }: { appt: Appointment; compact?: boolean }) {
+    const st    = STATUS[appt.status] ?? STATUS.pending
+    const name  = [appt.client?.first_name, appt.client?.last_name].filter(Boolean).join(' ') || 'Клиент'
+    const { top, height } = apptStyle(appt)
     return (
-      <div className={cn('flex-1 min-w-0 border-r border-line last:border-r-0', isToday && 'bg-[#eef4ec]/25')}>
-        <div className={cn('h-10 border-b border-line flex items-center justify-center gap-1', isToday && 'bg-[#eef4ec]/40')}>
-          <span className={cn('text-[0.625rem] font-semibold uppercase tracking-wider', isToday ? 'text-[#5e7d5d]' : 'text-[#7b7d72]')}>
-            {day.toLocaleDateString('ru-RU', { weekday: 'short' })}
-          </span>
-          <span className={cn('text-sm font-bold', isToday ? 'text-[#5e7d5d]' : 'text-[#1b2a22]')}>
-            {day.getDate()} {day.toLocaleDateString('ru-RU', { month: 'short' })}
-          </span>
+      <div
+        onClick={() => setSelectedAppt(appt)}
+        style={{
+          position: 'absolute',
+          left: 2, right: 2,
+          top, height,
+          background: st.bg,
+          borderLeft: `3px solid ${st.accent}`,
+          borderRadius: '0 6px 6px 0',
+          padding: compact ? '2px 5px' : '4px 7px',
+          overflow: 'hidden',
+          cursor: 'pointer',
+          boxSizing: 'border-box',
+          transition: 'filter 0.1s',
+        }}
+        onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(0.96)')}
+        onMouseLeave={e => (e.currentTarget.style.filter = '')}
+      >
+        <p style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--muted)', lineHeight: 1, marginBottom: 2, tabularNums: true } as React.CSSProperties}>
+          {fmtTime(appt.starts_at)}–{fmtTime(appt.ends_at)}
+        </p>
+        <p style={{ fontSize: compact ? 10 : 11, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {name}
+        </p>
+        {height > 44 && appt.service && (
+          <p style={{ fontSize: 10, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
+            {appt.service.name}
+          </p>
+        )}
+        {height > 64 && appt.master && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3 }}>
+            <div style={{ width: 14, height: 14, borderRadius: '50%', background: 'var(--sage-tint)', color: 'var(--sage)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, flexShrink: 0 }}>
+              {appt.master.name.charAt(0)}
+            </div>
+            <span style={{ fontSize: 9, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{appt.master.name}</span>
+            {appt.source === 'ai' && <Sparkles size={9} style={{ color: 'var(--gold)', flexShrink: 0 }} />}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ── Time axis + content column ──
+  function TimeGrid({ day, dayAppts, compact }: { day: Date; dayAppts: Appointment[]; compact?: boolean }) {
+    return (
+      <div style={{ position: 'relative', height: HOURS.length * SLOT_H }}>
+        {HOURS.map(h => (
+          <div key={h} style={{ position: 'absolute', width: '100%', top: (h - HOUR_START) * SLOT_H, borderTop: '1px solid var(--line-soft)', pointerEvents: 'none' }}>
+            {!compact && <span style={{ position: 'absolute', left: -38, fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--font-mono)', lineHeight: 1, top: -6 }}>{String(h).padStart(2,'0')}:00</span>}
+          </div>
+        ))}
+        {dayAppts.map(a => <ApptCard key={a.id} appt={a} compact={compact} />)}
+      </div>
+    )
+  }
+
+  // ── Day view ──
+  function DayView() {
+    const dayStr   = isoDate(selectedDay)
+    const dayAppts = byDay[dayStr] ?? []
+    return (
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        {/* Time labels */}
+        <div style={{ width: 48, flexShrink: 0, paddingTop: 8 }}>
+          <TimeGrid day={selectedDay} dayAppts={[]} />
         </div>
-        <div className="relative" style={{ height: `${HOURS.length * 60}px` }}>
-          {HOURS.map(h => (
-            <div key={h} className="absolute w-full border-b border-[#e3dccb]/50" style={{ top: (h - HOUR_START) * 60 }} />
-          ))}
-          {dayAppts.map(appt => {
-            const { top, height } = getApptStyle(appt)
-            const cardCls = STATUS_CARD[appt.status] ?? STATUS_CARD.pending
-            const clientName = [appt.client?.first_name, appt.client?.last_name].filter(Boolean).join(' ') || 'Клиент'
-            const isAi = appt.source === 'ai'
-            return (
-              <div
-                key={appt.id}
-                className={cn('absolute left-0.5 right-0.5 rounded-r-lg border-l-4 px-1.5 py-1 overflow-hidden cursor-pointer hover:brightness-95 transition-all select-none', cardCls)}
-                style={{ top, height }}
-                onClick={() => setSelectedAppt(appt)}
-              >
-                <p className="text-[0.5625rem] font-mono text-[#7b7d72] leading-none mb-0.5 tabular-nums">
-                  {fmtTime(appt.starts_at)} – {fmtTime(appt.ends_at)}
-                </p>
-                <p className="text-xs font-bold text-[#1b2a22] leading-tight truncate">{clientName}</p>
-                {height > 52 && appt.service && (
-                  <p className="text-[0.5625rem] text-[#7b7d72] leading-tight truncate mt-0.5">{appt.service.name}</p>
-                )}
-                {height > 76 && appt.master && (
-                  <div className="flex items-center gap-1 mt-1">
-                    <div className="w-4 h-4 rounded-full bg-[#c9d8c5] flex items-center justify-center text-[0.5rem] font-bold text-[#5e7d5d] shrink-0">
-                      {appt.master.name.charAt(0)}
-                    </div>
-                    <span className="text-[0.5rem] text-[#7b7d72] truncate flex-1">{appt.master.name}</span>
-                    {isAi && <Sparkles className="w-2.5 h-2.5 text-[#e6a83a] shrink-0 ml-auto" strokeWidth={2.2} />}
-                  </div>
-                )}
-              </div>
-            )
-          })}
+        {/* Column */}
+        <div style={{ flex: 1, paddingTop: 8, paddingLeft: 4, minWidth: 0 }}>
+          <TimeGrid day={selectedDay} dayAppts={dayAppts} />
         </div>
       </div>
     )
   }
 
+  // ── Week view ──
+  function WeekView() {
+    return (
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        {/* Time labels */}
+        <div style={{ width: 44, flexShrink: 0 }}>
+          <div style={{ height: 36 }} />
+          <div style={{ paddingTop: 8 }}>
+            {HOURS.map(h => (
+              <div key={h} style={{ height: SLOT_H, display: 'flex', alignItems: 'flex-start', paddingTop: 2 }}>
+                <span style={{ fontSize: 9, color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>{String(h).padStart(2,'0')}:00</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* Day columns */}
+        {weekDays.map(day => {
+          const ds      = isoDate(day)
+          const isToday = ds === todayStr
+          const appts   = byDay[ds] ?? []
+          return (
+            <div key={ds} style={{ flex: 1, minWidth: 0, borderLeft: '1px solid var(--line-soft)' }}>
+              {/* Day header */}
+              <div
+                onClick={() => { setSelectedDay(day); setView('day') }}
+                style={{
+                  height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                  cursor: 'pointer', background: isToday ? 'var(--sage-tint)' : 'transparent',
+                  borderBottom: '1px solid var(--line)', flexShrink: 0,
+                }}
+              >
+                <span style={{ fontSize: 10, fontWeight: 700, color: isToday ? 'var(--sage)' : 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  {DAYS_RU[day.getDay()]}
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: isToday ? 'var(--sage)' : 'var(--ink)' }}>
+                  {day.getDate()}
+                </span>
+              </div>
+              <div style={{ position: 'relative', paddingTop: 8 }}>
+                <TimeGrid day={day} dayAppts={appts} compact />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  // ── Mini calendar ──
+  const weeks = calendarMonth(miniYear, miniMonth)
+  const today = new Date()
+
+  // ── Render ────────────────────────────────────────────────────────────────────
+
   return (
-    <div className="flex flex-col h-full" style={{ background: 'var(--page, #efe9dd)' }}>
+    <div
+      style={{
+        height: '100%', overflow: 'hidden', minHeight: 0,
+        display: 'flex', flexDirection: 'column',
+        background: 'var(--page)', boxSizing: 'border-box',
+      }}
+    >
 
       {/* ── Toolbar ─────────────────────────────────────────────────── */}
-      <div className="px-4 md:px-5 py-3 border-b border-[#e3dccb] bg-[#faf6ec] flex flex-col gap-2.5">
+      <div style={{
+        flexShrink: 0, padding: '10px 16px',
+        borderBottom: '1px solid var(--line)',
+        background: 'var(--page-alt)',
+        display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+      }}>
 
-        {/* Row 1: title + nav + CTAs */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <h1 className="font-serif text-xl font-bold text-[#1b2a22] flex items-center gap-1.5 shrink-0">
-            Расписание
-            <Sparkles className="w-4 h-4 text-[#e6a83a]" strokeWidth={2} />
-          </h1>
+        {/* Title */}
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, color: 'var(--ink)', margin: 0, lineHeight: 1.1, whiteSpace: 'nowrap' }}>
+          Расписание
+        </h1>
 
-          {/* Navigation */}
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => isMobile ? setSelectedDay(d => addDays(d, -1)) : setWeekStart(d => addDays(d, -7))}
-              className="w-8 h-8 rounded-xl border border-[#e3dccb] bg-[#ece5d3] hover:bg-[#e3dccb] flex items-center justify-center transition-colors"
-            >
-              <ChevronLeft className="w-4 h-4 text-[#1b2a22]" />
-            </button>
-            <button
-              onClick={() => { setWeekStart(getMonday(new Date())); setSelectedDay(new Date()) }}
-              className="px-3 h-8 rounded-xl border border-[#e3dccb] bg-[#ece5d3] hover:bg-[#e3dccb] text-xs font-semibold text-[#1b2a22] transition-colors flex items-center gap-1.5"
-            >
-              <Calendar className="w-3.5 h-3.5" /> Сегодня
-            </button>
-            <button
-              onClick={() => isMobile ? setSelectedDay(d => addDays(d, 1)) : setWeekStart(d => addDays(d, 7))}
-              className="w-8 h-8 rounded-xl border border-[#e3dccb] bg-[#ece5d3] hover:bg-[#e3dccb] flex items-center justify-center transition-colors"
-            >
-              <ChevronRight className="w-4 h-4 text-[#1b2a22]" />
-            </button>
-          </div>
-
-          {/* Date range (desktop) */}
-          <span className="hidden md:inline-flex items-center gap-1.5 text-sm font-medium text-[#2f3b32] bg-[#ece5d3] border border-[#e3dccb] rounded-xl px-3 h-8">
-            {weekDays[0].toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })} – {weekDays[6].toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
-          </span>
-          <span className="md:hidden text-xs text-[#7b7d72]">
-            {selectedDay.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}
-          </span>
-
-          <div className="flex-1" />
-
-          {/* CTA buttons */}
-          <div className="flex items-center gap-2">
-            <button className="hidden sm:flex items-center gap-1.5 px-3 h-9 rounded-xl bg-[#5e7d5d] text-white text-xs font-semibold hover:bg-[#7d9a78] transition-colors">
-              <Calendar className="w-3.5 h-3.5" /> Создать запись
-            </button>
-            <button className="hidden sm:flex items-center gap-1.5 px-3 h-9 rounded-xl border border-[#e3dccb] bg-[#ece5d3] text-[#1b2a22] text-xs font-semibold hover:bg-[#e3dccb] transition-colors">
-              <UserPlus className="w-3.5 h-3.5" /> Записать клиента
-            </button>
-            <Link
-              href="/chats"
-              className="w-9 h-9 rounded-xl border border-[#e3dccb] bg-[#ece5d3] hover:bg-[#e3dccb] flex items-center justify-center transition-colors"
-              aria-label="Чаты"
-            >
-              <Bell className="w-4 h-4 text-[#1b2a22]" strokeWidth={1.8} />
-            </Link>
-          </div>
+        {/* Nav */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <button onClick={prev} className="sera-btn-icon" aria-label="Назад"><ChevronLeft size={15} /></button>
+          <button onClick={goToday} className="sera-btn sera-btn--secondary sera-btn--sm">Сегодня</button>
+          <button onClick={next} className="sera-btn-icon" aria-label="Вперёд"><ChevronRight size={15} /></button>
+          <span style={{ fontSize: 13, color: 'var(--muted)', marginLeft: 4, whiteSpace: 'nowrap' }}>{rangeLabel}</span>
         </div>
 
-        {/* Row 2: zone tabs + master filter */}
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Zone filter */}
-          <div className="flex items-center gap-1 overflow-x-auto">
-            {ZONES.map(z => (
-              <button
-                key={z.id}
-                onClick={() => setSelectedZone(z.id)}
-                className={cn(
-                  'px-3.5 h-8 rounded-xl text-xs font-semibold transition-colors shrink-0',
-                  selectedZone === z.id
-                    ? 'bg-[#1b2a22] text-white'
-                    : 'bg-[#ece5d3] border border-[#e3dccb] text-[#7b7d72] hover:text-[#1b2a22] hover:bg-[#e3dccb]'
-                )}
-              >
-                {z.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex-1 hidden md:block" />
-
-          {/* Master filter */}
-          <div className="flex items-center gap-1 overflow-x-auto">
+        {/* View toggle */}
+        <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--line)', flexShrink: 0 }}>
+          {(['day','week'] as const).map(v => (
             <button
-              onClick={() => setSelectedMasterId(null)}
-              className={cn(
-                'px-3 h-7 rounded-lg text-[0.6875rem] font-semibold transition-colors shrink-0',
-                selectedMasterId === null ? 'bg-[#5e7d5d] text-white' : 'bg-[#ece5d3] border border-[#e3dccb] text-[#7b7d72] hover:text-[#1b2a22]'
-              )}
+              key={v}
+              onClick={() => setView(v)}
+              style={{
+                padding: '5px 12px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer',
+                background: view === v ? 'var(--ink)' : 'transparent',
+                color:      view === v ? 'var(--page)' : 'var(--muted)',
+                transition: 'all 0.15s',
+              }}
             >
-              Все мастера
+              {v === 'day' ? 'День' : 'Неделя'}
             </button>
-            {masters.map(m => (
-              <button
-                key={m.id}
-                onClick={() => setSelectedMasterId(m.id)}
-                className={cn(
-                  'px-3 h-7 rounded-lg text-[0.6875rem] font-semibold transition-colors shrink-0',
-                  selectedMasterId === m.id ? 'bg-[#5e7d5d] text-white' : 'bg-[#ece5d3] border border-[#e3dccb] text-[#7b7d72] hover:text-[#1b2a22]'
-                )}
-              >
-                {m.name}
-              </button>
-            ))}
-          </div>
+          ))}
         </div>
+
+        {/* Master filter */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setSelectedMasterId(null)}
+            style={{
+              padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer',
+              background: selectedMasterId === null ? 'var(--sage)' : 'var(--sage-tint)',
+              color:      selectedMasterId === null ? '#fff' : 'var(--sage)',
+            }}
+          >
+            Все мастера
+          </button>
+          {masters.map(m => (
+            <button
+              key={m.id}
+              onClick={() => setSelectedMasterId(m.id)}
+              style={{
+                padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer',
+                background: selectedMasterId === m.id ? 'var(--sage)' : 'var(--sage-tint)',
+                color:      selectedMasterId === m.id ? '#fff' : 'var(--sage)',
+              }}
+            >
+              {m.name}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ flex: 1 }} />
+
+        {/* Primary action */}
+        <button
+          onClick={() => toast.info('Создание записи — в разработке')}
+          className="sera-btn sera-btn--sera"
+          style={{ gap: 6 }}
+        >
+          <Plus size={14} /> Новая запись
+        </button>
       </div>
 
-      {/* ── Content: grid + right sidebar ──────────────────────────── */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* ── Category filter (only if categories exist) ──────────────── */}
+      {categories.length > 0 && (
+        <div style={{
+          flexShrink: 0, padding: '6px 16px',
+          borderBottom: '1px solid var(--line-soft)',
+          background: 'var(--page-alt)',
+          display: 'flex', alignItems: 'center', gap: 4, overflowX: 'auto',
+        }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0, marginRight: 4 }}>Категория:</span>
+          <button
+            onClick={() => setSelectedCategoryId(null)}
+            style={{
+              padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', flexShrink: 0,
+              background: selectedCategoryId === null ? 'var(--ink)' : 'var(--card)',
+              color:      selectedCategoryId === null ? 'var(--page)' : 'var(--muted)',
+              border: `1px solid ${selectedCategoryId === null ? 'transparent' : 'var(--line)'}`,
+            }}
+          >
+            Все
+          </button>
+          {categories.map(c => (
+            <button
+              key={c.id}
+              onClick={() => setSelectedCategoryId(c.id === selectedCategoryId ? null : c.id)}
+              style={{
+                padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', flexShrink: 0,
+                background: selectedCategoryId === c.id ? 'var(--ink)' : 'var(--card)',
+                color:      selectedCategoryId === c.id ? 'var(--page)' : 'var(--muted)',
+                border: `1px solid ${selectedCategoryId === c.id ? 'transparent' : 'var(--line)'}`,
+              }}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+      )}
 
-        {/* Calendar grid */}
-        <div className="flex-1 overflow-auto">
+      {/* ── Main content ─────────────────────────────────────────────── */}
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden', gap: 8, padding: '8px 0 8px 8px' }}>
+
+        {/* ── Calendar grid ─── */}
+        <div style={{ flex: 1, minWidth: 0, background: 'var(--card)', border: '1px solid var(--card-border)', borderRadius: 14, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+
+          {/* Status legend */}
+          <div style={{ flexShrink: 0, padding: '7px 14px', borderBottom: '1px solid var(--line-soft)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            {Object.entries(STATUS).map(([key, s]) => (
+              <span key={key} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--muted)' }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.dot, flexShrink: 0 }} />
+                {s.label}
+              </span>
+            ))}
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--gold)' }}>
+              <Sparkles size={10} /> Через SERA
+            </span>
+            <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--muted)' }}>
+              Записей: <strong style={{ color: 'var(--ink)' }}>{appointments.length}</strong>
+            </span>
+          </div>
+
           {isLoading ? (
-            <div className="p-8 text-center text-[#a3a698] text-sm">Загрузка расписания...</div>
-          ) : isMobile ? (
-            /* Mobile: single day */
-            <div className="flex">
-              <div className="w-12 shrink-0 border-r border-[#e3dccb] bg-[#faf6ec]">
-                <div className="h-10 border-b border-[#e3dccb]" />
-                {HOURS.map(h => (
-                  <div key={h} className="h-[60px] border-b border-[#e3dccb]/50 flex items-start pt-1 pl-1">
-                    <span className="text-[10px] text-[#a3a698] font-mono">{String(h).padStart(2, '0')}:00</span>
-                  </div>
-                ))}
-              </div>
-              <DayColumn day={selectedDay} />
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: 13 }}>
+              Загрузка...
             </div>
+          ) : view === 'day' ? (
+            <DayView />
           ) : (
-            /* Desktop: week */
-            <div className="overflow-x-auto">
-              <div className="flex min-w-[580px]">
-                <div className="w-14 shrink-0 border-r border-[#e3dccb] bg-[#faf6ec]">
-                  <div className="h-10 border-b border-[#e3dccb]" />
-                  {HOURS.map(h => (
-                    <div key={h} className="h-[60px] border-b border-[#e3dccb]/50 flex items-start pt-1 pl-2">
-                      <span className="text-xs text-[#a3a698] font-mono">{String(h).padStart(2, '0')}:00</span>
-                    </div>
-                  ))}
-                </div>
-                {weekDays.map(day => <DayColumn key={isoDate(day)} day={day} />)}
-              </div>
-            </div>
+            <WeekView />
           )}
         </div>
 
-        {/* ── Right sidebar (desktop only) ─────────────────────────── */}
-        <aside className="hidden lg:flex flex-col w-[272px] shrink-0 border-l border-[#e3dccb] bg-[#faf6ec] overflow-y-auto">
+        {/* ── Right rail ─── */}
+        <div style={{ width: 248, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', paddingRight: 8 }}>
 
-          {/* Алина рекомендует */}
-          <div className="p-4 border-b border-[#e3dccb]">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-3.5 h-3.5 text-[#e6a83a]" strokeWidth={2.2} />
-                <span className="text-sm font-bold text-[#1b2a22]">Алина рекомендует</span>
-              </div>
-              <button className="w-6 h-6 rounded-lg hover:bg-[#ece5d3] flex items-center justify-center transition-colors">
-                <MoreHorizontal className="w-4 h-4 text-[#a3a698]" />
-              </button>
+          {/* Load % */}
+          <div style={{ background: 'var(--card)', border: '1px solid var(--card-border)', borderRadius: 14, padding: '12px 14px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Загрузка дня</span>
+              <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>{loadPct}%</span>
             </div>
-            {freeWin > 0 ? (
-              <>
-                <p className="text-xs text-[#2f3b32] leading-relaxed">
-                  Сегодня есть <span className="font-semibold text-[#1b2a22]">{freeWin} свободных {pl(freeWin, ['окно', 'окна', 'окон'])}</span> после 15:00.
-                </p>
-                <p className="text-xs text-[#7b7d72] mt-1 leading-relaxed">
-                  Рекомендуем запустить акцию и заполнить расписание
-                </p>
-              </>
-            ) : (
-              <p className="text-xs text-[#2f3b32] leading-relaxed">
-                Расписание заполнено отлично! Продолжайте в том же духе.
+            <div style={{ height: 6, borderRadius: 3, background: 'var(--line)', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${loadPct}%`, background: loadPct > 80 ? 'var(--sage)' : 'var(--sage-2)', borderRadius: 3, transition: 'width 0.4s' }} />
+            </div>
+            <p style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
+              {Math.floor(busyMin / 60)}ч {Math.round(busyMin % 60)}м занято · {freeH}ч {freeMin2}м свободно
+            </p>
+          </div>
+
+          {/* SERA insight — only when free slots */}
+          {freeH > 0 && (
+            <div style={{ background: 'var(--sage-tint)', border: '1px solid var(--sage-soft)', borderRadius: 14, padding: '12px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <SeraOrb state="online" size={32} />
+                <div>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)', margin: 0 }}>Совет от SERA</p>
+                  <p style={{ fontSize: 11, color: 'var(--sage)', margin: 0 }}>
+                    {freeH} {freeH === 1 ? 'свободное окно' : 'свободных окна'}
+                  </p>
+                </div>
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.5, marginBottom: 8 }}>
+                Есть свободное время — хороший момент запустить акцию и заполнить расписание.
               </p>
-            )}
-            <Link
-              href="/promo"
-              className="mt-3 flex items-center justify-center w-full rounded-xl bg-[#1b2a22] text-white text-xs font-semibold px-4 py-2.5 hover:bg-[#2f3b32] transition-colors"
-            >
-              Создать акцию
-            </Link>
-          </div>
-
-          {/* Сегодня */}
-          <div className="p-4 border-b border-[#e3dccb]">
-            <div className="flex items-center gap-2 mb-3">
-              <Calendar className="w-4 h-4 text-[#5e7d5d]" strokeWidth={1.8} />
-              <span className="text-sm font-bold text-[#1b2a22]">Сегодня</span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-x-3 mb-3">
-              <div>
-                <div className="text-[2.25rem] font-black text-[#1b2a22] leading-none tabular-nums">
-                  {todayAppts.length}
-                </div>
-                <div className="text-[0.6875rem] text-[#7b7d72] mt-0.5">записей</div>
-              </div>
-              <div className="flex flex-col justify-center gap-0.5">
-                <div className="text-sm font-bold text-[#5e7d5d]">
-                  {freeWin} {pl(freeWin, ['свободное окно', 'свободных окна', 'свободных окон'])}
-                </div>
-                <div className="text-xs text-[#7b7d72]">{busyH}ч {busyM}м занято</div>
-              </div>
-            </div>
-
-            <div className="h-2 rounded-full bg-[#e3dccb] overflow-hidden mb-1">
-              <div
-                className="h-full rounded-full bg-[#5e7d5d] transition-all duration-700"
-                style={{ width: `${loadPct}%` }}
-              />
-            </div>
-            <div className="flex justify-between">
-              <span className="text-[0.625rem] text-[#a3a698]">Свободно</span>
-              <span className="text-[0.625rem] font-semibold text-[#2f3b32]">{loadPct}% занято</span>
-              <span className="text-[0.625rem] text-[#a3a698]">Занято</span>
-            </div>
-          </div>
-
-          {/* Ближайшие записи */}
-          <div className="p-4 flex-1">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-bold text-[#1b2a22]">Ближайшие записи</span>
               <button
-                onClick={() => setSelectedDay(new Date())}
-                className="text-xs text-[#5e7d5d] font-semibold hover:text-[#7d9a78] transition-colors"
+                onClick={() => toast.info('Функция в разработке')}
+                className="sera-btn sera-btn--secondary sera-btn--sm"
+                style={{ width: '100%' }}
               >
-                Смотреть все →
+                Предложить добор
               </button>
             </div>
+          )}
 
-            {upcomingToday.length === 0 ? (
-              <div className="text-center py-6">
-                <Calendar className="w-7 h-7 text-[#a3a698] mx-auto mb-2 opacity-50" strokeWidth={1.6} />
-                <p className="text-xs text-[#a3a698]">Нет предстоящих записей</p>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-1">
-                {upcomingToday.map(appt => {
-                  const clientName = [appt.client?.first_name, appt.client?.last_name].filter(Boolean).join(' ') || 'Клиент'
-                  const dotCls = STATUS_DOT[appt.status] ?? STATUS_DOT.pending
+          {/* Mini calendar */}
+          <div style={{ background: 'var(--card)', border: '1px solid var(--card-border)', borderRadius: 14, padding: '12px 14px' }}>
+            {/* Month nav */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <button
+                onClick={() => {
+                  if (miniMonth === 0) { setMiniMonth(11); setMiniYear(y => y - 1) }
+                  else setMiniMonth(m => m - 1)
+                }}
+                className="sera-btn-icon" style={{ width: 24, height: 24 }}
+              ><ChevronLeft size={12} /></button>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)' }}>
+                {MONTHS_RU[miniMonth]} {miniYear}
+              </span>
+              <button
+                onClick={() => {
+                  if (miniMonth === 11) { setMiniMonth(0); setMiniYear(y => y + 1) }
+                  else setMiniMonth(m => m + 1)
+                }}
+                className="sera-btn-icon" style={{ width: 24, height: 24 }}
+              ><ChevronRight size={12} /></button>
+            </div>
+
+            {/* Day-of-week header */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: 2 }}>
+              {['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(d => (
+                <span key={d} style={{ textAlign: 'center', fontSize: 9, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>{d}</span>
+              ))}
+            </div>
+
+            {/* Days grid */}
+            {weeks.map((week, wi) => (
+              <div key={wi} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+                {week.map((day, di) => {
+                  if (!day) return <div key={di} />
+                  const d = new Date(miniYear, miniMonth, day)
+                  const ds = isoDate(d)
+                  const isT = ds === todayStr
+                  const isSel = ds === isoDate(selectedDay)
+                  const hasAppts = appointments.some(a => a.starts_at.startsWith(ds))
                   return (
                     <button
-                      key={appt.id}
-                      onClick={() => setSelectedAppt(appt)}
-                      className="flex items-center gap-2.5 text-left rounded-xl p-2 hover:bg-[#ece5d3] transition-colors -mx-1"
+                      key={di}
+                      onClick={() => goToDay(miniYear, miniMonth, day)}
+                      style={{
+                        width: '100%', aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                        borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: isSel || isT ? 700 : 400,
+                        background: isSel ? 'var(--ink)' : isT ? 'var(--sage-tint)' : 'transparent',
+                        color: isSel ? 'var(--page)' : isT ? 'var(--sage)' : 'var(--ink)',
+                        position: 'relative',
+                      }}
                     >
-                      <div className="w-8 h-8 rounded-full bg-[#e7eee2] border border-[#c9d8c5] flex items-center justify-center shrink-0 text-xs font-bold text-[#5e7d5d]">
-                        {clientName.charAt(0)}
+                      {day}
+                      {hasAppts && !isSel && (
+                        <span style={{ position: 'absolute', bottom: 2, width: 4, height: 4, borderRadius: '50%', background: 'var(--sage)' }} />
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            ))}
+          </div>
+
+          {/* Upcoming today */}
+          {view === 'day' && (() => {
+            const nowIso = new Date().toISOString()
+            const upcoming = [...dayAppts]
+              .filter(a => a.starts_at > nowIso && a.status !== 'cancelled')
+              .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+              .slice(0, 4)
+            if (upcoming.length === 0) return null
+            return (
+              <div style={{ background: 'var(--card)', border: '1px solid var(--card-border)', borderRadius: 14, overflow: 'hidden' }}>
+                <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid var(--line-soft)' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Ближайшие</span>
+                </div>
+                {upcoming.map((a, i) => {
+                  const name = [a.client?.first_name, a.client?.last_name].filter(Boolean).join(' ') || 'Клиент'
+                  const st   = STATUS[a.status] ?? STATUS.pending
+                  return (
+                    <button
+                      key={a.id}
+                      onClick={() => setSelectedAppt(a)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px',
+                        width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer',
+                        background: 'transparent', borderBottom: i < upcoming.length - 1 ? '1px solid var(--line-soft)' : 'none',
+                        transition: 'background 0.1s',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--sage-tint)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--sage-tint)', color: 'var(--sage)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+                        {name.charAt(0)}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-[#1b2a22] truncate">{clientName}</p>
-                        <p className="text-[0.625rem] text-[#7b7d72] truncate">{appt.service?.name ?? appt.master?.name ?? '—'}</p>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>{name}</p>
+                        <p style={{ fontSize: 10, color: 'var(--muted)', margin: 0 }}>{a.service?.name ?? '—'}</p>
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span className={cn('w-1.5 h-1.5 rounded-full', dotCls)} />
-                        <span className="text-[0.6875rem] font-mono font-medium text-[#7b7d72]">{fmtTime(appt.starts_at)}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: st.dot }} />
+                        <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--muted)', fontWeight: 600 }}>{fmtTime(a.starts_at)}</span>
                       </div>
                     </button>
                   )
                 })}
               </div>
-            )}
-
-            <Link
-              href="/calendar"
-              className="mt-4 flex items-center justify-center gap-1.5 w-full rounded-xl border border-[#e3dccb] bg-[#ece5d3] hover:bg-[#e3dccb] text-xs font-semibold text-[#1b2a22] py-2.5 transition-colors"
-            >
-              <Calendar className="w-3.5 h-3.5" /> Открыть календарь
-            </Link>
-          </div>
-        </aside>
-      </div>
-
-      {/* ── Legend ──────────────────────────────────────────────────── */}
-      <div className="px-4 md:px-5 py-2 border-t border-[#e3dccb] bg-[#faf6ec] flex items-center gap-3 text-[0.6875rem] flex-wrap">
-        {Object.entries(STATUS_LABELS).map(([status, label]) => (
-          <span key={status} className="flex items-center gap-1.5">
-            <span className={cn('w-2 h-2 rounded-full shrink-0', STATUS_DOT[status])} />
-            <span className="text-[#7b7d72]">{label}</span>
-          </span>
-        ))}
-        <span className="flex items-center gap-1 text-[#e6a83a]">
-          <Sparkles className="w-2.5 h-2.5" strokeWidth={2.2} />
-          <span>через AI</span>
-        </span>
-        <span className="ml-auto text-[#7b7d72]">Всего: <b className="text-[#1b2a22]">{appointments.length}</b></span>
+            )
+          })()}
+        </div>
       </div>
 
       {/* ── Appointment detail modal ─────────────────────────────────── */}
       {selectedAppt && (
-        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
-          <div className="absolute inset-0 bg-[#1b2a22]/40 backdrop-blur-sm" onClick={() => setSelectedAppt(null)} />
-          <div className="relative bg-[#faf6ec] rounded-t-2xl md:rounded-2xl w-full md:max-w-md p-5 z-10 border border-[#e3dccb] shadow-xl">
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'rgba(27,42,34,0.4)', backdropFilter: 'blur(4px)' }}
+          onClick={e => { if (e.target === e.currentTarget) setSelectedAppt(null) }}
+        >
+          <div style={{ background: 'var(--page-alt)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '20px', maxHeight: '85dvh', overflowY: 'auto', boxShadow: 'var(--shadow-hero)', border: '1px solid var(--card-border)' }}>
 
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <h2 className="font-serif text-lg font-bold text-[#1b2a22]">Детали записи</h2>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 600, color: 'var(--ink)', margin: 0 }}>Детали записи</h2>
                 {selectedAppt.source === 'ai' && <AiBadge />}
               </div>
-              <button
-                onClick={() => setSelectedAppt(null)}
-                className="w-8 h-8 rounded-xl hover:bg-[#ece5d3] flex items-center justify-center transition-colors"
-              >
-                <X className="w-4 h-4 text-[#1b2a22]" />
-              </button>
+              <button onClick={() => setSelectedAppt(null)} className="sera-btn-icon"><X size={15} /></button>
             </div>
 
-            {/* Status badge */}
-            <div className="mb-4">
-              <span className={cn('inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border-l-4', STATUS_CARD[selectedAppt.status] ?? STATUS_CARD.pending)}>
-                <span className={cn('w-1.5 h-1.5 rounded-full', STATUS_DOT[selectedAppt.status])} />
-                {STATUS_LABELS[selectedAppt.status] ?? selectedAppt.status}
-              </span>
+            {/* Status */}
+            {(() => {
+              const st = STATUS[selectedAppt.status] ?? STATUS.pending
+              return (
+                <span className="sera-pill" style={{ background: st.bg, color: st.accent, marginBottom: 12, display: 'inline-flex' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: st.accent }} />{st.label}
+                </span>
+              )
+            })()}
+
+            {/* Details */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+              {[
+                { label: 'Клиент',   value: [selectedAppt.client?.first_name, selectedAppt.client?.last_name].filter(Boolean).join(' ') || 'Клиент' },
+                { label: 'Услуга',   value: selectedAppt.service?.name ?? '—' },
+                { label: 'Мастер',   value: selectedAppt.master?.name ?? '—' },
+                { label: 'Начало',   value: new Date(selectedAppt.starts_at).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' }) },
+                { label: 'Конец',    value: fmtTime(selectedAppt.ends_at) },
+                ...(selectedAppt.price != null ? [{ label: 'Стоимость', value: `${selectedAppt.price} руб.` }] : []),
+                ...(selectedAppt.notes ? [{ label: 'Заметки', value: selectedAppt.notes }] : []),
+              ].map(({ label, value }) => (
+                <div key={label} style={{ display: 'flex', gap: 10 }}>
+                  <span style={{ fontSize: 12, color: 'var(--muted)', width: 80, flexShrink: 0 }}>{label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink)' }}>{value}</span>
+                </div>
+              ))}
             </div>
 
-            <div className="flex flex-col gap-2.5">
-              <Row label="Клиент" value={[selectedAppt.client?.first_name, selectedAppt.client?.last_name].filter(Boolean).join(' ') || 'Клиент'} />
+            {/* Contacts */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
               {selectedAppt.client?.phone && (
-                <a href={`tel:${selectedAppt.client.phone}`} className="flex items-center gap-2 text-[#5e7d5d] font-medium text-sm">
-                  <Phone className="w-4 h-4" /> {selectedAppt.client.phone}
+                <a href={`tel:${selectedAppt.client.phone}`} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--sage)', textDecoration: 'none', fontWeight: 500 }}>
+                  <Phone size={14} /> {selectedAppt.client.phone}
                 </a>
               )}
               {selectedAppt.client?.telegram_username && (
-                <a href={`https://t.me/${selectedAppt.client.telegram_username}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[#5e7d5d] font-medium text-sm">
-                  <MessageCircle className="w-4 h-4" /> @{selectedAppt.client.telegram_username}
+                <a href={`https://t.me/${selectedAppt.client.telegram_username}`} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--sage)', textDecoration: 'none', fontWeight: 500 }}>
+                  <MessageCircle size={14} /> @{selectedAppt.client.telegram_username}
                 </a>
               )}
-              <div className="h-px bg-[#e3dccb] my-0.5" />
-              <Row label="Услуга"  value={selectedAppt.service?.name ?? '—'} />
-              <Row label="Мастер"  value={selectedAppt.master?.name ?? '—'} />
-              <Row label="Начало"  value={new Date(selectedAppt.starts_at).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })} />
-              <Row label="Конец"   value={new Date(selectedAppt.ends_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })} />
-              {selectedAppt.price != null && <Row label="Стоимость" value={`${selectedAppt.price} руб.`} />}
-              {selectedAppt.notes && <Row label="Заметки" value={selectedAppt.notes} />}
             </div>
 
+            {/* Actions */}
             {selectedAppt.status !== 'cancelled' && selectedAppt.status !== 'completed' && (
-              <div className="flex flex-wrap gap-2 mt-5 pt-4 border-t border-[#e3dccb]">
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', borderTop: '1px solid var(--line)', paddingTop: 14 }}>
                 {selectedAppt.status === 'pending' && (
-                  <button
-                    onClick={() => handleApptAction(selectedAppt.id, 'confirmed')}
-                    className="flex-1 min-w-[120px] flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#5e7d5d] text-white text-sm font-semibold hover:bg-[#7d9a78] transition-colors"
-                  >
-                    <CheckCircle className="w-4 h-4" /> Подтвердить
+                  <button onClick={() => handleAction(selectedAppt.id, 'confirmed')} className="sera-btn sera-btn--secondary" style={{ flex: 1, gap: 6 }}>
+                    <CheckCircle size={14} /> Подтвердить
                   </button>
                 )}
-                <button
-                  onClick={() => handleApptAction(selectedAppt.id, 'completed')}
-                  className="flex-1 min-w-[120px] flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#16a34a] text-white text-sm font-semibold hover:bg-[#15803d] transition-colors"
-                >
-                  <CheckCircle className="w-4 h-4" /> Завершить
+                <button onClick={() => handleAction(selectedAppt.id, 'completed')} className="sera-btn" style={{ flex: 1, gap: 6, background: 'var(--success)', color: '#fff' }}>
+                  <CheckCircle size={14} /> Завершить
                 </button>
-                <button
-                  onClick={() => handleApptAction(selectedAppt.id, 'cancelled')}
-                  className="flex-1 min-w-[120px] flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-[#e05252]/40 text-[#e05252] text-sm font-semibold hover:bg-[#fef2f2] transition-colors"
-                >
-                  <XCircle className="w-4 h-4" /> Отменить
+                <button onClick={() => handleAction(selectedAppt.id, 'cancelled')} className="sera-btn sera-btn--danger" style={{ flex: 1, gap: 6 }}>
+                  <XCircle size={14} /> Отменить
                 </button>
               </div>
             )}
           </div>
         </div>
       )}
-    </div>
-  )
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-start gap-2">
-      <span className="text-[#7b7d72] w-20 shrink-0 text-xs">{label}</span>
-      <span className="font-medium text-[#1b2a22] text-sm">{value}</span>
     </div>
   )
 }
