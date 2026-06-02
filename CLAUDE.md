@@ -1,329 +1,159 @@
 # BeautySaaS — Project Context for Claude
 
-> **Last update:** 2026-06-01. **Dashboard ✓ redesigned. Calendar ✓ redesigned + admin create-appointment modal.** TMA fully redesigned (all pages). Legacy admin pages (clients/analytics/chats/masters/services/promo/ai-settings/settings) — functional with real data, pre-SERA design. Historical phase notes → [`docs/HISTORY.md`](docs/HISTORY.md).
+> Multi-tenant B2B SaaS — Telegram Mini App для beauty-салонов с AI-администратором SERA.  
+> TMA (`/`) — клиенты; Admin Panel — персонал; Bot — Grammy.js; AI — GPT-4o-mini serverless.  
+> Prod: `https://beauty-saas-vert.vercel.app` · GitHub: `vadik88888-prog/beauty-saas` (master = prod) · Supabase: `severincev-beauty`, EU
 
 ---
 
-## What This Is
+## Core Rules
 
-Multi-tenant B2B SaaS — Telegram Mini App для beauty-салонов с AI-администратором.
-
-- **TMA** (`/`) — клиенты салона: запись, история, AI-чат, профиль, акции
-- **Admin Panel** (`/dashboard`, `/calendar`, …) — владельцы/сотрудники
-- **Bot** — Grammy.js, webhook `/api/webhooks/telegram`
-- **AI (SERA)** — OpenAI GPT-4o-mini function calling в Next.js serverless
-
----
-
-## Core Rules (обязательно к соблюдению)
-
-1. **Бренд — только SERA.** Запрещены: Алина, бот, движок, нейросеть, AI Beauty, BeautySaaS. Разрешённые фразы: «SERA онлайн», «SERA записала», «Совет от SERA», «Написать SERA».
-
-2. **Multi-tenant.** Каждая таблица имеет `tenant_id`. Все admin API используют `getStaffContext()` / `getStaffTenantId()` для получения tenant из Supabase Auth сессии. **Никогда** не передавать `tenant_id` из клиента — только из контекста сессии.
-
-3. **Дизайн-токены — только `tokens.css`.** Хардкод цветов (`#5E7D5D`, `rgba(...)`) запрещён. Только CSS-переменные: `var(--sage)`, `var(--gold)`, `var(--ink)`, `var(--page-alt)` и т.д. Файл `src/styles/tokens.css` — единственный источник.
-
-4. **SERA-компоненты для новых admin-страниц.** Импорт: `@/components/sera`. Каркас: `PageHeader → KpiStrip → FiltersBar → DataCard → AiHelperBanner`. Пустые состояния: `EmptyState`. Правая колонка: `RightRail`.
-
-5. **No-scroll layout на dashboard.** Паттерн: `display: grid; gridTemplateRows: 'auto auto 1fr 0.62fr auto'; height: 100%; overflow: hidden`. Не flex-1! Подробнее — раздел «Admin dashboard full-screen layout» ниже.
-
-6. **Источник записи.** `source = 'admin'` — запись от администратора (не отмечать AI-бейджем). `source = 'ai'` — через SERA (показывать ✦ sparkle). `source = 'tma'` — клиент сам через приложение. Метрика «записей через SERA» зависит от этого поля — не путать.
-
-7. **Даты по локальному времени салона, не UTC.** Функции `localIsoDate(d)` и `localDayStart(d)` в calendar/page.tsx. Использовать `new Date(y, mo-1, d, h, m).toISOString()` для создания datetime — это корректно конвертирует local→UTC.
-
-8. **Форматтеры — общие.** `formatPrice(amount, currency)` из `@/lib/utils/format`. Даты: `formatDate`, `formatTime`, `formatDateLong` из `@/lib/utils/date`. Не писать inline `.toLocaleDateString` вручную.
+1. **Бренд — только SERA.** Запрещены: Алина, бот, движок, нейросеть, BeautySaaS. Разрешено: «SERA онлайн», «SERA записала», «Написать SERA».
+2. **Multi-tenant.** `tenant_id` в каждой таблице. Admin API — только через `getStaffContext()`. Никогда из тела запроса.
+3. **Токены — только `tokens.css`.** Никаких hex/rgba inline. Для вторичного текста — `--text-muted` (`--muted` перекрывается globals.css светлым shadcn-значением).
+4. **SERA-компоненты** (`@/components/sera`): `PageHeader → DataCard → EmptyState`. Карточки — только `.sera-card` (bg `--card`, border `--card-border` 1px, radius 14px, shadow `--shadow-sm`).
+5. **Dashboard no-scroll:** `display: grid; gridTemplateRows: 'auto auto 1fr 0.62fr auto'; height: 100%; overflow: hidden`. Не flex-1.
+6. **source поля записей:** `admin` / `ai` / `tma`. Метрика «через SERA» считает только `ai`.
+7. **Даты — локальные.** `getToday()` вместо `toISOString().slice(0,10)`. Форматтеры: `formatDate/Time/Price` из утилит.
+8. **Checkpoint:** `git commit` перед задачей. `npm run build` зелёный после.
 
 ---
 
 ## Stack
 
-- **Next.js 16** App Router, Turbopack. Route groups: `(tma)`, `(admin)`, `(auth)`, `(onboarding)`
-- **Supabase** PostgreSQL + RLS
-- **Tailwind CSS v4** + shadcn/ui
-- **framer-motion** 12.40
-- **Fonts:** Inter (body `--font-body`) + Cormorant Garamond (display `--font-display`) + Geist Mono (`--font-mono`)
-
-### Next.js 16 gotchas
-
-- Middleware MUST be `proxy.ts` exporting `proxy` (not `middleware.ts`)
-- Route groups don't add URL segments: `(admin)/dashboard` → `/dashboard`
-- Two route groups can't resolve same URL → admin promotions is `/promo`, not `/promotions`
-- Server Components cannot use event handlers — use Tailwind `hover:` or extract `'use client'`
-
-### Admin dashboard full-screen layout (CRITICAL)
-
-```tsx
-// ✅ CSS Grid — distributes only REMAINING space after auto rows
-<div style={{
-  height: '100%', overflow: 'hidden',
-  display: 'grid',
-  gridTemplateRows: 'auto auto 1fr 0.62fr auto',
-  gap: 10, padding: '12px 20px 8px', boxSizing: 'border-box',
-}}>
-// Cards inside rows need height: '100%' to fill the grid track
-
-// ❌ WRONG — flex: 1 distributes proportionally to TOTAL, middle eats everything
-<div style={{ display: 'flex', flexDirection: 'column' }}>
-  <div style={{ flex: '1 1 0' }}>middle</div>
-```
+- **Next.js 16** App Router, Turbopack. Route groups: `(tma)` `(admin)` `(auth)` `(onboarding)`
+- **Supabase** PostgreSQL + RLS · **Tailwind v4** + shadcn/ui · **framer-motion** 12.40
+- Middleware: `proxy.ts` (не `middleware.ts`). Promotions: `/promo` (не `/promotions`). Server Components: нет event handlers.
 
 ---
 
-## Critical RLS Pattern — required for ANY admin API route
+## Critical RLS Pattern
 
 ```typescript
-import { createClient } from '@/lib/supabase/server'    // for auth.getUser()
-import { createAdminClient } from '@/lib/supabase/admin' // bypass RLS
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 async function getStaffContext() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
-  const adminClient = createAdminClient()
-  const { data } = await adminClient
-    .from('tenant_users')
-    .select('tenant_id, role')
-    .eq('user_id', user.id)
-    .eq('is_active', true)
-    .single()
+  const admin = createAdminClient()
+  const { data } = await admin.from('tenant_users')
+    .select('tenant_id, role').eq('user_id', user.id).eq('is_active', true).single()
   if (!data) return null
   const d = data as { tenant_id: string; role: string }
-  return { tenantId: d.tenant_id, role: d.role }  // DB returns tenant_id, map to tenantId
+  return { tenantId: d.tenant_id, role: d.role }  // DB column = tenant_id, map!
 }
 ```
 
-**Never cast `data as { tenantId: string }`** — DB column is `tenant_id`. Always map.
+---
+
+## Auth
+
+- **Admin:** Supabase Auth (email/password) → `tenant_users`
+- **TMA clients:** initData HMAC → JWT (7d, HS256 `SUPABASE_JWT_SECRET`) → `clients`. `telegram_id` пишется при первом открытии ТМА или первом сообщении боту.
+- **Bot:** без JWT, `runAdministrator()` с `tenant_id + client_id`
+- **TMA race-fix:** `waitForTmaToken()` + `getTenantSlug()` из `@/lib/tma-token`. Публичные данные по `?slug=` без JWT.
+- **Tenant routing:** webhook secret = UUID → tenant bot; `?slug` → ТМА; fallback = brute-force по `telegram_bot_token`.
 
 ---
 
-## Auth Model
+## AI
 
-- **Admin users:** Supabase Auth (email/password) → `tenant_users` table
-- **TMA clients:** Telegram initData HMAC → custom JWT (7d, HS256 `SUPABASE_JWT_SECRET`) → `clients` table
-- **Bot clients:** no JWT, `runAdministrator()` called directly with `tenant_id + client_id`
-
-### TMA auth (CRITICAL)
-
-- `useTmaAuth` только внутри `<TmaInner>` (в `src/components/tma/TmaInner.tsx`)
-- `(tma)/layout.tsx` использует TmaInner; `app/page.tsx` (URL `/`) — тоже оборачивает в TmaInner
-- **Race-fix:** `useTmaAuth` диспатчит `window.dispatchEvent(new Event('tma:auth-ready'))` после валидации JWT. Страницы используют `waitForTmaToken()` + `getTenantSlug()` из `@/lib/tma-token`
-- Паттерн: загружать публичные данные через slug сразу, приватные — после `tma:auth-ready`
-
-### TMA Public API — Slug Fallback
-
-Публичные данные (services, masters, slots, promotions, tenant) доступны без JWT через `?slug=<tenant-slug>`.
-
----
-
-## AI Architecture
-
-**Не использовать Supabase Edge Function** для AI — gateway блокирует кастомный JWT (role: 'client').  
-AI в Next.js serverless. Точка входа: `src/lib/ai/administrator/index.ts` → `runAdministrator()`.
-
-Эндпоинты:
-- `/api/ai/chat` — TMA (JWT), `{message, conversationId?, attachments?}`
-- `/api/ai/chat/bot` — bot bridge (без JWT), `{telegramChatId, message, telegramUser}`
-- `/api/ai/transcribe` — TMA (JWT), FormData `audio` → text via Whisper
-- `/api/cron/daily-notifications` — 14:00 UTC (напоминание за 24ч + опрос после визита)
-- `/api/cron/complete-appointments` — 23:00 UTC
-
-Тюнинг через `tenant_ai_settings` без деплоя: `admin_name`, `tone_of_voice`, `custom_instructions`, `cancellation_policy`, `birthday_discount_percent`.
-
----
-
-## Multi-tenancy
-
-Каждая таблица содержит `tenant_id`. Всегда фильтровать явно в admin-роутах.
-
-**Tenant routing — 3 уровня:**
-1. Bot webhook: `secret_token: tenant_id` в заголовке при регистрации. Handler `src/app/api/webhooks/telegram/route.ts` читает `x-telegram-bot-api-secret-token`. UUID → tenant bot, не-UUID → platform fallback.
-2. Menu Button: `url=?slug={tenant.slug}` через `setChatMenuButton`.
-3. TMA initData: если slug не определён → brute-force по `tenants.telegram_bot_token`.
+- `/api/ai/chat` — TMA (JWT) · `/api/ai/chat/bot` — bot bridge · `/api/ai/transcribe` — Whisper
+- `/api/cron/daily-notifications` — 14:00 UTC · `/api/cron/complete-appointments` — 23:00 UTC
+- Entry point: `src/lib/ai/administrator/index.ts` → `runAdministrator()`. **Не Edge Function** (блокирует кастомный JWT).
+- Тюнинг без деплоя: `tenant_ai_settings` (`admin_name`, `tone_of_voice`, `birthday_discount_percent`, …)
 
 ---
 
 ## SERA Design System
 
-### Токены — `src/styles/tokens.css`
+**Токены** (`src/styles/tokens.css`):
 
-| Группа | Ключевые переменные |
+| Группа | Переменные |
 |---|---|
 | Поверхности | `--page` `--page-alt` `--card` `--card-sunken` `--card-border` |
-| Текст | `--ink` `--ink-2` `--muted` `--muted-2` |
-| SERA Green | `--sage` `--sage-2` `--sage-deep` `--sage-soft` `--sage-tint` `--sage-glow` |
-| Gold | `--gold` `--gold-soft` `--gold-pearl` |
-| Статусы | `--success` `--warning` `--error` `--info` + `-soft` варианты |
-| Линии | `--line` `--line-soft` |
-| Радиусы | `--radius-sm(8)` `--radius-md(12)` `--radius-lg(14)` `--radius-xl(20)` `--radius-2xl(24)` |
-| Тени | `--shadow-xs` `--shadow-sm` `--shadow-md` `--shadow-lg` `--shadow-hero` |
-| Шрифты | `--font-display` (Cormorant) `--font-body` (Inter) `--font-mono` (Geist Mono) |
-| Анимации | `--ease-silk` `--ease-luxe` `--ease-glide` `--ease-breath` · `--dur-fast(150)` `--dur-base(250)` `--dur-slow(400)` |
+| Текст | `--ink` `--ink-2` `--text-muted` · ~~`--muted`~~ (фон, не текст) · ~~`--muted-2`~~ (только декор) |
+| Цвета | `--sage` `--sage-tint` `--sage-soft` `--sage-deep` · `--gold` · `--success/warning/error/info` + `-soft` |
+| Форма | `--radius-sm/md/lg/xl/2xl` · `--shadow-xs/sm/md/lg/hero` · `--font-display/body/mono` |
 
-Тёмная тема: `[data-theme="dark"]` в tokens.css (готово к подключению).
+**Компоненты** (`@/components/sera`): `SeraOrb`, `PageHeader`, `KpiStrip`, `FiltersBar`, `DataCard`, `RightRail`, `EmptyState`, `StatusPill`, `SectionLabel`, `AiHelperBanner`
 
-### Компоненты — `@/components/sera`
-
-| Компонент | Назначение |
-|---|---|
-| `SeraOrb` | AI-аватар, 13 состояний (`idle\|online\|thinking\|responding\|...`) |
-| `PageHeader` | Заголовок страницы (Cormorant 32px) + subtitle + action |
-| `KpiStrip` | Ряд KPI-карточек с дельтой, кликабельных |
-| `FiltersBar` | Строка поиска + фильтры + сортировка |
-| `DataCard` | Белая карточка с меткой секции |
-| `RightRail` | Правая колонка 320px |
-| `EmptyState` | Пустое состояние с SeraOrb |
-| `StatusPill` | Пилюля статуса записи |
-| `SectionLabel` | Uppercase-лейбл |
-| `AiHelperBanner` | Нижний баннер «Как SERA помогает» |
-
-**Сайдбар светлый** (кремовый). Менять на тёмный — только по явному заданию.
-
-**Что попадает в сайдбар:** только разделы, куда заходят напрямую и регулярно — Главная, Записи, Клиенты, Услуги, Сообщения, Аналитика, Маркетинг, Мастера; внизу — Настройки SERA, Настройки. Контекстные/детальные страницы (`/activity`, `/recommendations`, профиль клиента, детали записи) в сайдбар **не добавляются** — на них ведут клики с других экранов. Тест: *ищут в меню → раздел; попадают кликом → контекстная.*
+**Сайдбар:** только регулярные разделы (Главная/Записи/Клиенты/Услуги/…). Контекстные страницы (профиль клиента, /activity) — не добавлять.
 
 ---
 
-## Pages — фактическое состояние
+## Pages
 
-### Admin Panel
+| URL | Статус | Примечание |
+|---|---|---|
+| `/dashboard` | ✓ redesigned | SERA tokens, CSS Grid no-scroll, Hero+5KPI |
+| `/calendar` | ✓ redesigned | Day/week grid, create-appointment modal, SERA insight |
+| `/clients` | ✓ redesigned | Insight strip (3 фильтра), Avatar rows, `?filter=attention` |
+| `/clients/[id]` | ✓ redesigned | SERA Ритм, история визитов, ContactButton (3 состояния) |
+| `/analytics` `/chats` `/masters` `/services` `/promo` `/ai-settings` `/settings` `/activity` | functional | Реальные данные, legacy дизайн |
 
-| URL | Файл | Статус | Примечание |
-|---|---|---|---|
-| `/dashboard` | `(admin)/dashboard` | ✓ **redesigned** | SERA tokens, CSS Grid no-scroll, Hero+5KPI, activity/at-risk/birthday, реальные данные |
-| `/calendar` | `(admin)/calendar` | ✓ **redesigned** | Day/week grid, free-slot cards, **create-appointment modal** (3 entry points), SERA insight |
-| `/clients` | `(admin)/clients` | ✓ functional | Server Component, реальный DB + search + pagination; дизайн legacy |
-| `/analytics` | `(admin)/analytics` | ✓ functional | Реальный `/api/admin/analytics`; дизайн legacy |
-| `/chats` + `/chats/[id]` | `(admin)/chats` | ✓ functional | Реальный `/api/admin/chats`, handoff-индикатор, 3 мелких toast-заглушки |
-| `/masters` | `(admin)/masters` | ✓ functional | CRUD + фото upload + service assignments, 11 toast = диалоговые плейсхолдеры |
-| `/services` | `(admin)/services` | ✓ functional | Полный CRUD, 3 мелких заглушки |
-| `/promo` | `(admin)/promo` | ✓ functional | CRUD акций + image_url, 7 toast-заглушек (статистика промо) |
-| `/ai-settings` | `(admin)/ai-settings` | ✓ functional | ai-settings + FAQ + knowledge base; 14 toast = preview/test фичи |
-| `/settings` | `(admin)/settings` | ✓ functional | Webhook, Telegram channel, настройки салона; 16 toast = form actions |
-| `/activity` | `(admin)/activity` | ✓ functional | Детализация активности с дашборда, Server Component |
-
-> **Легенда:** ✓ redesigned = SERA tokens + новые компоненты. ✓ functional = реальные данные, legacy дизайн (pre-SERA).
-
-### TMA
-
-Все страницы redesigned (Phase 3). `/` → `(tma)/` → рендерится через `app/page.tsx` + `TmaInner`. Маршруты: `/booking/services`, `/booking/masters`, `/booking/slots`, `/booking/confirm`, `/appointments`, `/chat`, `/promotions`, `/profile`.
+TMA (все redesigned): `/` `/booking/*` `/appointments` `/chat` `/promotions` `/profile`
 
 ---
 
-## Database Migrations (применены в prod)
+## Migrations (prod)
 
 ```
-001  initial_schema
-002  rls_policies
-003  cron_jobs
-004  fix_rls_tenant_users
-005  ai_administrator
-006  master_photos_bucket
-007  service_buffer
-008  completed_at
-009  knowledge_base
-010  messages_metadata
-011  ai_goals
-012  handoff_reason
-013  min_cancel_hours
-014  promo_application (applied_promo_id, original_price, discount_amount)
-015  client_stats_trigger  ← КРИТИЧНО: без неё total_visits не обновлялся
-016  anti_noshow (rating, reminder/feedback flags)
-017  conversation_summary
-018  voice_messages (voice_enabled toggle)
-019  live_status (multi-step thinking)
-020  promotion_image (promotions.image_url)
-021  fix_service_prices  ← цены-мусор типа 1.08 → реальные значения
-022  nullable_telegram_id  ← clients.telegram_id теперь nullable (admin-created clients)
+001–009  initial_schema → knowledge_base
+010  messages_metadata          016  anti_noshow
+011  ai_goals                   017  conversation_summary
+012  handoff_reason             018  voice_messages
+013  min_cancel_hours           019  live_status
+014  promo_application          020  promotion_image
+015  client_stats_trigger ←     021  fix_service_prices
+     total_visits trigger!      022  nullable_telegram_id
+                                023  messages_role_admin (+ 'admin' в CHECK)
+                                024  conversation_draft (draft TEXT + draft_meta JSONB)
 ```
 
 ---
 
-## Deployment & Dev
+## Deployment & Env
 
-```bash
-npm run dev          # Turbopack dev server
-npm run build        # TypeScript check + production build — должен быть зелёным
-bash scripts/smoke-test.sh  # 12 автоматических проверок после деплоя
-```
-
-**Workflow:**
-1. `git commit` (checkpoint) перед началом каждой задачи
-2. Пишем код
-3. `npm run build` — убеждаемся что зелёный
-4. `git commit` + `git push` → Vercel auto-deploy
-5. `bash scripts/smoke-test.sh` → 12/12
-
-**Prod:** `https://beauty-saas-vert.vercel.app` · Supabase: project `severincev-beauty`, EU · GitHub: `vadik88888-prog/beauty-saas` (master = prod)
-
----
-
-## Env Vars
+`npm run dev` / `npm run build` / `bash scripts/smoke-test.sh`  
+Workflow: checkpoint → code → build → push → smoke 12/12
 
 | Переменная | Назначение |
 |---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase public |
-| `SUPABASE_SERVICE_ROLE_KEY` | Admin client (bypass RLS) |
-| `SUPABASE_JWT_SECRET` | TMA JWT sign/verify |
-| `OPENAI_API_KEY` | GPT-4o-mini + Whisper |
-| `NEXT_PUBLIC_APP_URL` / `NEXT_PUBLIC_APP_NAME` | App URL + name |
-| `TELEGRAM_WEBHOOK_SECRET` | Platform bot |
-| `CRON_SECRET` | Cron endpoint auth |
-| `TELEGRAM_BOT_TOKEN` / `NEXT_PUBLIC_DEFAULT_TENANT_SLUG` | Legacy — удалить когда ≥2 живых тенанта |
-
-**Vercel Preview gotcha:** `OPENAI_API_KEY` только для Production env → preview builds падают. Добавить: `vercel env add OPENAI_API_KEY preview`.
+| `NEXT_PUBLIC_SUPABASE_URL/ANON_KEY` | Supabase public |
+| `SUPABASE_SERVICE_ROLE_KEY` | Admin (bypass RLS) |
+| `SUPABASE_JWT_SECRET` | TMA JWT |
+| `OPENAI_API_KEY` | GPT-4o-mini + Whisper (**добавить в preview env!**) |
+| `NEXT_PUBLIC_APP_URL` | App URL |
+| `TELEGRAM_WEBHOOK_SECRET` / `CRON_SECRET` | Bot webhook / cron |
+| `TELEGRAM_BOT_TOKEN` / `NEXT_PUBLIC_DEFAULT_TENANT_SLUG` | Legacy |
 
 ---
 
-## TODO / Known Issues
+## Known Issues & TODO
 
-### Визуальные долги
-- **Футер дашборда «SERA заботится...»** — верстка наезжает на контент при малой высоте экрана (< 820px). Нужно убрать или сделать collapsible.
-- **Карточка записи в календаре** — блёклая. Референс (есть): аватар мастера + услуга под именем клиента в карточке.
-- **Рекомендации SERA** на дашборде — статичные шаблоны «запустите акцию», не привязаны к реальному состоянию салона (загрузка, свободные окна). Phase: AI Business Advisor Stage 1 — `getSalonInsights()`.
+**Визуальные:** дашборд-футер наезжает при < 820px · карточка записи в календаре блёклая · рекомендации SERA статичные (нужен `getSalonInsights()`)
 
-### Данные
-- **Тестовые цены 1.08** — migration 021 чинит known паттерны, но если в БД остались кривые данные — применить 021 в Supabase SQL editor.
-- **Клиенты без telegram_id** — migration 022 (nullable_telegram_id) нужно применить в prod Supabase перед использованием admin create-appointment modal.
+**Будущие миграции:** `masters` (experience/rating) · `services` (is_popular/visibility) · `promotions` (type) · `tenant_ai_settings` (greeting/feature_flags)
 
-### Будущие миграции (не применены)
-- `masters`: `experience_years INT`, `is_top BOOL`, `rating NUMERIC(3,2)`, `reviews_count INT` (Phase 4 — мастера с бейджами)
-- `services`: `is_popular BOOL`, `is_recommended BOOL`, `visibility TEXT` (Phase 4 — тогглы в /services)
-- `promotions`: `type TEXT` (birthday/seasonal/referral) (Phase 4 — Маркетинг)
-- `tenant_ai_settings`: `greeting_message TEXT`, `feature_flags JSONB` (Phase 4 — Настройки SERA)
-
-### TMA — остаточные задачи
-- **AI slot-chips в чате** — ассистент должен возвращать структурированные слоты в `messages_metadata`, пузырь рендерит их как тапабельные кнопки → сразу в booking flow
-- **Waitlist push notifications** — migration `appointment_waitlist`, `POST/DELETE /api/waitlist`, cron `/api/cron/check-waitlist`
-- **Share booking (premium)** — `savePreparedInlineMessage` Bot API 8.0, `share_token` в appointments, standalone Success route `/booking/success?appointment=<id>`
+**TMA backlog:** AI slot-chips · Waitlist push · Share booking (premium)
 
 ---
 
-## Working Hours Fallback
+## Facts
 
-Если у мастера нет строк в `working_hours` → дефолт: Пн–Сб 9:00–18:00 (в `src/lib/booking/slots.ts`).
-
-## Telegram Channel для handoff
-
-`tenants.telegram_channel_id` — куда SERA шлёт handoff-уведомления через бот тенанта. Группа (отрицательное число): бот должен быть членом. Личный chat_id: пользователь должен был открыть бота хотя бы раз.
+- **Working Hours Fallback:** нет строк в `working_hours` → Пн–Сб 9:00–18:00 (`src/lib/booking/slots.ts`)
+- **Telegram Channel:** `tenants.telegram_channel_id` — handoff-уведомления. Группа: бот-член. Личный: пользователь писал хоть раз.
+- **Исходящее касание:** только `POST /api/admin/chats/[id]` (INSERT `messages(role='admin')` + Telegram). `trigger-client-message` — для будущих cron. Черновик в `conversations.draft`, очищается после отправки. `ContactButton`: нет `telegram_id` → disabled.
 
 ---
 
-## Karpathy Rules
+## Rules
 
-1. **Think Before Coding** — не предполагай, называй трейдоффы, при неясности — спроси.
-2. **Simplicity First** — минимум кода. Никаких спекулятивных фич, преждевременных абстракций.
-3. **Surgical Changes** — трогай только необходимое. Не рефактори рабочий код.
-4. **Goal-Driven** — конвертируй задачу в верифицируемые цели.
+**Karpathy:** Think Before Coding · Simplicity First · Surgical Changes · Goal-Driven
 
-## Communication Rules
+**Communication:** в конце фазы — объяснить как ребёнку через аналогии из салона · No duplicate CTAs
 
-1. **Объясняй как ребёнку** — в конце каждой фазы простое резюме по-русски: без жаргона, через аналогии из салона (гость, администратор, приёмная).
-2. **No duplicate CTAs** — один призыв к действию на экран. TMA hero = one-click.
-
----
-
-## Reference Docs
-
-- **HISTORY.md** — полные описания всех фаз с Phase 1 по Phase 5+ (сжатая история CLAUDE.md)
-- **SMOKE_CHECKLIST.md** — 12 ручных UI-сценариев (~30 мин) для вещей, которые smoke-test.sh не покрывает
-- **scripts/smoke-test.sh** — 12 автоматических проверок
-- **dogs1/SERA_PLAN_ALL_PAGES.md** — полный план редизайна всех страниц (TMA + Admin) с референсами
+**Reference:** HISTORY.md · SMOKE_CHECKLIST.md · scripts/smoke-test.sh · dogs1/SERA_PLAN_ALL_PAGES.md

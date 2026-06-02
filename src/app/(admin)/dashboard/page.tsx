@@ -1,4 +1,3 @@
-import type { CSSProperties } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
@@ -35,13 +34,6 @@ const C = {
   peach:       '#f2ebe5',
 }
 
-const CARD: CSSProperties = {
-  background:   C.cardBg,
-  border:       `1px solid ${C.cardBorder}`,
-  borderRadius: 14,
-  overflow:     'hidden',
-}
-const CARD_FILL: CSSProperties = { ...CARD, height: '100%', minHeight: 0 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 async function getTenantContext() {
@@ -222,8 +214,8 @@ export default async function DashboardPage({
             style={{
               position: 'relative', width: 36, height: 36,
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              borderRadius: 10, background: C.cardBg,
-              border: `1px solid ${C.cardBorder}`, textDecoration: 'none',
+              borderRadius: 10, background: 'var(--card)',
+              border: '1px solid var(--card-border)', textDecoration: 'none',
               color: C.muted,
             }}
           >
@@ -246,7 +238,7 @@ export default async function DashboardPage({
       {/* ═══════════════════════════════════════════════════════════════════
           HERO CARD — Orb + SERA card + 5 KPIs
       ═══════════════════════════════════════════════════════════════════ */}
-      <section style={{ ...CARD }}>
+      <section className="sera-card">
         <div className="flex flex-col md:flex-row">
 
           {/* Orb */}
@@ -256,7 +248,7 @@ export default async function DashboardPage({
               width: 148, flexShrink: 0,
               alignItems: 'center', justifyContent: 'center',
               padding: '12px 12px',
-              borderRight: `1px solid ${C.cardBorder}`,
+              borderRight: '1px solid var(--card-border)',
               background: '#ffffff',
             }}
           >
@@ -267,7 +259,7 @@ export default async function DashboardPage({
           <div
             style={{
               padding: '12px 14px',
-              borderRight: `1px solid ${C.cardBorder}`,
+              borderRight: '1px solid var(--card-border)',
               display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6,
               minWidth: 140, flexShrink: 0,
             }}
@@ -302,7 +294,7 @@ export default async function DashboardPage({
                 className="flex-1 hover:bg-black/[0.025] transition-colors"
                 style={{
                   padding: '12px 12px',
-                  borderRight: i < kpis.length - 1 ? `1px solid ${C.cardBorder}` : 'none',
+                  borderRight: i < kpis.length - 1 ? '1px solid var(--card-border)' : 'none',
                   minWidth: 0,
                   borderBottom: 'none',
                   textDecoration: 'none',
@@ -341,8 +333,8 @@ export default async function DashboardPage({
       <div className="dashboard-row-middle" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, overflow: 'hidden', minHeight: 0 }}>
 
         {/* Col 1: Activity feed */}
-        <div style={{ ...CARD_FILL, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${C.cardBorder}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="sera-card" style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid var(--card-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               ЧТО СДЕЛАЛА SERA СЕГОДНЯ
             </span>
@@ -366,7 +358,7 @@ export default async function DashboardPage({
                   style={{
                     display: 'flex', alignItems: 'flex-start', gap: 10,
                     padding: '9px 16px',
-                    borderBottom: i < 4 ? `1px solid ${C.cardBorder}` : 'none',
+                    borderBottom: i < 4 ? '1px solid var(--card-border)' : 'none',
                     textDecoration: 'none',
                   }}
                 >
@@ -398,8 +390,8 @@ export default async function DashboardPage({
         </div>
 
         {/* Col 2: At-risk clients */}
-        <div style={{ ...CARD_FILL, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${C.cardBorder}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="sera-card" style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid var(--card-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               КЛИЕНТЫ, КОТОРЫМ НУЖНО ВНИМАНИЕ
             </span>
@@ -416,8 +408,8 @@ export default async function DashboardPage({
         </div>
 
         {/* Col 3: Next appointment */}
-        <div style={{ ...CARD_FILL, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${C.cardBorder}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="sera-card" style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid var(--card-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               СЛЕДУЮЩАЯ ЗАПИСЬ
             </span>
@@ -500,8 +492,8 @@ export default async function DashboardPage({
       <div className="dashboard-row-bottom" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, overflow: 'hidden', minHeight: 0 }}>
 
         {/* Col 1: Upcoming events */}
-        <div style={{ ...CARD_FILL, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${C.cardBorder}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="sera-card" style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid var(--card-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               БЛИЖАЙШИЕ СОБЫТИЯ
             </span>
@@ -525,7 +517,7 @@ export default async function DashboardPage({
                       className="hover:bg-black/[0.025] transition-colors"
                       style={{
                         display: 'flex', alignItems: 'center', gap: 10, padding: '9px 16px',
-                        borderBottom: i < Math.min(stats.upcoming.length, 4) - 1 ? `1px solid ${C.cardBorder}` : 'none',
+                        borderBottom: i < Math.min(stats.upcoming.length, 4) - 1 ? '1px solid var(--card-border)' : 'none',
                         textDecoration: 'none',
                       }}
                     >
@@ -553,7 +545,7 @@ export default async function DashboardPage({
                     </Link>
                   )
                 })}
-                <div style={{ padding: '10px 16px', borderTop: `1px solid ${C.cardBorder}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ padding: '10px 16px', borderTop: '1px solid var(--card-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: 12, color: C.muted }}>
                     Записей завтра: <strong style={{ color: C.ink }}>{business.tomorrow_appts}</strong>
                   </span>
@@ -567,8 +559,8 @@ export default async function DashboardPage({
         </div>
 
         {/* Col 2: Recommendations */}
-        <div style={{ ...CARD_FILL, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${C.cardBorder}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="sera-card" style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid var(--card-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               РЕКОМЕНДАЦИИ SERA
             </span>
@@ -586,7 +578,7 @@ export default async function DashboardPage({
                   key={i}
                   style={{
                     display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 16px',
-                    borderBottom: i < 3 ? `1px solid ${C.cardBorder}` : 'none',
+                    borderBottom: i < 3 ? '1px solid var(--card-border)' : 'none',
                   }}
                 >
                   <div style={{ width: 28, height: 28, borderRadius: 8, background: ic.bg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -605,8 +597,8 @@ export default async function DashboardPage({
         </div>
 
         {/* Col 3: Day summary */}
-        <div style={{ ...CARD_FILL, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${C.cardBorder}` }}>
+        <div className="sera-card" style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid var(--card-border)' }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               СВОДКА ДНЯ
             </span>
@@ -654,7 +646,7 @@ export default async function DashboardPage({
                 className="hover:bg-black/[0.025] transition-colors"
                 style={{
                   display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px',
-                  borderBottom: i < arr.length - 1 ? `1px solid ${C.cardBorder}` : 'none',
+                  borderBottom: i < arr.length - 1 ? '1px solid var(--card-border)' : 'none',
                   textDecoration: 'none',
                 }}
               >
