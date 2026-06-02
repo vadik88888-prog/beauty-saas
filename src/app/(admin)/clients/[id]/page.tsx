@@ -392,14 +392,13 @@ export default async function ClientProfilePage({
                 </p>
               )}
 
-              {/* ContactButton handles 3 states: A=has conv, B=has tg, C=no tg */}
+              {/* ContactButton: draft stored in DB (conversations.draft), not URL */}
               <div style={{ marginTop: 14 }}>
                 <ContactButton
                   clientId={client.id}
-                  clientName={name}
                   telegramId={client.telegram_id ?? null}
-                  chatId={chatId}
                   draftText={draftText}
+                  draftMeta={{ template: defaultTemplate, source: 'manual' }}
                 />
               </div>
             </div>

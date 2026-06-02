@@ -31,7 +31,7 @@ export async function GET(
   const [convRes, messagesRes] = await Promise.all([
     supabase
       .from('conversations')
-      .select('id, status, created_at, updated_at, client_id, handoff_reason, handoff_summary, client:clients(id, first_name, last_name, telegram_username, telegram_id, phone, total_visits, last_visit_at, is_blocked, notes)')
+      .select('id, status, created_at, updated_at, client_id, handoff_reason, handoff_summary, draft, draft_meta, client:clients(id, first_name, last_name, telegram_username, telegram_id, phone, total_visits, last_visit_at, is_blocked, notes)')
       .eq('id', id)
       .eq('tenant_id', ctx.tenantId)
       .single(),
@@ -124,10 +124,10 @@ export async function POST(
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 
-  // Update conversation timestamp
+  // Update timestamp and clear draft (message was sent successfully)
   await supabase
     .from('conversations')
-    .update({ updated_at: new Date().toISOString() })
+    .update({ updated_at: new Date().toISOString(), draft: null, draft_meta: null })
     .eq('id', id)
 
   // Send to Telegram via TENANT-SPECIFIC bot (не platform — иначе Telegram отвергнет

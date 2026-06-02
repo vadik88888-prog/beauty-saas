@@ -71,12 +71,7 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
   const [appointments, setAppointments] = useState<Appt[]>([])
   const [aiName, setAiName] = useState('Алина')
   const [isLoading, setIsLoading] = useState(true)
-  // Initialize reply from ?draft= URL param (used when navigating from client profile)
-  const [reply, setReply] = useState(() => {
-    if (typeof window === 'undefined') return ''
-    const draft = new URLSearchParams(window.location.search).get('draft')
-    return draft ? decodeURIComponent(draft) : ''
-  })
+  const [reply, setReply] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [showSidePanel, setShowSidePanel] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -94,6 +89,9 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
           setConversation(data.conversation)
           setMessages(data.messages ?? [])
           setAppointments(data.recentAppointments ?? [])
+          // Pre-fill reply from conversation.draft (set by ContactButton, cleared after send)
+          const draft = (data.conversation as { draft?: string | null }).draft
+          if (draft) setReply(draft)
         }
       })
       .finally(() => setIsLoading(false))

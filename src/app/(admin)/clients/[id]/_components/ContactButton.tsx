@@ -7,13 +7,12 @@ import { toast } from 'sonner'
 
 interface ContactButtonProps {
   clientId: string
-  clientName: string
   telegramId: number | null | undefined
-  chatId: string | null    // existing conversation UUID, or null
-  draftText: string        // pre-computed template text
+  draftText: string                           // pre-computed template text
+  draftMeta?: Record<string, unknown> | null  // { template, source } for Level 2
 }
 
-export function ContactButton({ clientId, telegramId, chatId, draftText }: ContactButtonProps) {
+export function ContactButton({ clientId, telegramId, draftText, draftMeta }: ContactButtonProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
 
@@ -32,46 +31,36 @@ export function ContactButton({ clientId, telegramId, chatId, draftText }: Conta
     )
   }
 
-  // ── STATE A: existing conversation — navigate directly ───────────────────
-  if (chatId) {
-    return (
-      <button
-        onClick={() => router.push(`/chats/${chatId}?draft=${encodeURIComponent(draftText)}`)}
-        className="sera-btn sera-btn--ghost sera-btn--sm"
-        style={{ width: '100%', justifyContent: 'center', gap: 6 }}
-      >
-        <MessageSquare size={12} />
-        Написать через SERA
-      </button>
-    )
-  }
-
-  // ── STATE B: has telegram_id, no conversation yet ─────────────────────────
-  // Lazily create conversation → navigate to chat with prefilled draft.
-  // Same send path as State A: POST /api/admin/chats/[id] → INSERT messages + Telegram.
-  async function handleCreate() {
+  // ── STATE A & B: find-or-create conversation, write draft to DB, navigate ─
+  // Draft travels in conversations.draft (not in URL) so it survives page reload
+  // and is cleared after the admin sends the message.
+  async function handleOpen() {
     setLoading(true)
     try {
       const res = await fetch('/api/admin/conversations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId }),
+        body: JSON.stringify({
+          clientId,
+          draft:     draftText,
+          draftMeta: draftMeta ?? null,
+        }),
       })
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
         throw new Error((json as { error?: string }).error ?? 'Ошибка')
       }
       const { data } = await res.json() as { data: { id: string } }
-      router.push(`/chats/${data.id}?draft=${encodeURIComponent(draftText)}`)
+      router.push(`/chats/${data.id}`)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Ошибка создания диалога')
+      toast.error(err instanceof Error ? err.message : 'Ошибка открытия диалога')
       setLoading(false)
     }
   }
 
   return (
     <button
-      onClick={handleCreate}
+      onClick={handleOpen}
       disabled={loading}
       className="sera-btn sera-btn--ghost sera-btn--sm"
       style={{ width: '100%', justifyContent: 'center', gap: 6 }}
