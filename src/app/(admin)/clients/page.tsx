@@ -113,7 +113,7 @@ function InsightCard({
         background: active ? activeBg : 'var(--card)',
         textDecoration: 'none',
         transition: 'box-shadow 0.15s',
-        boxShadow: active ? 'var(--shadow-sm)' : 'var(--shadow-xs)',
+        boxShadow: 'var(--shadow-sm)',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
