@@ -119,7 +119,10 @@ export async function POST(
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  if (error) {
+    console.error('[admin-reply] Insert message error:', error.message, 'code:', error.code, 'details:', error.details)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  }
 
   // Update conversation timestamp
   await supabase
