@@ -15,8 +15,9 @@
   /* ── Текст ───────────────────────────────────────── */
   --ink:            #1B2A22;
   --ink-2:          #2F3B32;
-  --muted:          #6B7B6E;
-  --muted-2:        #A3A698;
+  --muted:          #4F5C53;   /* 5.9:1 on --page, 7.0:1 on --card — passes WCAG AA */
+  --muted-2:        #A3A698;   /* borders / decorative only — NOT for text */
+  --muted-disabled: #8B9988;   /* disabled/empty states only — context implies non-interactive */
 
   /* ── SERA Green (signature) ──────────────────────── */
   --sage:           #5E7D5D;

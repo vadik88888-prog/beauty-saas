@@ -95,6 +95,9 @@ function InsightCard({
   iconColor: string; activeBg: string; Icon: LucideIcon
 }) {
   const empty = count === 0 && !active
+  // Disabled state: use --muted-disabled (lighter, signals non-interactive context).
+  // No opacity on container — opacity causes double-dimming and kills contrast.
+  const dimText = empty ? 'var(--muted-disabled)' : undefined
   return (
     <Link
       href={href}
@@ -102,16 +105,19 @@ function InsightCard({
         display: 'flex', flexDirection: 'column', gap: 8,
         padding: '14px 16px',
         borderRadius: 'var(--radius-lg)',
-        border: active ? `1.5px solid ${iconColor}` : '1px solid var(--card-border)',
+        border: active
+          ? `1.5px solid ${iconColor}`
+          : empty
+          ? '1px solid var(--line-soft)'
+          : '1px solid var(--card-border)',
         background: active ? activeBg : 'var(--card)',
         textDecoration: 'none',
-        opacity: empty ? 0.55 : 1,
         transition: 'box-shadow 0.15s',
         boxShadow: active ? 'var(--shadow-sm)' : 'var(--shadow-xs)',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Icon size={15} strokeWidth={1.8} style={{ color: empty ? 'var(--muted)' : iconColor }} />
+        <Icon size={15} strokeWidth={1.8} style={{ color: empty ? 'var(--muted-disabled)' : iconColor }} />
         {active && (
           <span style={{ fontSize: 9, fontWeight: 800, color: iconColor, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
             фильтр
@@ -119,13 +125,13 @@ function InsightCard({
         )}
       </div>
       <div>
-        <p style={{ fontSize: 26, fontWeight: 800, color: empty ? 'var(--muted)' : 'var(--ink)', lineHeight: 1, fontVariantNumeric: 'tabular-nums', margin: 0 }}>
+        <p style={{ fontSize: 26, fontWeight: 800, color: dimText ?? 'var(--ink)', lineHeight: 1, fontVariantNumeric: 'tabular-nums', margin: 0 }}>
           {count}
         </p>
-        <p style={{ fontSize: 12, fontWeight: 600, color: empty ? 'var(--muted)' : 'var(--ink-2)', margin: '3px 0 0' }}>
+        <p style={{ fontSize: 12, fontWeight: 600, color: dimText ?? 'var(--ink-2)', margin: '3px 0 0' }}>
           {label}
         </p>
-        <p style={{ fontSize: 11, color: 'var(--muted)', margin: '1px 0 0' }}>
+        <p style={{ fontSize: 11, color: dimText ?? 'var(--muted)', margin: '1px 0 0' }}>
           {sublabel}
         </p>
       </div>
