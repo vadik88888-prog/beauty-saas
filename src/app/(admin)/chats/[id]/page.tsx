@@ -71,7 +71,12 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
   const [appointments, setAppointments] = useState<Appt[]>([])
   const [aiName, setAiName] = useState('Алина')
   const [isLoading, setIsLoading] = useState(true)
-  const [reply, setReply] = useState('')
+  // Initialize reply from ?draft= URL param (used when navigating from client profile)
+  const [reply, setReply] = useState(() => {
+    if (typeof window === 'undefined') return ''
+    const draft = new URLSearchParams(window.location.search).get('draft')
+    return draft ? decodeURIComponent(draft) : ''
+  })
   const [isSending, setIsSending] = useState(false)
   const [showSidePanel, setShowSidePanel] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)

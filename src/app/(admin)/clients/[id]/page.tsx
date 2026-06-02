@@ -2,12 +2,13 @@ import { createClient as supabaseAuth } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, Phone, AtSign, Sparkles, MessageSquare } from 'lucide-react'
-import { PageHeader, DataCard, EmptyState, SeraOrb, StatusPill } from '@/components/sera'
+import { ChevronLeft, Phone, AtSign, Sparkles } from 'lucide-react'
+import { PageHeader, EmptyState, SeraOrb, StatusPill } from '@/components/sera'
 import type { AppointmentStatus } from '@/components/sera'
 import { Avatar } from '@/components/shared/Avatar'
 import { formatDate, formatDateLong } from '@/lib/utils/date'
 import { formatPrice } from '@/lib/utils/format'
+import { ContactButton } from './_components/ContactButton'
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,7 @@ type ClientData = {
   last_name: string | null
   phone: string | null
   telegram_username: string | null
+  telegram_id?: number | null
   total_visits: number
   total_spent: number
   last_visit_at: string | null
@@ -42,6 +44,18 @@ type ClientData = {
   is_blocked: boolean
   tags: string[] | null
   birth_date?: string | null
+}
+
+function buildDraftText(template: 'winback' | 'birthday' | 'new_slot', firstName: string): string {
+  const name = firstName || 'Дорогой клиент'
+  switch (template) {
+    case 'winback':
+      return `${name}, мы скучаем по вам! 💚\n\nЗапишитесь на процедуру и получите скидку 10% — только для вас как для постоянного клиента.\n\nЖдём вас! 🌸`
+    case 'birthday':
+      return `С днём рождения, ${name}! 🎂\n\nДарим вам скидку 15% на любую процедуру в этом месяце — наш подарок для вас 💝\n\nЗапишитесь прямо сейчас!`
+    case 'new_slot':
+      return `${name}, у нас появилось свободное окно специально для вас! 📅\n\nХотите записаться на удобное время? Просто ответьте на это сообщение — я помогу выбрать.`
+  }
 }
 
 type VisitRow = {
@@ -122,7 +136,7 @@ export default async function ClientProfilePage({
 
   const [clientRes, visitsRes, convRes] = await Promise.all([
     db.from('clients')
-      .select('id, first_name, last_name, phone, telegram_username, total_visits, total_spent, last_visit_at, created_at, is_blocked, tags, birth_date')
+      .select('id, first_name, last_name, phone, telegram_username, telegram_id, total_visits, total_spent, last_visit_at, created_at, is_blocked, tags, birth_date')
       .eq('id', id)
       .eq('tenant_id', tenantId)
       .single(),
@@ -148,7 +162,6 @@ export default async function ClientProfilePage({
   const client = clientRes.data as unknown as ClientData
   const allVisits = ((visitsRes.data ?? []) as unknown[]) as VisitRow[]
   const chatId = ((convRes.data ?? []) as { id: string }[])[0]?.id ?? null
-  const chatHref = chatId ? `/chats/${chatId}` : '/chats'
 
   const name = [client.first_name, client.last_name].filter(Boolean).join(' ') || 'Без имени'
   const nowIso = new Date().toISOString()
@@ -217,6 +230,25 @@ export default async function ClientProfilePage({
 
     rhythm = { avgIntervalDays, daysSinceLast, outOfRhythm, narrative }
   }
+
+  // Draft text: pick best template based on birthday/rhythm/risk
+  const isBirthdaySoon = (() => {
+    if (!client.birth_date) return false
+    try {
+      const bd = new Date(client.birth_date)
+      const today = new Date()
+      const in14 = new Date(Date.now() + 14 * 86_400_000)
+      const y = today.getFullYear()
+      const bdThis = new Date(y, bd.getMonth(), bd.getDate())
+      const bdNext = new Date(y + 1, bd.getMonth(), bd.getDate())
+      return (bdThis >= today && bdThis <= in14) || (bdNext >= today && bdNext <= in14)
+    } catch { return false }
+  })()
+  const defaultTemplate: 'winback' | 'birthday' | 'new_slot' =
+    isBirthdaySoon ? 'birthday' :
+    (rhythm?.outOfRhythm || isAtRisk) ? 'winback' :
+    'new_slot'
+  const draftText = buildDraftText(defaultTemplate, client.first_name ?? '')
 
   return (
     <>
@@ -360,17 +392,15 @@ export default async function ClientProfilePage({
                 </p>
               )}
 
-              {/* Single "Написать через SERA" button — links to client's conversation if found */}
+              {/* ContactButton handles 3 states: A=has conv, B=has tg, C=no tg */}
               <div style={{ marginTop: 14 }}>
-                <Link href={chatHref}>
-                  <button
-                    className="sera-btn sera-btn--ghost sera-btn--sm"
-                    style={{ width: '100%', justifyContent: 'center', gap: 6 }}
-                  >
-                    <MessageSquare size={12} />
-                    Написать через SERA
-                  </button>
-                </Link>
+                <ContactButton
+                  clientId={client.id}
+                  clientName={name}
+                  telegramId={client.telegram_id ?? null}
+                  chatId={chatId}
+                  draftText={draftText}
+                />
               </div>
             </div>
 
