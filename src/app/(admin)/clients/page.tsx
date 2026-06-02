@@ -184,18 +184,18 @@ function ClientRowEl({
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           {client.phone && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--muted)' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>
               <Phone size={11} strokeWidth={1.8} />
               {client.phone}
             </span>
           )}
           {client.telegram_username && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--muted)' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>
               <AtSign size={11} strokeWidth={1.8} />
               {client.telegram_username}
             </span>
           )}
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: isAtRisk ? 'var(--error)' : 'var(--muted)' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: isAtRisk ? 'var(--error)' : 'var(--text-muted)' }}>
             <Calendar size={11} strokeWidth={1.8} />
             {client.last_visit_at ? formatDate(client.last_visit_at) : 'нет визитов'}
           </span>
@@ -206,12 +206,12 @@ function ClientRowEl({
         <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums', margin: 0, lineHeight: 1 }}>
           {client.total_visits}
         </p>
-        <p style={{ fontSize: 11, color: 'var(--muted)', margin: '2px 0 0' }}>
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '2px 0 0' }}>
           {pl(client.total_visits, ['визит', 'визита', 'визитов'])}
         </p>
       </div>
 
-      <ChevronRight size={14} strokeWidth={1.8} style={{ color: 'var(--muted)', flexShrink: 0 }} />
+      <ChevronRight size={14} strokeWidth={1.8} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
     </Link>
   )
 }

@@ -15,7 +15,9 @@
   /* ── Текст ───────────────────────────────────────── */
   --ink:            #1B2A22;
   --ink-2:          #2F3B32;
-  --muted:          #4F5C53;   /* 5.9:1 on --page, 7.0:1 on --card — passes WCAG AA */
+  --muted:          #4F5C53;   /* INTENT: 5.9:1 WCAG AA — but globals.css :root overrides this
+                                  with shadcn bg value. Use --text-muted for readable text. */
+  --text-muted:     #4F5C53;   /* Safe secondary text token — not shadcn, not overridden. 5.9:1 on --page */
   --muted-2:        #A3A698;   /* borders / decorative only — NOT for text */
   --muted-disabled: #8B9988;   /* disabled/empty states only — context implies non-interactive */
 
@@ -300,7 +302,7 @@
   font: 700 11px var(--font-body);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--muted);
+  color: var(--text-muted);   /* --muted overridden by globals.css as bg; --text-muted is safe */
 }
 
 /* ── KPI число ── */

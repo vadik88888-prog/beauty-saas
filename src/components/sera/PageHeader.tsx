@@ -36,7 +36,7 @@ export function PageHeader({ title, subtitle, action }: PageHeaderProps) {
             style={{
               marginTop: 'var(--space-2)',
               fontSize: '14px',
-              color: 'var(--muted)',
+              color: 'var(--text-muted)',
               lineHeight: 1.5,
             }}
           >

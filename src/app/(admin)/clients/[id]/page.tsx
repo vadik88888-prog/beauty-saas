@@ -94,7 +94,7 @@ function StatCell({ label, value, accent }: { label: string; value: string; acce
       background: 'var(--card-sunken)',
       borderRadius: 'var(--radius-md)',
     }}>
-      <p style={{ fontSize: 11, color: 'var(--muted)', margin: '0 0 2px', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>
+      <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 2px', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>
         {label}
       </p>
       <p style={{ fontSize: 16, fontWeight: 700, color: accent ? 'var(--sage)' : 'var(--ink)', margin: 0, fontVariantNumeric: 'tabular-nums' }}>
@@ -190,20 +190,25 @@ export default async function ClientProfilePage({
   }
   let rhythm: Rhythm | null = null
 
-  if (completedForRhythm.length >= 2) {
+  // Rhythm: use unique calendar days, not individual visits.
+  // Multiple visits on the same day would collapse the interval to 0 otherwise.
+  const uniqueVisitDays = [...new Set(completedForRhythm.map(v => v.starts_at.slice(0, 10)))].sort()
+
+  if (uniqueVisitDays.length >= 2) {
     let totalInterval = 0
-    for (let i = 1; i < completedForRhythm.length; i++) {
+    for (let i = 1; i < uniqueVisitDays.length; i++) {
+      // Use noon to avoid DST edge cases at midnight
       totalInterval +=
-        (new Date(completedForRhythm[i].starts_at).getTime() -
-         new Date(completedForRhythm[i - 1].starts_at).getTime()) / 86_400_000
+        (new Date(uniqueVisitDays[i] + 'T12:00:00').getTime() -
+         new Date(uniqueVisitDays[i - 1] + 'T12:00:00').getTime()) / 86_400_000
     }
-    const avgIntervalDays = Math.round(totalInterval / (completedForRhythm.length - 1))
-    const lastCompleted = completedForRhythm[completedForRhythm.length - 1].starts_at
+    const avgIntervalDays = Math.max(1, Math.round(totalInterval / (uniqueVisitDays.length - 1)))
+    const lastDay = uniqueVisitDays[uniqueVisitDays.length - 1]
     const daysSinceLast = Math.floor(
-      (Date.now() - new Date(lastCompleted).getTime()) / 86_400_000
+      (Date.now() - new Date(lastDay + 'T12:00:00').getTime()) / 86_400_000
     )
     // "At risk" threshold: same 30d as dashboard, OR exceeded avg interval by 50%
-    const outOfRhythm = daysSinceLast > 30 || (avgIntervalDays > 0 && daysSinceLast > avgIntervalDays * 1.5)
+    const outOfRhythm = daysSinceLast > 30 || daysSinceLast > avgIntervalDays * 1.5
 
     const narrative = outOfRhythm
       ? `Обычно приходит раз в ${avgIntervalDays} ${pl(avgIntervalDays, ['день', 'дня', 'дней'])}. Последний визит ${daysSinceLast} ${pl(daysSinceLast, ['день', 'дня', 'дней'])} назад — выбился из ритма.`
@@ -330,7 +335,7 @@ export default async function ClientProfilePage({
                       Ритм клиента
                     </span>
                   </div>
-                  <p style={{ fontSize: 11, color: 'var(--muted)', margin: '1px 0 0' }}>анализ SERA</p>
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '1px 0 0' }}>анализ SERA</p>
                 </div>
               </div>
 
@@ -349,7 +354,7 @@ export default async function ClientProfilePage({
                   </div>
                 </>
               ) : (
-                <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6, margin: 0 }}>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
                   Недостаточно истории для анализа ритма — нужно минимум 2 завершённых визита.
                 </p>
               )}
