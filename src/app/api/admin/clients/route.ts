@@ -46,6 +46,11 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ data, total: count ?? 0, page, limit })
 }
 
+// Digits only — strips +, spaces, dashes, parens so +375298456123 === 375298456123.
+function normalizePhone(raw: string): string {
+  return raw.replace(/\D/g, '')
+}
+
 const NewClientSchema = z.object({
   first_name:        z.string().min(1).max(100),
   last_name:         z.string().max(100).optional().nullable(),
@@ -65,15 +70,21 @@ export async function POST(req: NextRequest) {
   const supabase = createAdminClient()
   const { forceCreate, ...clientData } = parsed.data
 
+  // Normalise phone so +375… and 375… are treated as the same number.
+  const normalizedPhone = normalizePhone(clientData.phone)
+  const insertData = { ...clientData, phone: normalizedPhone }
+
   // Warn about duplicate phone without blocking — salon may intentionally add two clients
   // sharing a number (e.g. mother and daughter). forceCreate bypasses this check.
-  if (clientData.phone && !forceCreate) {
-    const { data: existing } = await supabase
+  // Use .limit(1) instead of .maybeSingle() so existing duplicates in the DB don't cause a 406.
+  if (!forceCreate) {
+    const { data: rows } = await supabase
       .from('clients')
       .select('id, first_name, last_name, phone, total_visits')
       .eq('tenant_id', tenantId)
-      .eq('phone', clientData.phone)
-      .maybeSingle()
+      .eq('phone', normalizedPhone)
+      .limit(1)
+    const existing = rows?.[0] ?? null
     if (existing) {
       return NextResponse.json({ duplicate: true, existing }, { status: 409 })
     }
@@ -81,7 +92,7 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await supabase
     .from('clients')
-    .insert({ ...clientData, tenant_id: tenantId })
+    .insert({ ...insertData, tenant_id: tenantId })
     .select('id, first_name, last_name, phone, telegram_username')
     .single()
 
