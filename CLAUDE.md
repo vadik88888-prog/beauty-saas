@@ -98,6 +98,15 @@ TMA (все redesigned): `/` `/booking/*` `/appointments` `/chat` `/promotions` 
 
 ---
 
+## Статус работ
+
+- **L1 «Касание через SERA»** — готово. Путь: `POST /api/admin/chats/[id]`, черновик в `conversations.draft`, кнопка `ContactButton` по `telegram_id`.
+- **Карточки** — унифицированы на `.sera-card` (дашборд + `/clients`). Остальные shadcn-страницы приводятся к эталону при доработке каждой страницы, не отдельно.
+- **Клиенты** — защита от дублей (кнопка + сервер + БД), затем смягчена: при совпадении телефона — предупреждение + выбор (`forceCreate` флаг).
+- **Далее:** кнопка «Добавить клиента» на `/clients` (пустышка → подключить к `/api/admin/clients`), затем страница Услуги.
+
+---
+
 ## Migrations (prod)
 
 ```
@@ -111,6 +120,8 @@ TMA (все redesigned): `/` `/booking/*` `/appointments` `/chat` `/promotions` 
      total_visits trigger!      022  nullable_telegram_id
                                 023  messages_role_admin (+ 'admin' в CHECK)
                                 024  conversation_draft (draft TEXT + draft_meta JSONB)
+                                025  unique_client_phone (→ сразу сброшен 026)
+                                026  drop_phone_unique_index (дубли по телефону — soft-warning)
 ```
 
 ---
@@ -134,10 +145,8 @@ Workflow: checkpoint → code → build → push → smoke 12/12
 
 ## Known Issues & TODO
 
-**Визуальные:** дашборд-футер наезжает при < 820px · карточка записи в календаре блёклая · рекомендации SERA статичные (нужен `getSalonInsights()`)
-
-**Будущие миграции:** `masters` (experience/rating) · `services` (is_popular/visibility) · `promotions` (type) · `tenant_ai_settings` (greeting/feature_flags)
-
+**Визуальные:** дашборд-футер наезжает при < 820px · карточка записи в календаре блёклая · рекомендации SERA статичные (нужен `getSalonInsights()`)  
+**Будущие миграции:** `masters` (experience/rating) · `services` (is_popular/visibility) · `promotions` (type) · `tenant_ai_settings` (greeting/feature_flags)  
 **TMA backlog:** AI slot-chips · Waitlist push · Share booking (premium)
 
 ---
@@ -155,5 +164,7 @@ Workflow: checkpoint → code → build → push → smoke 12/12
 **Karpathy:** Think Before Coding · Simplicity First · Surgical Changes · Goal-Driven
 
 **Communication:** в конце фазы — объяснить как ребёнку через аналогии из салона · No duplicate CTAs
+
+**Миграции:** при создании любой миграции — в конце ответа крупно писать ⚠️ ПРИМЕНИТЬ В SUPABASE SQL EDITOR. Claude Code не имеет доступа к prod-базе.
 
 **Reference:** HISTORY.md · SMOKE_CHECKLIST.md · scripts/smoke-test.sh · dogs1/SERA_PLAN_ALL_PAGES.md

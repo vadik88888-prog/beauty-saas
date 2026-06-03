@@ -105,7 +105,7 @@ function StatCell({ label, value, accent }: { label: string; value: string; acce
   return (
     <div style={{
       padding: '10px 12px',
-      background: 'var(--page)',
+      background: 'var(--card-sunken)',
       border: '1px solid var(--card-border)',
       borderRadius: 'var(--radius-md)',
     }}>

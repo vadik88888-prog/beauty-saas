@@ -51,6 +51,7 @@ const NewClientSchema = z.object({
   last_name:         z.string().max(100).optional().nullable(),
   phone:             z.string().min(1).max(50),
   telegram_username: z.string().max(100).optional().nullable(),
+  forceCreate:       z.boolean().optional(),
 })
 
 export async function POST(req: NextRequest) {
@@ -62,9 +63,25 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: 'Invalid data' }, { status: 400 })
 
   const supabase = createAdminClient()
+  const { forceCreate, ...clientData } = parsed.data
+
+  // Warn about duplicate phone without blocking — salon may intentionally add two clients
+  // sharing a number (e.g. mother and daughter). forceCreate bypasses this check.
+  if (clientData.phone && !forceCreate) {
+    const { data: existing } = await supabase
+      .from('clients')
+      .select('id, first_name, last_name, phone, total_visits')
+      .eq('tenant_id', tenantId)
+      .eq('phone', clientData.phone)
+      .maybeSingle()
+    if (existing) {
+      return NextResponse.json({ duplicate: true, existing }, { status: 409 })
+    }
+  }
+
   const { data, error } = await supabase
     .from('clients')
-    .insert({ ...parsed.data, tenant_id: tenantId })
+    .insert({ ...clientData, tenant_id: tenantId })
     .select('id, first_name, last_name, phone, telegram_username')
     .single()
 

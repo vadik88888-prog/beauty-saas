@@ -25,6 +25,14 @@ type ClientResult = {
   telegram_username: string | null
 }
 
+type DuplicateClient = {
+  id: string
+  first_name: string | null
+  last_name: string | null
+  phone: string
+  total_visits: number
+}
+
 type WorkingHour = {
   master_id: string
   day_of_week: number
@@ -115,19 +123,25 @@ export function NewAppointmentModal({
   const [conflictMsg,       setConflictMsg]       = useState('')
   const [validationError,   setValidationError]   = useState('')
   const [isSubmitting,      setIsSubmitting]      = useState(false)
+  const [duplicateHint,     setDuplicateHint]     = useState<DuplicateClient | null>(null)
 
-  const clientInputRef = useRef<HTMLInputElement>(null)
-  const searchTimer    = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const clientInputRef   = useRef<HTMLInputElement>(null)
+  const searchTimer      = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Persists the client ID created during this modal session so retries don't re-POST.
+  const createdClientRef = useRef<string | null>(null)
+  const forceCreateRef   = useRef(false)
 
   // ── Reset + fetch services on open ──
   useEffect(() => {
     if (!isOpen) return
+    createdClientRef.current = null
+    forceCreateRef.current = false
     setClientSearch(''); setClientResults([]); setShowDropdown(false)
     setSelectedClient(null); setShowNewClient(false)
     setNewFirst(''); setNewLast(''); setNewPhone(''); setNewTg('')
     setServiceId(''); setMasterId(defaultMasterId ?? ''); setFilteredMasters(allMasters)
     setDate(localIsoDate(defaultDate)); setStartTime(defaultTime ?? ''); setEndTime('')
-    setNotes(''); setConflictMsg(''); setValidationError('')
+    setNotes(''); setConflictMsg(''); setValidationError(''); setDuplicateHint(null)
     fetch('/api/admin/services')
       .then(r => r.json())
       .then(j => setServices((j.data ?? []).filter((s: Service) => s.is_active !== false)))
@@ -217,41 +231,68 @@ export function NewAppointmentModal({
     if (whErr) { setValidationError(whErr); return }
 
     setIsSubmitting(true)
-    let clientId = selectedClient?.id ?? null
+    try {
+      // Use previously created client id if this is a retry, to avoid duplicate clients.
+      let clientId = selectedClient?.id ?? createdClientRef.current ?? null
 
-    if (!clientId && showNewClient) {
-      const cr = await fetch('/api/admin/clients', {
+      if (!clientId && showNewClient) {
+        const cr = await fetch('/api/admin/clients', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            first_name: newFirst.trim(), last_name: newLast.trim() || null,
+            phone: newPhone.trim(), telegram_username: newTg.trim() || null,
+            ...(forceCreateRef.current && { forceCreate: true }),
+          }),
+        })
+        const cj = await cr.json()
+        if (cr.status === 409 && cj.duplicate) {
+          setDuplicateHint(cj.existing)
+          return
+        }
+        if (!cr.ok) { setValidationError(cj.error ?? 'Ошибка создания клиента'); return }
+        clientId = cj.data.id
+        createdClientRef.current = clientId
+        forceCreateRef.current = false
+      }
+
+      const [y, mo, d] = date.split('-').map(Number)
+      const [sh, sm]   = startTime.split(':').map(Number)
+      const [eh, em]   = endTime.split(':').map(Number)
+      const startsAt   = new Date(y, mo - 1, d, sh, sm).toISOString()
+      const endsAt     = new Date(y, mo - 1, d, eh, em).toISOString()
+
+      const ar = await fetch('/api/admin/appointments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ first_name: newFirst.trim(), last_name: newLast.trim() || null, phone: newPhone.trim(), telegram_username: newTg.trim() || null }),
+        body: JSON.stringify({ clientId, serviceId, masterId, startsAt, endsAt, notes: notes.trim() || undefined }),
       })
-      const cj = await cr.json()
-      if (!cr.ok) { setValidationError(cj.error ?? 'Ошибка создания клиента'); setIsSubmitting(false); return }
-      clientId = cj.data.id
+      const aj = await ar.json()
+
+      if (!ar.ok) {
+        if (ar.status === 409) setConflictMsg(aj.error ?? 'Время занято у мастера')
+        else setValidationError(aj.error ?? 'Ошибка')
+        return
+      }
+
+      onCreated(aj.data)
+      onClose()
+    } finally {
+      setIsSubmitting(false)
     }
+  }
 
-    const [y, mo, d] = date.split('-').map(Number)
-    const [sh, sm]   = startTime.split(':').map(Number)
-    const [eh, em]   = endTime.split(':').map(Number)
-    const startsAt   = new Date(y, mo - 1, d, sh, sm).toISOString()
-    const endsAt     = new Date(y, mo - 1, d, eh, em).toISOString()
+  function handlePickExisting() {
+    if (!duplicateHint) return
+    createdClientRef.current = duplicateHint.id
+    setDuplicateHint(null)
+    handleSubmit()
+  }
 
-    const ar = await fetch('/api/admin/appointments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientId, serviceId, masterId, startsAt, endsAt, notes: notes.trim() || undefined }),
-    })
-    const aj = await ar.json()
-    setIsSubmitting(false)
-
-    if (!ar.ok) {
-      if (ar.status === 409) setConflictMsg(aj.error ?? 'Время занято у мастера')
-      else setValidationError(aj.error ?? 'Ошибка')
-      return
-    }
-
-    onCreated(aj.data)
-    onClose()
+  function handleForceCreate() {
+    forceCreateRef.current = true
+    setDuplicateHint(null)
+    handleSubmit()
   }
 
   if (!isOpen) return null
@@ -417,8 +458,35 @@ export function NewAppointmentModal({
             />
           </div>
 
+          {/* Duplicate warning */}
+          {duplicateHint && (
+            <div style={{ padding: '12px 14px', background: 'var(--warning-soft)', border: '1px solid var(--warning)', borderRadius: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10 }}>
+                <AlertCircle size={15} style={{ color: 'var(--warning)', flexShrink: 0, marginTop: 1 }} />
+                <span style={{ fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.4 }}>
+                  Клиент с номером <strong style={{ color: 'var(--ink)' }}>{duplicateHint.phone}</strong> уже есть:{' '}
+                  <strong style={{ color: 'var(--ink)' }}>
+                    {[duplicateHint.first_name, duplicateHint.last_name].filter(Boolean).join(' ') || 'Без имени'}
+                  </strong>{' '}
+                  ({duplicateHint.total_visits} {
+                    duplicateHint.total_visits % 10 === 1 && duplicateHint.total_visits % 100 !== 11 ? 'визит' :
+                    [2,3,4].includes(duplicateHint.total_visits % 10) && ![12,13,14].includes(duplicateHint.total_visits % 100) ? 'визита' : 'визитов'
+                  }). Это он?
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={handlePickExisting} className="sera-btn sera-btn--sera sera-btn--sm" style={{ flex: 1 }}>
+                  Да, выбрать его
+                </button>
+                <button onClick={handleForceCreate} className="sera-btn sera-btn--secondary sera-btn--sm" style={{ flex: 1 }}>
+                  Нет, создать нового
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Error banner */}
-          {(conflictMsg || validationError) && (
+          {!duplicateHint && (conflictMsg || validationError) && (
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: 'var(--error-soft)', border: '1px solid var(--error)', borderRadius: 10 }}>
               <AlertCircle size={15} style={{ color: 'var(--error)', flexShrink: 0, marginTop: 1 }} />
               <span style={{ fontSize: 13, color: 'var(--error)', lineHeight: 1.4 }}>{conflictMsg || validationError}</span>
@@ -428,9 +496,11 @@ export function NewAppointmentModal({
           {/* Actions */}
           <div style={{ display: 'flex', gap: 8, paddingTop: 2 }}>
             <button onClick={onClose} className="sera-btn sera-btn--secondary" style={{ flex: 1 }}>Отмена</button>
-            <button onClick={handleSubmit} disabled={isSubmitting} className="sera-btn sera-btn--sera" style={{ flex: 2, opacity: isSubmitting ? 0.7 : 1 }}>
-              {isSubmitting ? 'Создаём...' : 'Создать запись'}
-            </button>
+            {!duplicateHint && (
+              <button onClick={handleSubmit} disabled={isSubmitting} className="sera-btn sera-btn--sera" style={{ flex: 2, opacity: isSubmitting ? 0.7 : 1 }}>
+                {isSubmitting ? 'Создаём...' : 'Создать запись'}
+              </button>
+            )}
           </div>
 
         </div>
