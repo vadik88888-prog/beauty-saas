@@ -76,14 +76,19 @@ export async function POST(req: NextRequest) {
 
   // Warn about duplicate phone without blocking — salon may intentionally add two clients
   // sharing a number (e.g. mother and daughter). forceCreate bypasses this check.
-  // Use .limit(1) instead of .maybeSingle() so existing duplicates in the DB don't cause a 406.
+  // Search both the normalised form and the raw trimmed value so phones stored with/without
+  // leading + are found regardless of whether the DB normalisation migration has run.
   if (!forceCreate) {
-    const { data: rows } = await supabase
+    const rawPhone = clientData.phone.trim()
+    const phonesToSearch = [...new Set([normalizedPhone, rawPhone])].filter(Boolean)
+    console.log('[clients POST] duplicate check — searching phones:', phonesToSearch, 'tenant:', tenantId)
+    const { data: rows, error: dupErr } = await supabase
       .from('clients')
       .select('id, first_name, last_name, phone, total_visits')
       .eq('tenant_id', tenantId)
-      .eq('phone', normalizedPhone)
+      .in('phone', phonesToSearch)
       .limit(1)
+    console.log('[clients POST] duplicate rows:', rows, 'error:', dupErr)
     const existing = rows?.[0] ?? null
     if (existing) {
       return NextResponse.json({ duplicate: true, existing }, { status: 409 })
