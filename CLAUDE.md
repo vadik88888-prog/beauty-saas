@@ -100,9 +100,10 @@ TMA (все redesigned): `/` `/booking/*` `/appointments` `/chat` `/promotions` 
 
 ## Статус работ
 
-- **L1 «Касание через SERA»** — готово. Путь: `POST /api/admin/chats/[id]`, черновик в `conversations.draft`, кнопка `ContactButton` по `telegram_id`.
-- **Карточки** — унифицированы на `.sera-card` (дашборд + `/clients`). Остальные shadcn-страницы приводятся к эталону при доработке каждой страницы, не отдельно.
-- **Клиенты** — защита от дублей (кнопка + сервер + БД), затем смягчена: при совпадении телефона — предупреждение + выбор (`forceCreate` флаг).
+- ✅ **L1 «Касание через SERA»** — закрыто. `POST /api/admin/chats/[id]`, черновик в `conversations.draft`, `ContactButton` по `telegram_id`.
+- ⏳ **L2 «Касание через SERA»** — запланирован. SERA генерит персональный текст через LLM (ритм + история клиента), салон одобряет → отправка. Строить поверх L1. **Только после починки AI-администратора** (сейчас не отвечает). L2 завязан на работающий AI.
+- ✅ **Карточки** — унифицированы на `.sera-card` (дашборд + `/clients`). Остальные shadcn-страницы — при доработке каждой, не отдельно.
+- ✅ **Дубли клиентов** — закрыто. Нормализация телефона digits-only, `.in()` по обоим форматам, плашка выбора (`forceCreate`), миграции 025/026/027 применены.
 - **Далее:** кнопка «Добавить клиента» на `/clients` (пустышка → подключить к `/api/admin/clients`), затем страница Услуги.
 
 ---
@@ -122,6 +123,7 @@ TMA (все redesigned): `/` `/booking/*` `/appointments` `/chat` `/promotions` 
                                 024  conversation_draft (draft TEXT + draft_meta JSONB)
                                 025  unique_client_phone (→ сразу сброшен 026)
                                 026  drop_phone_unique_index (дубли по телефону — soft-warning)
+                                027  normalize_existing_phones (digits-only в prod)
 ```
 
 ---
@@ -166,5 +168,7 @@ Workflow: checkpoint → code → build → push → smoke 12/12
 **Communication:** в конце фазы — объяснить как ребёнку через аналогии из салона · No duplicate CTAs
 
 **Миграции:** при создании любой миграции — в конце ответа крупно писать ⚠️ ПРИМЕНИТЬ В SUPABASE SQL EDITOR. Claude Code не имеет доступа к prod-базе.
+
+**Деплой:** после «build зелёный» — ОБЯЗАТЕЛЬНО git push → подождать 1-2 мин → Ctrl+Shift+R, ПОТОМ тестировать. Локальный build ≠ прод.
 
 **Reference:** HISTORY.md · SMOKE_CHECKLIST.md · scripts/smoke-test.sh · dogs1/SERA_PLAN_ALL_PAGES.md
