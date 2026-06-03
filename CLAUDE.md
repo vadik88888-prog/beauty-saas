@@ -171,4 +171,6 @@ Workflow: checkpoint → code → build → push → smoke 12/12
 
 **Деплой:** после «build зелёный» — ОБЯЗАТЕЛЬНО git push → подождать 1-2 мин → Ctrl+Shift+R, ПОТОМ тестировать. Локальный build ≠ прод.
 
-**Reference:** HISTORY.md · SMOKE_CHECKLIST.md · scripts/smoke-test.sh · dogs1/SERA_PLAN_ALL_PAGES.md
+**Планы и спеки — в `docs/`.** Не слеплять в один файл. Не держать вне `docs/`.
+
+**Reference:** HISTORY.md · SMOKE_CHECKLIST.md · scripts/smoke-test.sh · docs/SERA_PLAN_ALL_PAGES.md · docs/SERA_DESIGN_SYSTEM.md
