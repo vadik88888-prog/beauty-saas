@@ -74,7 +74,7 @@ type TgViewport = {
 
 export default function ChatPage() {
   const router = useRouter()
-  const [aiName, setAiName] = useState('Алина')
+  const [aiName, setAiName] = useState('SERA')
   const [welcomeText, setWelcomeText] = useState(DEFAULT_WELCOME)
   const [messages, setMessages] = useState<Message[]>([])
 

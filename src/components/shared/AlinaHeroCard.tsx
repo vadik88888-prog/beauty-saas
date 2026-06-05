@@ -39,7 +39,7 @@ type AlinaHeroCardProps = {
  */
 export function AlinaHeroCard({
   variant = 'full',
-  name = 'Алина',
+  name = 'SERA',
   avatarSrc,
   status = 'AI-администратор · online',
   welcome,

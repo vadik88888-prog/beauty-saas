@@ -22,13 +22,13 @@ export async function maybeRecomputeSummary(
 
   const transcript = oldMessages
     .map(m => {
-      const role = m.role === 'user' ? 'Клиент' : m.role === 'assistant' ? 'Алина' : m.role
+      const role = m.role === 'user' ? 'Клиент' : m.role === 'assistant' ? 'SERA' : m.role
       const content = m.content.length > 400 ? m.content.slice(0, 400) + '…' : m.content
       return `${role}: ${content}`
     })
     .join('\n')
 
-  const systemPrompt = `Ты сжимаешь долгий диалог между клиентом салона и AI-администратором Алиной для сохранения контекста. Напиши сводку до 200 слов, на русском, в третьем лице. Покрой:
+  const systemPrompt = `Ты сжимаешь долгий диалог между клиентом салона и AI-администратором SERA для сохранения контекста. Напиши сводку до 200 слов, на русском, в третьем лице. Покрой:
 - О чём клиент спрашивал и какой результат получил
 - Какие услуги/мастера обсуждались (точные названия)
 - Какие записи созданы/отменены/перенесены (даты, время, мастер)

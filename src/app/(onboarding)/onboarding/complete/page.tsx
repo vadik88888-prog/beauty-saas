@@ -28,7 +28,7 @@ async function getData() {
 
   return {
     tenant: tenantRes.data as { name: string; slug: string } | null,
-    aiName: (aiRes.data as { admin_name?: string } | null)?.admin_name ?? 'Алина',
+    aiName: (aiRes.data as { admin_name?: string } | null)?.admin_name ?? 'SERA',
   }
 }
 

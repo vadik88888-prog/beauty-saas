@@ -47,7 +47,7 @@ type FaqItem = { id: string; question: string; answer: string; is_active: boolea
 type Article = { id: string; title: string; content: string; is_active: boolean; updated_at: string }
 
 const DEFAULT_SETTINGS: AiSettings = {
-  admin_name: 'Алина',
+  admin_name: 'SERA',
   tone_of_voice: 'friendly',
   custom_instructions: '',
   welcome_message: null,

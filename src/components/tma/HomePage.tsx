@@ -33,7 +33,7 @@ export function TmaHomePage() {
   const setBookingMaster = useBookingStore(s => s.setMaster)
   const [tenant, setTenant] = useState<TenantPublicData | null>(null)
   const [nextAppointment, setNextAppointment] = useState<AppointmentWithRelations | null>(null)
-  const [aiName, setAiName] = useState('Алина')
+  const [aiName, setAiName] = useState('SERA')
   const [client, setClient] = useState<ClientInfo | null>(null)
   const [usual, setUsual] = useState<UsualBooking | null>(null)
   const [recommendation, setRecommendation] = useState<Service | null>(null)

@@ -69,7 +69,7 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
   const [conversation, setConversation] = useState<Conversation | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [appointments, setAppointments] = useState<Appt[]>([])
-  const [aiName, setAiName] = useState('Алина')
+  const [aiName, setAiName] = useState('SERA')
   const [isLoading, setIsLoading] = useState(true)
   const [reply, setReply] = useState('')
   const [isSending, setIsSending] = useState(false)
