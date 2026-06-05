@@ -21,8 +21,8 @@ type AlinaPickCardProps = {
 }
 
 /**
- * Horizontal "Алина рекомендует" pick card for booking pages.
- * Peach-tint gradient + small Alina mark + service info + photo on the right.
+ * Horizontal "SERA рекомендует" pick card for booking pages.
+ * Peach-tint gradient + small SERA mark + service info + photo on the right.
  */
 export function AlinaPickCard({
   title,

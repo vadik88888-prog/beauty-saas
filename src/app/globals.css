@@ -257,7 +257,7 @@
 }
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 
-/* ─── Alina brand animations ─────────────────────────────────────────── */
+/* ─── SERA brand animations ──────────────────────────────────────────── */
 @keyframes breathe {
   0%, 100% { transform: scale(1); }
   50%       { transform: scale(1.04); }

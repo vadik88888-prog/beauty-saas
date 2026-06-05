@@ -40,7 +40,7 @@ export default async function OnboardingCompletePage() {
   return (
     <div className="min-h-screen bg-background safe-top safe-bottom">
       <div className="max-w-2xl mx-auto px-5 py-8 md:py-12 flex flex-col gap-6">
-        {/* AI Hero — Алина готова работать */}
+        {/* AI Hero — SERA готова работать */}
         <div className="relative rounded-2xl border border-ai-border overflow-hidden p-6 md:p-8 text-center bg-[linear-gradient(135deg,var(--ai-soft)_0%,var(--surface-elevated)_60%,var(--accent-soft)_100%)]" style={{ boxShadow: 'var(--shadow-sm)' }}>
           {/* Pulse avatar */}
           <div className="relative inline-flex mb-4">

@@ -44,7 +44,7 @@ export default function PromotionsAdminPage() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
 
-  // Pre-fill from Alina's tip (URL params: new, title, description, discount, type)
+  // Pre-fill from SERA's tip (URL params: new, title, description, discount, type)
   useEffect(() => {
     if (prefillHandled.current) return
     if (searchParams.get('new') !== '1') return

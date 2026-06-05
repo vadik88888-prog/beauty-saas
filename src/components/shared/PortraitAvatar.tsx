@@ -23,7 +23,7 @@ type PortraitAvatarProps = {
 
 /**
  * CSS portrait avatar — sage gradient background with first initial.
- * Used for Alina (AI) and masters when no photo is set.
+ * Used for SERA (AI) and masters when no photo is set.
  * For low-level avatar primitive use shadcn `<Avatar>` from `ui/avatar`.
  */
 export function PortraitAvatar({
