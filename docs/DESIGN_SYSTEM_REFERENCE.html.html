@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SERA · Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --page:#EFE9DD; --page-alt:#F8F5EF; --card:#FFFFFF; --card-sunken:#FAF6EC; --card-border:rgba(27,42,34,.09);
+  --ink:#1B2A22; --ink-2:#2F3B32; --text-muted:#4F5C53; --muted-2:#A3A698; --muted-disabled:#8B9988;
+  --sage:#5E7D5D; --sage-2:#7D9A78; --sage-deep:#10382F; --sage-deep-2:#18483D; --sage-soft:#C9D8C5; --sage-tint:#E7EEE2; --sage-glow:#A5C0A1;
+  --gold:#E6A83A; --gold-soft:#FDF3DC; --gold-pearl:#E8D6AE;
+  --success:#4F8A68; --warning:#E6A83A; --error:#B94040; --info:#5B7FA6;
+  --line:#E3DCCB; --line-soft:#ECE5D3;
+  /* Мастера — постоянный цвет на каждого, 8 фирменных оттенков (дальше циклится) */
+  --m1-bar:#2E6B4F;--m1-tint:#D7EADD;--m1-ink:#1E4E39; --m2-bar:#C98A2B;--m2-tint:#F8E9C9;--m2-ink:#8A5E12;
+  --m3-bar:#C26B4E;--m3-tint:#F3D9CC;--m3-ink:#8E4429; --m4-bar:#8A5E8F;--m4-tint:#E8D9EB;--m4-ink:#5E3C63;
+  --m5-bar:#5B7FA6;--m5-tint:#DCE6F0;--m5-ink:#385672; --m6-bar:#3E8C86;--m6-tint:#CFEAE6;--m6-ink:#28615C;
+  --m7-bar:#BD6A77;--m7-tint:#F1D7DC;--m7-ink:#8A3F4B; --m8-bar:#7E8A3F;--m8-tint:#E8ECCF;--m8-ink:#565E22;
+  --radius-sm:8px; --radius-md:12px; --radius-lg:14px; --radius-xl:20px; --radius-2xl:24px; --radius-full:999px;
+  --shadow-xs:0 1px 2px rgba(27,42,34,.04); --shadow-sm:0 2px 8px rgba(27,42,34,.06); --shadow-md:0 4px 16px rgba(27,42,34,.08); --shadow-lg:0 8px 32px rgba(27,42,34,.10); --shadow-hero:0 20px 60px rgba(16,56,47,.18); --shadow-glow:0 0 24px rgba(165,192,161,.4);
+  --font-display:'Cormorant Garamond',Georgia,serif; --font-body:'Inter',system-ui,sans-serif;
+  --ease-glide:cubic-bezier(.16,1,.3,1);
+  --nav:248px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:var(--font-body); color:var(--ink); -webkit-font-smoothing:antialiased; background:var(--page)}
+
+/* ===== SIDEBAR ===== */
+.side{position:fixed; top:0; left:0; bottom:0; width:var(--nav); background:linear-gradient(180deg,var(--sage-deep),#0c2a23); color:#D9E2D5; padding:24px 18px; display:flex; flex-direction:column; z-index:40}
+.brand{display:flex; gap:11px; align-items:center}
+.orb-sm{width:38px;height:38px;border-radius:50%; background:radial-gradient(circle at 38% 32%,var(--sage-glow),var(--sage) 45%,var(--sage-deep) 90%); box-shadow:var(--shadow-glow); flex-shrink:0; animation:breathe 4s var(--ease-glide) infinite}
+@keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+.brand b{font-family:var(--font-display); font-size:19px; color:#fff; font-weight:600}
+.brand small{display:block; font-size:11px; color:var(--sage-glow); letter-spacing:.04em}
+.nav{margin-top:30px; display:flex; flex-direction:column; gap:2px; overflow-y:auto; flex:1}
+.nav a{font-size:13.5px; color:rgba(217,226,213,.72); text-decoration:none; padding:9px 12px; border-radius:var(--radius-md); transition:.18s; display:flex; align-items:center; gap:9px}
+.nav a:hover{background:rgba(255,255,255,.06); color:#fff}
+.nav a.active{background:rgba(165,192,161,.18); color:#fff; font-weight:600}
+.nav .dotn{width:5px;height:5px;border-radius:50%; background:var(--sage-glow); opacity:0; transition:.18s}
+.nav a.active .dotn{opacity:1}
+.side .cta{margin-top:14px; background:var(--gold); color:#3A2A06; border:0; font-family:var(--font-body); font-weight:700; font-size:13.5px; padding:12px; border-radius:var(--radius-md); cursor:pointer; transition:.2s; box-shadow:var(--shadow-sm)}
+.side .cta:hover{filter:brightness(1.05); box-shadow:var(--shadow-md)}
+
+/* ===== MAIN ===== */
+.main{margin-left:var(--nav); padding:46px 44px 90px; max-width:1180px;
+  background:radial-gradient(1100px 560px at 92% -6%,rgba(165,192,161,.2),transparent 60%), var(--page)}
+section{scroll-margin-top:30px; margin-top:46px}
+.eyebrow{display:inline-flex; gap:8px; align-items:center; font-size:12px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--sage); margin-bottom:12px}
+.eyebrow .d{width:7px;height:7px;border-radius:50%; background:var(--sage); box-shadow:var(--shadow-glow)}
+h1{font-family:var(--font-display); font-weight:600; font-size:56px; line-height:1.02; letter-spacing:-.01em; color:var(--sage-deep)}
+.sec-head{display:flex; align-items:baseline; gap:14px; margin-bottom:18px}
+.sec-head .n{font-family:var(--font-display); font-size:20px; color:var(--sage-2); font-weight:600}
+.sec-head h2{font-family:var(--font-display); font-weight:600; font-size:30px; color:var(--sage-deep); letter-spacing:-.01em}
+.sec-head p{font-size:13.5px; color:var(--text-muted); margin-left:auto}
+.panel{background:var(--card); border:1px solid var(--card-border); border-radius:var(--radius-xl); padding:26px; box-shadow:var(--shadow-sm)}
+.panel + .panel{margin-top:16px}
+.glabel{font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted-2); margin:22px 0 11px}
+.glabel:first-child{margin-top:0}
+
+/* hero glare */
+.hero{position:relative; overflow:hidden; border-radius:var(--radius-2xl); background:linear-gradient(150deg,var(--sage-deep),var(--sage-deep-2) 70%,#0c2a23); color:#EDEFE8; padding:38px 40px; box-shadow:var(--shadow-hero); margin-top:18px}
+.hero::before{content:""; position:absolute; inset:0; opacity:0; transition:opacity .35s; background:radial-gradient(420px circle at var(--mx,50%) var(--my,40%), rgba(165,192,161,.3), transparent 45%)}
+.hero:hover::before{opacity:1}
+.hero::after{content:""; position:absolute; right:-50px; top:-60px; width:240px; height:240px; border-radius:50%; background:radial-gradient(circle,rgba(230,168,58,.22),transparent 70%)}
+.hero .ht{font-family:var(--font-display); font-size:30px; font-weight:600; position:relative; z-index:2}
+.hero .hd{font-size:15px; color:rgba(237,239,232,.8); margin-top:8px; max-width:560px; position:relative; z-index:2}
+.hero .pillrow{margin-top:16px; display:flex; gap:8px; position:relative; z-index:2}
+.hpill{font-size:12px; font-weight:600; padding:5px 12px; border-radius:var(--radius-full); background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.18); color:#EDEFE8}
+
+/* swatches */
+.sw-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:11px}
+.sw{border:1px solid var(--card-border); border-radius:var(--radius-md); overflow:hidden; background:var(--card); transition:transform .2s var(--ease-glide), box-shadow .2s}
+.sw:hover{transform:translateY(-2px); box-shadow:var(--shadow-md)}
+.sw .c{height:58px}
+.sw .m{padding:8px 10px}
+.sw .nm{font-size:12px; font-weight:600; color:var(--ink)}
+.sw .hx{font-size:10.5px; color:var(--text-muted); font-family:ui-monospace,monospace; margin-top:1px}
+
+/* type */
+.trow{display:flex; align-items:baseline; gap:18px; padding:13px 0; border-bottom:1px dashed var(--line)}
+.trow:last-child{border:0}
+.trow .tg{font-size:11px; font-family:ui-monospace,monospace; color:var(--text-muted); width:120px; flex-shrink:0}
+.d1{font-family:var(--font-display); font-size:46px; font-weight:600; color:var(--sage-deep); line-height:1}
+.d2{font-family:var(--font-display); font-size:30px; font-weight:600; color:var(--sage-deep)}
+.d3{font-family:var(--font-display); font-size:22px; font-weight:500; color:var(--ink)}
+.b1{font-size:18px; color:var(--ink)} .b2{font-size:15px; color:var(--ink-2)} .b3{font-size:13px; color:var(--text-muted)}
+
+/* buttons */
+.row{display:flex; flex-wrap:wrap; gap:11px; align-items:center}
+.btn{display:inline-flex; align-items:center; justify-content:center; gap:8px; font-family:var(--font-body); font-weight:600; font-size:14px; border:1px solid transparent; border-radius:var(--radius-md); padding:10px 18px; cursor:pointer; transition:transform .15s var(--ease-glide), box-shadow .2s, background .2s, border-color .2s; white-space:nowrap; position:relative; overflow:hidden}
+.btn:active{transform:translateY(1px)}
+.btn--primary{background:var(--sage-deep); color:#F2EFE6; box-shadow:var(--shadow-sm)}
+.btn--primary:hover{background:var(--sage-deep-2); box-shadow:var(--shadow-md)}
+.btn--secondary{background:var(--sage-tint); color:var(--sage-deep); border-color:var(--sage-soft)}
+.btn--secondary:hover{background:var(--sage-soft)}
+.btn--ghost{background:transparent; color:var(--ink-2); border-color:var(--line)}
+.btn--ghost:hover{background:var(--page-alt); border-color:var(--muted-2)}
+.btn--gold{background:var(--gold); color:#3A2A06; box-shadow:var(--shadow-sm)}
+.btn--gold:hover{box-shadow:var(--shadow-md)}
+.btn--gold::after{content:""; position:absolute; top:0; left:-120%; width:55%; height:100%; transform:skewX(-20deg); background:linear-gradient(90deg,transparent,rgba(255,255,255,.6),transparent)}
+.btn--gold:hover::after{animation:sweep .8s var(--ease-glide)}
+@keyframes sweep{to{left:170%}}
+.btn--danger{background:var(--error); color:#fff} .btn--danger:hover{filter:brightness(.95)}
+.btn--sm{padding:7px 13px; font-size:13px}
+.btn--lg{padding:13px 24px; font-size:15px}
+.btn-icon{width:38px;height:38px;padding:0; background:var(--card); border:1px solid var(--line); color:var(--ink-2)}
+.btn-icon:hover{background:var(--page-alt); color:var(--sage-deep)}
+
+/* pills */
+.pill{display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600; padding:4px 11px; border-radius:var(--radius-full); border:1px solid transparent}
+.pill .d{width:7px;height:7px;border-radius:50%}
+.pill svg{width:13px;height:13px;flex-shrink:0}
+/* Ожидает — янтарь */
+.pill--warning{background:var(--gold-soft); color:#8A6310; border-color:#EBD49A}.pill--warning .d{background:var(--warning)}
+/* Подтверждена — насыщенный зелёный, активная (самая заметная) */
+.pill--sage{background:var(--sage); color:#F3F0E8; border-color:transparent}.pill--sage .d{background:#F3F0E8}
+/* Завершена — нейтральный серый, в прошлом (отступает) */
+.pill--done{background:#EBEDE8; color:#677269; border-color:#D7DCD3}.pill--done .d{background:#9AA79B}
+/* No-show — красный */
+.pill--error{background:#FDF3F1; color:#8A2E2E; border-color:#EEC4C0}.pill--error .d{background:var(--error)}
+/* Через SERA / Новый — синий */
+.pill--info{background:#EEF3F8; color:#39597B; border-color:#C7D6E6}.pill--info .d{background:var(--info)}
+/* Постоянный/успех — мягкий зелёный */
+.pill--success{background:var(--sage-tint); color:#2C5A41; border-color:#BFD6C4}.pill--success .d{background:var(--success)}
+
+/* calendar chips */
+.cal{display:grid; grid-template-columns:repeat(auto-fill,minmax(185px,1fr)); gap:10px}
+.evt{border-radius:var(--radius-sm); padding:9px 11px 9px 13px; position:relative; border:1px solid var(--card-border); box-shadow:var(--shadow-xs)}
+.evt::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:3px;border-radius:3px}
+.evt .t{font-size:11px;color:var(--text-muted);font-family:ui-monospace,monospace}
+.evt .n{font-size:13px;font-weight:600;color:var(--ink);margin-top:1px}.evt .s{font-size:12px;color:var(--text-muted)}
+.evt.wait{background:#FFFBF0}.evt.wait::before{background:var(--warning)}
+.evt.conf{background:var(--sage-tint)}.evt.conf::before{background:var(--sage)}
+.evt.done{background:#ECEEEA}.evt.done::before{background:var(--muted-2)}.evt.done .n{color:var(--text-muted)}
+.evt.no{background:#FDF3F1}.evt.no::before{background:var(--error)}
+.evt.can{background:#F6F4EF;opacity:.7}.evt.can::before{background:var(--muted-2)}.evt.can .n{text-decoration:line-through}
+/* master-colored calendar cards */
+.ev2{position:relative;border-radius:var(--radius-md);padding:11px 12px 11px 19px;overflow:hidden;background:var(--tint);border:1px solid transparent;box-shadow:var(--shadow-xs);transition:transform .15s var(--ease-glide),box-shadow .15s;cursor:pointer}
+.ev2:hover{transform:translateY(-2px);box-shadow:var(--shadow-md)}
+.ev2::before{content:"";position:absolute;left:0;top:0;bottom:0;width:7px;background:var(--bar)}
+.ev2 .eh{display:flex;align-items:center;gap:9px}
+.ev2 .ea{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;flex-shrink:0;background:#fff;color:var(--mink);box-shadow:0 0 0 2px var(--bar) inset}
+.ev2 .ew{font-size:12.5px;font-weight:700;color:var(--mink)}
+.ev2 .et{font-size:11px;color:var(--text-muted);font-family:ui-monospace,monospace;margin-left:auto}
+.ev2 .esv{font-size:14px;font-weight:700;color:var(--ink);margin-top:7px}
+.ev2 .em{font-size:12px;color:var(--text-muted);margin-top:1px}
+.ev2 .es{position:absolute;top:10px;right:11px;width:19px;height:19px;border-radius:50%;background:#fff;display:grid;place-items:center;box-shadow:0 0 0 1px rgba(27,42,34,.07)}
+.ev2 .es svg{width:12px;height:12px}
+.ev2.e-conf .es{color:var(--mink)} .ev2.e-pend{border-style:dashed;border-color:rgba(27,42,34,.22)}.ev2.e-pend .es{color:#8A6310}
+.ev2.e-done{opacity:.5}.ev2.e-done .es{color:#677269}
+.ev2.e-no{box-shadow:inset 0 0 0 2px rgba(185,64,64,.5),var(--shadow-xs)}.ev2.e-no .es{color:#8A2E2E}
+.ev2.e-can{opacity:.45}.ev2.e-can .esv{text-decoration:line-through}.ev2.e-can .es{color:#9AA79B}
+
+/* cards demo */
+.c3{display:grid; grid-template-columns:repeat(3,1fr); gap:14px}
+.dc{border-radius:var(--radius-lg); padding:18px; border:1px solid var(--card-border)}
+.dc.std{background:var(--card); box-shadow:var(--shadow-sm)}
+.dc.snk{background:var(--card-sunken)}
+.dc.int{background:var(--card); box-shadow:var(--shadow-sm); cursor:pointer; transition:transform .2s var(--ease-glide), box-shadow .2s}
+.dc.int:hover{transform:translateY(-3px); box-shadow:var(--shadow-lg)}
+.dc .ct{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted-2)}
+.dc .cb{font-size:14px;color:var(--ink-2);margin-top:7px}
+
+/* ===== DASHBOARD BENTO ===== */
+.bento{display:grid; grid-template-columns:repeat(4,1fr); grid-auto-rows:minmax(116px,auto); gap:14px}
+.cell{background:var(--card); border:1px solid var(--card-border); border-radius:var(--radius-xl); padding:18px; box-shadow:var(--shadow-sm); position:relative; overflow:hidden; opacity:0; transform:translateY(16px); transition:transform .25s var(--ease-glide), box-shadow .25s}
+.show .cell{animation:rise .6s var(--ease-glide) forwards}
+@keyframes rise{to{opacity:1;transform:none}}
+.cell:hover{box-shadow:var(--shadow-lg); transform:translateY(-3px)}
+.cA{grid-column:span 2}.cAI{grid-column:3;grid-row:1/span 2}.cR{grid-column:4;grid-row:1/span 2}
+.lbl{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:500;color:var(--text-muted)}.lbl svg{color:var(--sage-2)}
+.val{font-family:var(--font-display);font-weight:600;font-size:38px;color:var(--sage-deep);line-height:1.05;margin-top:8px}
+.val .u{font-size:.5em;color:var(--text-muted);font-weight:500}
+.tr{font-size:12px;margin-top:5px}.tr .up{color:var(--success);font-weight:700}.tr .mu{color:var(--text-muted)}
+.spark{margin-top:12px;width:100%;height:40px;display:block}.cA .spark{height:60px}
+.spark .line{fill:none;stroke:var(--sage);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:600;stroke-dashoffset:600}
+.show .spark .line{animation:draw 1.1s .35s var(--ease-glide) forwards}@keyframes draw{to{stroke-dashoffset:0}}
+.spark .area{fill:url(#grad);opacity:0}.show .spark .area{animation:fad .8s .8s forwards}@keyframes fad{to{opacity:1}}
+.dotend{fill:var(--sage-deep);opacity:0}.show .dotend{animation:fad .4s 1.2s forwards}
+.cAI{background:linear-gradient(150deg,var(--sage-deep),var(--sage-deep-2));color:#EEF0E7;display:flex;flex-direction:column}
+.cAI::after{content:"";position:absolute;right:-30px;top:-30px;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(165,192,161,.4),transparent 70%)}
+.cAI{text-align:center}
+.cAI .o{width:84px;height:84px;border-radius:50%;margin:4px auto 0;background:radial-gradient(circle at 38% 30%,#EAF3E6,var(--sage-glow) 26%,var(--sage) 54%,var(--sage-deep) 92%);box-shadow:var(--shadow-glow), inset 0 0 24px rgba(16,56,47,.45);animation:breathe 4s var(--ease-glide) infinite;position:relative}
+.cAI .o::after{content:"";position:absolute;inset:-20px;border-radius:50%;background:radial-gradient(circle,rgba(165,192,161,.4),transparent 70%);animation:halo 4s ease-in-out infinite}
+@keyframes halo{0%,100%{opacity:.45;transform:scale(1)}50%{opacity:.85;transform:scale(1.14)}}
+.cAI .tag{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--sage-glow);margin-top:13px;position:relative}
+.cAI .tx{font-size:13.5px;line-height:1.45;margin-top:7px;color:rgba(238,240,231,.92);position:relative;flex:1}
+.cAI .gl{margin-top:11px;align-self:center;background:var(--gold);color:#3A2A06;border:0;font-weight:700;font-size:13px;padding:8px 13px;border-radius:var(--radius-md);cursor:pointer;position:relative}.cAI .gl:hover{filter:brightness(1.05)}
+.cR{display:flex;flex-direction:column}
+.ringwrap{flex:1;display:grid;place-items:center;margin-top:6px}
+.ring{position:relative;width:118px;height:118px}.ring svg{transform:rotate(-90deg)}
+.ring .bg{fill:none;stroke:var(--sage-tint);stroke-width:11}
+.ring .fg{fill:none;stroke:var(--sage);stroke-width:11;stroke-linecap:round;stroke-dasharray:339;stroke-dashoffset:339}
+.show .ring .fg{animation:rng 1.3s .4s var(--ease-glide) forwards}@keyframes rng{to{stroke-dashoffset:295}}
+.ring .ctr{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+.ring .ctr b{font-family:var(--font-display);font-size:28px;color:var(--sage-deep)}.ring .ctr small{display:block;font-size:11px;color:var(--text-muted)}
+.rfoot{font-size:11.5px;color:var(--text-muted);margin-top:8px;text-align:center}
+.loading .cell *{visibility:hidden}
+.loading .cell{background:linear-gradient(100deg,var(--card) 30%,var(--page-alt) 50%,var(--card) 70%);background-size:200% 100%;animation:shim 1.1s infinite;box-shadow:var(--shadow-xs)}
+.loading .cell:hover{transform:none;box-shadow:var(--shadow-xs)}
+@keyframes shim{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.replay{margin-bottom:14px;background:var(--card);color:var(--ink-2);border:1px solid var(--line);font-family:var(--font-body);font-weight:600;font-size:13px;padding:8px 14px;border-radius:var(--radius-md);cursor:pointer}
+.replay:hover{background:var(--page-alt)}
+
+/* forms */
+.field{margin-bottom:15px}.lf{display:block;font-size:13px;font-weight:600;color:var(--ink-2);margin-bottom:6px}
+.inp{width:100%;font-family:var(--font-body);font-size:14px;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:var(--radius-md);padding:11px 13px;transition:border-color .15s,box-shadow .15s}
+.inp::placeholder{color:var(--muted-2)}.inp:focus{outline:none;border-color:var(--sage);box-shadow:0 0 0 3px rgba(94,125,93,.18)}
+.sel{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%234F5C53' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 13px center}
+.sw-t{display:inline-flex;align-items:center;gap:10px;cursor:pointer}
+.track{width:42px;height:24px;background:var(--muted-2);border-radius:var(--radius-full);position:relative;transition:background .2s}
+.track::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;background:#fff;border-radius:50%;transition:transform .2s var(--ease-glide);box-shadow:var(--shadow-xs)}
+.sw-t.on .track{background:var(--sage)}.sw-t.on .track::after{transform:translateX(18px)}.sw-t span{font-size:14px;color:var(--ink-2)}
+
+/* table */
+table{width:100%;border-collapse:collapse;font-size:14px}
+thead th{text-align:left;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);padding:0 14px 11px;border-bottom:1px solid var(--line)}
+tbody td{padding:13px 14px;border-bottom:1px solid var(--line-soft);color:var(--ink-2)}
+tbody tr{transition:background .12s}tbody tr:hover{background:var(--page-alt)}tbody tr:last-child td{border:0}
+.av{display:inline-flex;align-items:center;gap:10px}
+.av .rg{width:32px;height:32px;border-radius:50%;background:var(--sage-tint);color:var(--sage-deep);display:grid;place-items:center;font-weight:600;font-size:12px}
+.av .nm{font-weight:600;color:var(--ink)}
+
+/* ===== EFFECTS (dark) ===== */
+.fx{background:linear-gradient(160deg,#0e2620,#0b1f1a);border-radius:var(--radius-2xl);padding:30px;color:#EDEFE8}
+.fx .glabel{color:rgba(165,192,161,.7)}
+.fxgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
+.fxcard{border-radius:var(--radius-xl);min-height:160px;position:relative;overflow:hidden;padding:20px;display:flex;flex-direction:column;justify-content:flex-end}
+.fxcap{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--gold);margin-bottom:4px}
+.fxuse{font-size:12.5px;color:rgba(237,239,232,.6);margin-bottom:11px}.fxuse b{color:#fff}
+.fx .t{font-family:var(--font-display);font-size:20px;font-weight:600}.fx .dd{font-size:12.5px;opacity:.8;margin-top:4px}
+/* glare */
+.glare{background:#102a23;border:1px solid rgba(165,192,161,.18)}
+.glare::before{content:"";position:absolute;inset:0;opacity:0;transition:opacity .3s;background:radial-gradient(300px circle at var(--mx) var(--my),rgba(165,192,161,.28),transparent 42%)}
+.glare:hover::before{opacity:1}
+.glare::after{content:"";position:absolute;inset:0;opacity:0;transition:opacity .3s;pointer-events:none;background:radial-gradient(180px circle at var(--mx) var(--my),rgba(230,168,58,.12),transparent 40%)}.glare:hover::after{opacity:1}
+/* glass */
+.glass-stage{background:linear-gradient(135deg,var(--sage),var(--gold) 135%);display:grid;place-items:center}
+.glass{width:100%;background:rgba(255,255,255,.15);backdrop-filter:blur(13px) saturate(140%);-webkit-backdrop-filter:blur(13px) saturate(140%);border:1px solid rgba(255,255,255,.35);border-radius:16px;padding:18px;box-shadow:0 8px 30px rgba(16,56,47,.25);color:#fff}
+.glass .t{font-family:var(--font-display);font-size:19px}.glass .dd{font-size:12px;opacity:.92;margin-top:3px}
+/* holo */
+.holo-stage{background:#0e2620;border:1px solid rgba(165,192,161,.14);perspective:900px;display:grid;place-items:center}
+.holo{width:280px;height:172px;border-radius:16px;position:relative;transform-style:preserve-3d;transition:transform .15s var(--ease-glide);cursor:pointer;background:linear-gradient(135deg,#10382F,#18483D 55%,#0c2a23);box-shadow:0 18px 50px rgba(0,0,0,.45);padding:18px;color:#EDEFE8;overflow:hidden;justify-content:flex-start}
+.holo .sheen{position:absolute;inset:0;border-radius:16px;opacity:0;transition:opacity .2s;pointer-events:none;mix-blend-mode:overlay;background:linear-gradient(105deg,transparent 30%,rgba(230,168,58,.5) 45%,rgba(165,192,161,.6) 50%,rgba(229,220,242,.5) 55%,transparent 70%);background-size:220% 220%}
+.holo:hover .sheen{opacity:1}
+.holo .chip{width:36px;height:26px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-pearl));box-shadow:inset 0 0 4px rgba(0,0,0,.3)}
+.holo .brand{font-family:var(--font-display);font-size:18px;font-weight:700;margin-top:auto;letter-spacing:.05em}
+.holo .tier{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}
+.holo .num{font-family:ui-monospace,monospace;font-size:12px;letter-spacing:.12em;opacity:.7;margin-top:7px}
+/* shine */
+.shine-stage{background:#0e2620;border:1px solid rgba(165,192,161,.14);display:grid;place-items:center}
+.shine-btn{position:relative;overflow:hidden;border:0;cursor:pointer;font-family:var(--font-body);font-weight:700;font-size:15px;color:#3A2A06;background:var(--gold);padding:14px 28px;border-radius:14px;box-shadow:0 6px 20px rgba(230,168,58,.3)}
+.shine-btn::after{content:"";position:absolute;top:0;left:-120%;width:60%;height:100%;transform:skewX(-20deg);background:linear-gradient(90deg,transparent,rgba(255,255,255,.65),transparent)}
+.shine-btn:hover::after{animation:sweep .8s var(--ease-glide)}
+/* beam */
+.beam{position:relative;border-radius:var(--radius-xl);padding:1.5px;overflow:hidden;grid-column:1/-1;min-height:130px}
+.beam::before{content:"";position:absolute;inset:-50%;background:conic-gradient(from 0deg,transparent 0%,var(--sage-glow) 8%,var(--gold) 16%,transparent 24%);animation:spin 4s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.beam .in{position:relative;border-radius:18px;background:#102a23;padding:22px 22px 22px 70px;color:#EDEFE8;min-height:127px;display:flex;flex-direction:column;justify-content:center}
+.beam .o{position:absolute;top:22px;left:22px;width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 38% 32%,var(--sage-glow),var(--sage) 45%,var(--sage-deep) 90%);box-shadow:0 0 24px rgba(165,192,161,.4);animation:breathe 4s var(--ease-glide) infinite}
+
+/* motion principles */
+.mot{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.mc{background:var(--card-sunken);border:1px solid var(--card-border);border-radius:var(--radius-lg);padding:16px}
+.mc b{display:block;font-size:14px;color:var(--sage-deep);margin-bottom:5px}.mc span{font-size:12.5px;color:var(--text-muted);line-height:1.5}
+
+.toast-zone{position:fixed;bottom:24px;left:calc(50% + var(--nav)/2);transform:translateX(-50%);display:flex;flex-direction:column;gap:10px;z-index:60}
+.toast{background:var(--sage-deep);color:#F2EFE6;padding:13px 18px;border-radius:var(--radius-md);box-shadow:var(--shadow-hero);font-size:14px;font-weight:500;display:flex;align-items:center;gap:10px;opacity:0;transform:translateY(20px);animation:tin .4s var(--ease-glide) forwards}
+.toast .ck{width:20px;height:20px;border-radius:50%;background:var(--gold);color:var(--sage-deep);display:grid;place-items:center;flex-shrink:0}
+@keyframes tin{to{opacity:1;transform:none}}.toast.out{animation:tout .35s forwards}@keyframes tout{to{opacity:0;transform:translateY(20px)}}
+
+.foot{margin-top:54px;padding-top:22px;border-top:1px solid var(--line);font-size:13px;color:var(--text-muted)}
+@media(max-width:920px){
+  :root{--nav:0px}.side{display:none}.main{padding:30px 20px 80px}
+  .bento{grid-template-columns:repeat(2,1fr)}.cA,.cAI,.cR{grid-column:span 2;grid-row:auto}
+  .c3,.mot{grid-template-columns:1fr}.fxgrid{grid-template-columns:1fr}
+  .toast-zone{left:50%}
+}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="side">
+  <div class="brand">
+    <div class="orb-sm"></div>
+    <div><b>SERA</b><small>Design System</small></div>
+  </div>
+  <nav class="nav" id="nav">
+    <a href="#color" class="active"><span class="dotn"></span>Цвет</a>
+    <a href="#type"><span class="dotn"></span>Типографика</a>
+    <a href="#buttons"><span class="dotn"></span>Кнопки</a>
+    <a href="#status"><span class="dotn"></span>Статусы и календарь</a>
+    <a href="#cards"><span class="dotn"></span>Карточки</a>
+    <a href="#dash"><span class="dotn"></span>Дашборд (bento)</a>
+    <a href="#forms"><span class="dotn"></span>Формы</a>
+    <a href="#table"><span class="dotn"></span>Таблица</a>
+    <a href="#effects"><span class="dotn"></span>Эффекты</a>
+    <a href="#motion"><span class="dotn"></span>Движение</a>
+  </nav>
+  <button class="cta" onclick="popToast('Открыт чат с клиентом')">Написать SERA</button>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+  <div class="eyebrow"><span class="d"></span>SERA · точка правды</div>
+  <h1>Design System</h1>
+  <div class="hero" id="hero">
+    <div class="ht">Всё равняется сюда</div>
+    <div class="hd">Бренд SERA — тема поверх shadcn. Зелёный <code style="color:var(--sage-glow)">--sage-deep</code> как <b>--primary</b>, золото — акцент, эффекты — для моментов. Наведи курсором на эту карточку → блик.</div>
+    <div class="pillrow"><span class="hpill">Цвет</span><span class="hpill">Анимации</span><span class="hpill">Эффекты</span><span class="hpill">Доступность</span></div>
+  </div>
+
+  <!-- COLOR -->
+  <section id="color">
+    <div class="sec-head"><span class="n">01</span><h2>Цвет</h2><p>один источник правды</p></div>
+    <div class="panel">
+      <div class="glabel">Поверхности</div>
+      <div class="sw-grid">
+        <div class="sw"><div class="c" style="background:var(--page)"></div><div class="m"><div class="nm">--page</div><div class="hx">#EFE9DD</div></div></div>
+        <div class="sw"><div class="c" style="background:var(--card)"></div><div class="m"><div class="nm">--card</div><div class="hx">#FFFFFF</div></div></div>
+        <div class="sw"><div class="c" style="background:var(--card-sunken)"></div><div class="m"><div class="nm">--card-sunken</div><div class="hx">#FAF6EC</div></div></div>
+      </div>
+      <div class="glabel">SERA Green · подпись бренда</div>
+      <div class="sw-grid">
+        <div class="sw"><div class="c" style="background:var(--sage-deep)"></div><div class="m"><div class="nm">--sage-deep ★</div><div class="hx">#10382F · primary</div></div></div>
+        <div class="sw"><div class="c" style="background:var(--sage)"></div><div class="m"><div class="nm">--sage</div><div class="hx">#5E7D5D</div></div></div>
+        <div class="sw"><div class="c" style="background:var(--sage-2)"></div><div class="m"><div class="nm">--sage-2</div><div class="hx">#7D9A78</div></div></div>
+        <div class="sw"><div class="c" style="background:var(--sage-soft)"></div><div class="m"><div class="nm">--sage-soft</div><div class="hx">#C9D8C5</div></div></div>
+        <div class="sw"><div class="c" style="background:var(--sage-tint)"></div><div class="m"><div class="nm">--sage-tint</div><div class="hx">#E7EEE2</div></div></div>
+        <div class="sw"><div class="c" style="background:var(--sage-glow)"></div><div class="m"><div class="nm">--sage-glow</div><div class="hx">#A5C0A1</div></div></div>
+      </div>
+      <div class="glabel">Gold + Статусы</div>
+      <div class="sw-grid">
+        <div class="sw"><div class="c" style="background:var(--gold)"></div><div class="m"><div class="nm">--gold</div><div class="hx">#E6A83A</div></div></div>
+        <div class="sw"><div class="c" style="background:var(--success)"></div><div class="m"><div class="nm">--success</div><div class="hx">#4F8A68</div></div></div>
+        <div class="sw"><div class="c" style="background:var(--warning)"></div><div class="m"><div class="nm">--warning</div><div class="hx">#E6A83A</div></div></div>
+        <div class="sw"><div class="c" style="background:var(--error)"></div><div class="m"><div class="nm">--error</div><div class="hx">#B94040</div></div></div>
+        <div class="sw"><div class="c" style="background:var(--info)"></div><div class="m"><div class="nm">--info</div><div class="hx">#5B7FA6</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TYPE -->
+  <section id="type">
+    <div class="sec-head"><span class="n">02</span><h2>Типографика</h2><p>Cormorant + Inter</p></div>
+    <div class="panel">
+      <div class="trow"><div class="tg">display / 46</div><div class="d1">Добрый вечер</div></div>
+      <div class="trow"><div class="tg">display / 30</div><div class="d2">Записи на сегодня</div></div>
+      <div class="trow"><div class="tg">display / 22</div><div class="d3">Следующая запись</div></div>
+      <div class="trow"><div class="tg">body / 18</div><div class="b1">SERA работает для вашего салона 24/7.</div></div>
+      <div class="trow"><div class="tg">body / 15</div><div class="b2">Маникюр классический · мастер Влад · через 10 ч.</div></div>
+      <div class="trow"><div class="tg">body / 13</div><div class="b3">Постоянных клиентов вернулось сегодня</div></div>
+    </div>
+  </section>
+
+  <!-- BUTTONS -->
+  <section id="buttons">
+    <div class="sec-head"><span class="n">03</span><h2>Кнопки</h2><p>наведи — оживают</p></div>
+    <div class="panel">
+      <div class="glabel">Варианты</div>
+      <div class="row">
+        <button class="btn btn--primary">Новая запись</button>
+        <button class="btn btn--secondary">Открыть календарь</button>
+        <button class="btn btn--ghost">Отмена</button>
+        <button class="btn btn--gold" onclick="popToast('Акция запущена')">Запустить акцию ✦</button>
+        <button class="btn btn--danger">Отменить</button>
+      </div>
+      <div class="glabel">Размеры и иконки</div>
+      <div class="row">
+        <button class="btn btn--primary btn--sm">Маленькая</button>
+        <button class="btn btn--primary">Обычная</button>
+        <button class="btn btn--primary btn--lg">Большая</button>
+        <button class="btn btn-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATUS -->
+  <section id="status">
+    <div class="sec-head"><span class="n">04</span><h2>Статусы и календарь</h2><p>читаемость вместо «бледное по бледному»</p></div>
+    <div class="panel">
+      <div class="glabel">Пилюли</div>
+      <div class="row">
+        <span class="pill pill--warning"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Ожидает</span>
+        <span class="pill pill--sage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><polyline points="20 6 9 17 4 12"/></svg>Подтверждена</span>
+        <span class="pill pill--done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M1 13l4 4 8-10"/><path d="M12 17l1 1 9-11"/></svg>Завершена</span>
+        <span class="pill pill--error"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>No-show</span>
+        <span class="pill pill--info"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.8 4.7L18.5 9l-4.7 1.8L12 15l-1.8-4.2L5.5 9l4.7-1.3z"/></svg>Через SERA</span>
+      </div>
+      <div class="glabel">Карточки записей · цвет = мастер, состояние = статус</div>
+      <div class="cal">
+        <div class="ev2 e-done" style="--bar:var(--m1-bar);--tint:var(--m1-tint);--mink:var(--m1-ink)"><div class="es"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M1 13l4 4 8-10"/><path d="M12 17l1 1 9-11"/></svg></div><div class="eh"><span class="ea">Вл</span><span class="ew">Влад</span><span class="et">09:00–10:00</span></div><div class="esv">Маникюр</div><div class="em">Ольга · завершена</div></div>
+        <div class="ev2 e-conf" style="--bar:var(--m4-bar);--tint:var(--m4-tint);--mink:var(--m4-ink)"><div class="es"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><polyline points="20 6 9 17 4 12"/></svg></div><div class="eh"><span class="ea">Ан</span><span class="ew">Аня</span><span class="et">10:15–11:15</span></div><div class="esv">Педикюр</div><div class="em">Николай · подтверждена</div></div>
+        <div class="ev2 e-pend" style="--bar:var(--m2-bar);--tint:var(--m2-tint);--mink:var(--m2-ink)"><div class="es"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><div class="eh"><span class="ea">Ва</span><span class="ew">Вадим</span><span class="et">11:30–12:30</span></div><div class="esv">Брови</div><div class="em">Яна · ожидает</div></div>
+        <div class="ev2 e-no" style="--bar:var(--m1-bar);--tint:var(--m1-tint);--mink:var(--m1-ink)"><div class="es"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></div><div class="eh"><span class="ea">Вл</span><span class="ew">Влад</span><span class="et">14:32–15:02</span></div><div class="esv">RF-лифтинг</div><div class="em">Миша · не пришёл</div></div>
+        <div class="ev2 e-can" style="--bar:var(--m5-bar);--tint:var(--m5-tint);--mink:var(--m5-ink)"><div class="es"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></div><div class="eh"><span class="ea">Ол</span><span class="ew">Олег</span><span class="et">18:30–19:15</span></div><div class="esv">Стрижка</div><div class="em">отменена</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CARDS -->
+  <section id="cards">
+    <div class="sec-head"><span class="n">05</span><h2>Карточки</h2><p>наведи на интерактивную</p></div>
+    <div class="panel">
+      <div class="c3">
+        <div class="dc std"><div class="ct">Стандарт</div><div class="cb">Белая карточка, мягкая тень. База блоков.</div></div>
+        <div class="dc snk"><div class="ct">Утопленная</div><div class="cb">Кремовая, без тени. Для вложенных областей.</div></div>
+        <div class="dc int"><div class="ct">Интерактивная ↑</div><div class="cb">Наведи — приподнимается. Для кликабельных.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DASHBOARD -->
+  <section id="dash">
+    <div class="sec-head"><span class="n">06</span><h2>Дашборд · bento + анимации</h2><p>живые цифры, скелетоны, тосты</p></div>
+    <button class="replay" id="replay">↻ Проиграть загрузку заново</button>
+    <div class="bento loading" id="grid">
+      <div class="cell cA">
+        <div class="lbl"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Выручка по записям · 7 дней</div>
+        <div class="val"><span class="num" data-target="42600">0</span> <span class="u">руб</span></div>
+        <div class="tr"><span class="up">▲ 23%</span> <span class="mu">к прошлой неделе</span></div>
+        <svg class="spark" viewBox="0 0 320 60" preserveAspectRatio="none">
+          <defs><linearGradient id="grad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#A5C0A1" stop-opacity=".35"/><stop offset="1" stop-color="#A5C0A1" stop-opacity="0"/></linearGradient></defs>
+          <path class="area" d="M0,46 L26,42 L52,48 L78,36 L104,40 L130,28 L156,32 L182,22 L208,26 L234,16 L260,20 L286,11 L320,7 L320,60 L0,60 Z"/>
+          <path class="line" d="M0,46 L26,42 L52,48 L78,36 L104,40 L130,28 L156,32 L182,22 L208,26 L234,16 L260,20 L286,11 L320,7"/>
+          <circle class="dotend" cx="320" cy="7" r="3.5"/>
+        </svg>
+      </div>
+      <div class="cell cAI">
+        <div class="o"></div>
+        <div class="tag">Совет от SERA</div>
+        <div class="tx">Завтра 3 записи — есть свободные окна вечером. Хороший момент запустить акцию.</div>
+        <button class="gl" onclick="popToast('Акция создана')">Создать акцию</button>
+      </div>
+      <div class="cell cR">
+        <div class="lbl"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Загрузка дня</div>
+        <div class="ringwrap"><div class="ring"><svg width="118" height="118" viewBox="0 0 118 118"><circle class="bg" cx="59" cy="59" r="54"/><circle class="fg" cx="59" cy="59" r="54"/></svg><div class="ctr"><b><span class="num" data-target="13">0</span>%</b><small>занято</small></div></div></div>
+        <div class="rfoot">2ч 15м занято · 15ч 45м свободно</div>
+      </div>
+      <div class="cell">
+        <div class="lbl"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Записей через SERA</div>
+        <div class="val"><span class="num" data-target="128">0</span></div>
+        <div class="tr"><span class="up">▲ 12%</span></div>
+        <svg class="spark" viewBox="0 0 200 40" preserveAspectRatio="none"><path class="line" d="M0,30 L22,26 L44,32 L66,20 L88,24 L110,14 L132,18 L154,10 L176,12 L200,5"/><circle class="dotend" cx="200" cy="5" r="3"/></svg>
+      </div>
+      <div class="cell">
+        <div class="lbl"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Сэкономлено</div>
+        <div class="val"><span class="num" data-target="9">0</span> <span class="u">ч</span></div>
+        <div class="tr"><span class="mu">за неделю</span></div>
+        <svg class="spark" viewBox="0 0 200 40" preserveAspectRatio="none"><path class="line" d="M0,28 L22,30 L44,24 L66,26 L88,18 L110,22 L132,14 L154,16 L176,9 L200,11"/><circle class="dotend" cx="200" cy="11" r="3"/></svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- FORMS -->
+  <section id="forms">
+    <div class="sec-head"><span class="n">07</span><h2>Формы</h2><p>для Услуг и Мастеров</p></div>
+    <div class="panel" style="max-width:540px">
+      <div class="field"><label class="lf">Имя клиента</label><input class="inp" placeholder="Например, Николай"></div>
+      <div class="field"><label class="lf">Услуга</label><select class="inp sel"><option>Маникюр классический</option><option>Педикюр</option><option>RF-лифтинг</option></select></div>
+      <div class="field"><label class="lf">Фокус — зелёное кольцо</label><input class="inp" placeholder="Кликни сюда"></div>
+      <div class="sw-t on" onclick="this.classList.toggle('on')"><span class="track"></span><span>SERA напомнит клиенту автоматически</span></div>
+    </div>
+  </section>
+
+  <!-- TABLE -->
+  <section id="table">
+    <div class="sec-head"><span class="n">08</span><h2>Таблица</h2><p>для страницы Клиенты</p></div>
+    <div class="panel" style="padding:18px">
+      <table>
+        <thead><tr><th>Клиент</th><th>Телефон</th><th>Последний визит</th><th>Статус</th><th style="text-align:right">Визитов</th></tr></thead>
+        <tbody>
+          <tr><td><span class="av"><span class="rg">НН</span><span class="nm">Николай Николаевич</span></span></td><td>+48 600 111 222</td><td>2 дня назад</td><td><span class="pill pill--success"><span class="d"></span>Постоянный</span></td><td style="text-align:right">14</td></tr>
+          <tr><td><span class="av"><span class="rg">ЯД</span><span class="nm">Яна Дмитриева</span></span></td><td>+48 600 333 444</td><td>3 недели назад</td><td><span class="pill pill--warning"><span class="d"></span>Под риском</span></td><td style="text-align:right">6</td></tr>
+          <tr><td><span class="av"><span class="rg">ТК</span><span class="nm">Тим Кук</span></span></td><td>+48 600 555 666</td><td>вчера</td><td><span class="pill pill--info"><span class="d"></span>Новый</span></td><td style="text-align:right">1</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- EFFECTS -->
+  <section id="effects">
+    <div class="sec-head"><span class="n">09</span><h2>Эффекты · момент-компоненты</h2><p>лендинг и AI-моменты, НЕ рабочие таблицы</p></div>
+    <div class="fx">
+      <div class="glabel">Наведи курсором на каждую</div>
+      <div class="fxgrid">
+        <div class="fxcard glare" data-spot>
+          <div class="fxcap">Glare / Spotlight</div>
+          <div class="fxuse"><b>Где:</b> hero-карточка SERA на лендинге</div>
+          <div class="t">SERA · AI-администратор</div><div class="dd">Блик идёт за курсором.</div>
+        </div>
+        <div class="fxcard glass-stage">
+          <div class="glass"><div class="fxcap" style="color:#fff">Glassmorphism</div><div class="t">Запись подтверждена</div><div class="dd">Только поверх цветного фона. На кремовом не видно.</div></div>
+        </div>
+        <div class="fxcard holo-stage">
+          <div class="holo" data-tilt><div class="sheen"></div><div class="chip"></div><div class="brand" style="margin-top:14px">SERA</div><div class="tier">Premium</div><div class="num">•••• •••• •••• 2026</div></div>
+        </div>
+        <div class="fxcard shine-stage">
+          <button class="shine-btn">Подключить SERA</button>
+        </div>
+        <div class="beam"><div class="in"><div class="o"></div><div class="t">SERA анализирует клиентов…</div><div class="dd">Border Beam — «здесь живой ИИ работает прямо сейчас».</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MOTION -->
+  <section id="motion">
+    <div class="sec-head"><span class="n">10</span><h2>Движение</h2><p>обратная связь, не понты</p></div>
+    <div class="panel">
+      <div class="mot">
+        <div class="mc"><b>Загрузка</b><span>Скелетоны вместо крутилок + ступенчатое появление карточек. Ощущение скорости.</span></div>
+        <div class="mc"><b>Действие</b><span>Тост-подтверждение на каждое действие. Числа «накручиваются», кнопки реагируют мгновенно.</span></div>
+        <div class="mc"><b>Эффекты</b><span>Glare, стекло, наклон — только на лендинге и AI-моментах. В кабинете — спокойствие.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="foot">SERA · Design System — на реальных токенах <code>src/styles/tokens.css</code>. Бренд = тема поверх shadcn. Все страницы равняются сюда.</div>
+</main>
+
+<div class="toast-zone" id="toastZone"></div>
+
+<script>
+const grid=document.getElementById('grid');
+function countUp(el){const t=+el.dataset.target,dur=1100,s=performance.now();function step(n){const p=Math.min((n-s)/dur,1),e=1-Math.pow(1-p,3);el.textContent=Math.floor(t*e).toLocaleString('ru-RU');if(p<1)requestAnimationFrame(step);else el.textContent=t.toLocaleString('ru-RU');}requestAnimationFrame(step);}
+function reveal(){grid.classList.remove('loading');grid.classList.add('show');[...grid.querySelectorAll('.cell')].forEach((c,i)=>c.style.animationDelay=(i*0.08)+'s');setTimeout(()=>grid.querySelectorAll('.num').forEach(countUp),250);}
+function play(){grid.classList.add('loading');grid.classList.remove('show');grid.querySelectorAll('.num').forEach(n=>n.textContent='0');grid.querySelectorAll('.cell').forEach(c=>{c.style.animation='none';void c.offsetWidth;c.style.animation='';});setTimeout(reveal,950);}
+document.getElementById('replay').onclick=play;
+function popToast(m){const z=document.getElementById('toastZone'),t=document.createElement('div');t.className='toast';t.innerHTML='<span class="ck"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>'+m;z.appendChild(t);setTimeout(()=>{t.classList.add('out');setTimeout(()=>t.remove(),350);},2600);}
+// hero glare
+const hero=document.getElementById('hero');
+hero.addEventListener('mousemove',e=>{const r=hero.getBoundingClientRect();hero.style.setProperty('--mx',(e.clientX-r.left)+'px');hero.style.setProperty('--my',(e.clientY-r.top)+'px');});
+// effect spotlight
+document.querySelectorAll('[data-spot]').forEach(c=>c.addEventListener('mousemove',e=>{const r=c.getBoundingClientRect();c.style.setProperty('--mx',(e.clientX-r.left)+'px');c.style.setProperty('--my',(e.clientY-r.top)+'px');}));
+// tilt
+document.querySelectorAll('[data-tilt]').forEach(c=>{const s=c.querySelector('.sheen');c.addEventListener('mousemove',e=>{const r=c.getBoundingClientRect(),px=(e.clientX-r.left)/r.width,py=(e.clientY-r.top)/r.height;c.style.transform=`rotateX(${(0.5-py)*16}deg) rotateY(${(px-0.5)*18}deg) scale(1.04)`;s.style.backgroundPosition=`${px*100}% ${py*100}%`;});c.addEventListener('mouseleave',()=>c.style.transform='');});
+// nav active on scroll
+const links=[...document.querySelectorAll('#nav a')];
+const obs=new IntersectionObserver(es=>{es.forEach(en=>{if(en.isIntersecting){links.forEach(l=>l.classList.remove('active'));const a=document.querySelector('#nav a[href="#'+en.target.id+'"]');if(a)a.classList.add('active');}});},{rootMargin:'-20% 0px -70% 0px'});
+document.querySelectorAll('main section').forEach(s=>obs.observe(s));
+// initial dashboard load
+window.addEventListener('load',()=>setTimeout(reveal,950));
+</script>
+</body>
+</html>
