@@ -6,7 +6,8 @@ import { Bell, Calendar, ChevronRight, MapPin, RefreshCcw, Repeat, Sparkles } fr
 import { toast } from 'sonner'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
-import { AlinaHeroCard } from '@/components/shared/AlinaHeroCard'
+import { SeraHeroCard } from '@/components/shared/SeraHeroCard'
+import { useTmaContext } from './TmaContext'
 import { BookCard } from '@/components/shared/BookCard'
 import { ActionRow } from '@/components/shared/ActionRow'
 import { RecommendationCard } from '@/components/shared/RecommendationCard'
@@ -33,7 +34,7 @@ export function TmaHomePage() {
   const setBookingMaster = useBookingStore(s => s.setMaster)
   const [tenant, setTenant] = useState<TenantPublicData | null>(null)
   const [nextAppointment, setNextAppointment] = useState<AppointmentWithRelations | null>(null)
-  const [aiName, setAiName] = useState('SERA')
+  const { aiName } = useTmaContext()
   const [client, setClient] = useState<ClientInfo | null>(null)
   const [usual, setUsual] = useState<UsualBooking | null>(null)
   const [recommendation, setRecommendation] = useState<Service | null>(null)
@@ -100,8 +101,6 @@ export function TmaHomePage() {
       }
       const json = await meRes.json()
       if (cancelled) return
-      const name = json?.aiSettings?.admin_name
-      if (name && name !== 'Администратор') setAiName(name)
       if (json?.client) setClient(json.client as ClientInfo)
       if (json?.usual) setUsual(json.usual as UsualBooking)
       if (!cancelled) setIsPrivateLoading(false)
@@ -187,7 +186,7 @@ export function TmaHomePage() {
 
         {/* AI Hero Card — whole card clickable → /chat */}
         <StaggerItem>
-          <AlinaHeroCard
+          <SeraHeroCard
             variant="full"
             name={aiName}
             status="AI-администратор · online"

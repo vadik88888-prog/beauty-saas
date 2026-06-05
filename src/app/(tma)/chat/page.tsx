@@ -24,8 +24,9 @@ import { formatTime, formatDate } from '@/lib/utils/date'
 import { toast } from 'sonner'
 import { PortraitAvatar } from '@/components/shared/PortraitAvatar'
 import { OnlineDot } from '@/components/motion/OnlineDot'
-import { AlinaCareOrb } from '@/components/motion/AlinaCareOrb'
-import type { CareOrbState } from '@/components/motion/AlinaCareOrb'
+import { SeraOrb } from '@/components/motion/SeraOrb'
+import type { CareOrbState } from '@/components/motion/SeraOrb'
+import { useTmaContext } from '@/components/tma/TmaContext'
 import { TypingWave } from '@/components/shared/microinteractions/TypingWave'
 import { MessageReveal } from '@/components/shared/microinteractions/MessageReveal'
 import type { AttachmentInput } from '@/lib/ai/administrator/types'
@@ -74,8 +75,8 @@ type TgViewport = {
 
 export default function ChatPage() {
   const router = useRouter()
-  const [aiName, setAiName] = useState('SERA')
-  const [welcomeText, setWelcomeText] = useState(DEFAULT_WELCOME)
+  const { aiName, welcomeText: ctxWelcome } = useTmaContext()
+  const welcomeText = ctxWelcome ?? DEFAULT_WELCOME
   const [messages, setMessages] = useState<Message[]>([])
 
   // iOS keyboard fix — pin the chat to window.visualViewport. On iOS the keyboard
@@ -106,22 +107,6 @@ export default function ChatPage() {
     }
   }, [])
 
-  useEffect(() => {
-    let cancelled = false
-    waitForTmaToken().then(token => {
-      if (cancelled || !token) return
-      fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
-        .then(r => r.ok ? r.json() : null)
-        .then(json => {
-          const welcome = json?.aiSettings?.welcome_message
-          const name = json?.aiSettings?.admin_name
-          if (name && name !== 'Администратор') setAiName(name)
-          if (welcome) setWelcomeText(welcome)
-        })
-        .catch(() => null)
-    })
-    return () => { cancelled = true }
-  }, [])
 
   useEffect(() => {
     const savedId = sessionStorage.getItem('chat_conversation_id')
@@ -541,7 +526,7 @@ export default function ChatPage() {
         >
           <ArrowLeft className="w-5 h-5" strokeWidth={1.8} />
         </button>
-        <AlinaCareOrb state={orbState} size={42} />
+        <SeraOrb state={orbState} size={42} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <p className="font-serif text-[17px] text-ink leading-tight">{aiName}</p>
@@ -578,7 +563,7 @@ export default function ChatPage() {
       <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 flex flex-col gap-3">
         {/* Welcome hero */}
         <div className="flex flex-col items-center text-center pt-2 pb-1">
-          <AlinaCareOrb state={orbState} size={100} className="mb-1" />
+          <SeraOrb state={orbState} size={100} className="mb-1" />
           <p className="font-serif text-[18px] text-ink leading-snug max-w-[18rem]">{welcomeText}</p>
           <p className="text-[12px] text-muted-foreground mt-1.5 max-w-[18rem]">
             Цены, услуги, мастера, записи, акции и многое другое. Просто напишите, что вас интересует.
@@ -621,7 +606,7 @@ export default function ChatPage() {
         {/* Typing indicator — shows live_status (current tool-call step) if present */}
         {isSending && (
           <div className="flex items-end gap-2">
-            <AlinaCareOrb state="thinking" size={28} />
+            <SeraOrb state="thinking" size={28} />
             <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl rounded-bl-md bg-cream border border-line max-w-[82%]">
               <TypingWave bars={6} label={liveStatus ?? `${aiName} печатает`} />
             </div>

@@ -24,7 +24,7 @@ import { AiTipBubble } from '@/components/shared/AiTipBubble'
 import { PortraitAvatar } from '@/components/shared/PortraitAvatar'
 import { ConfettiBurst } from '@/components/shared/microinteractions/ConfettiBurst'
 import { FadeInUp } from '@/components/motion/FadeInUp'
-import { AlinaCareOrb } from '@/components/motion/AlinaCareOrb'
+import { SeraOrb } from '@/components/motion/SeraOrb'
 import { Stagger, StaggerItem } from '@/components/motion/Stagger'
 import { useBookingStore } from '@/stores/bookingStore'
 import { formatDuration } from '@/lib/utils/date'
@@ -349,7 +349,7 @@ function SuccessScreen({
       <div className="relative flex flex-col items-center text-center pt-5 pb-3 px-5">
         <ConfettiBurst />
         <FadeInUp delay={0.05}>
-          <AlinaCareOrb state="success" size={88} />
+          <SeraOrb state="success" size={88} />
         </FadeInUp>
         <FadeInUp delay={0.4} className="mt-2">
           <h1 className="text-serif-h2 text-ink">

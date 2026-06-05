@@ -34,6 +34,7 @@ import type { AppointmentWithRelations, Service, Master } from '@/types/database
 import type { TimeSlot } from '@/types/api'
 import { useBookingStore } from '@/stores/bookingStore'
 import { waitForTmaToken, getTenantSlug } from '@/lib/tma-token'
+import { useTmaContext } from '@/components/tma/TmaContext'
 import { formatDate, formatTime } from '@/lib/utils/date'
 import { formatPrice } from '@/lib/utils/format'
 
@@ -52,6 +53,7 @@ export default function AppointmentsPage() {
   const searchParams = useSearchParams()
   const setBookingService = useBookingStore(s => s.setService)
   const setBookingMaster = useBookingStore(s => s.setMaster)
+  const { aiName } = useTmaContext()
 
   const [tab, setTab] = useState<Tab>('upcoming')
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>('all')
@@ -264,7 +266,7 @@ export default function AppointmentsPage() {
           upcoming.length === 0 ? (
             <EmptyDashedCard
               title="Нет предстоящих записей"
-              description="Самое время выбрать услугу и удобное время — SERA поможет."
+              description={"Самое время выбрать услугу и удобное время — " + aiName + " поможет."}
               cta={{ label: 'Записаться', onClick: () => router.push('/booking/services') }}
             />
           ) : (
@@ -462,6 +464,7 @@ function RescheduleSheet({
   onClose: () => void
   onRescheduled: (id: string, newStartsAt: string) => void
 }) {
+  const { aiName } = useTmaContext()
   const [slots, setSlots] = useState<TimeSlot[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [selected, setSelected] = useState<TimeSlot | null>(null)
@@ -637,11 +640,11 @@ function RescheduleSheet({
               ) : days.length === 0 ? (
                 <EmptyDashedCard
                   title="Нет свободных окон"
-                  description="На ближайшие две недели мест нет. Попробуйте позже или напишите SERA."
+                  description={"На ближайшие две недели мест нет. Попробуйте позже или напишите " + aiName + "."}
                 />
               ) : (
                 <div className="flex flex-col gap-5">
-                  {/* Alina greeting */}
+                  {/* SERA greeting */}
                   <FadeInUp delay={0.04}>
                     <AiTipBubble message="Я нашла ближайшие свободные окна для вас ✨" />
                   </FadeInUp>

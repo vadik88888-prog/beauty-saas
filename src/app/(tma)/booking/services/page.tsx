@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AlinaHeroCard } from '@/components/shared/AlinaHeroCard'
-import { AlinaPickCard } from '@/components/shared/AlinaPickCard'
+import { SeraHeroCard } from '@/components/shared/SeraHeroCard'
+import { SeraPickCard } from '@/components/shared/SeraPickCard'
+import { useTmaContext } from '@/components/tma/TmaContext'
 import { ServiceCard } from '@/components/shared/ServiceCard'
 import { ChipRow } from '@/components/shared/ChipRow'
 import { BookingSteps } from '@/components/shared/BookingSteps'
@@ -22,6 +23,7 @@ const NEW_DAYS = 30
 export default function ServicesPage() {
   const router = useRouter()
   const { setService } = useBookingStore()
+  const { aiName } = useTmaContext()
   const [services, setServices] = useState<ServiceWithCategory[]>([])
   const [promotions, setPromotions] = useState<Promotion[]>([])
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(ALL_ID)
@@ -81,7 +83,7 @@ export default function ServicesPage() {
     ]
   }, [services])
 
-  // Services in active promotions (used for badges + Alina pick)
+  // Services in active promotions (used for badges + SERA pick)
   const promoServiceIds = useMemo(() => {
     const set = new Set<string>()
     for (const p of promotions) {
@@ -90,10 +92,10 @@ export default function ServicesPage() {
     return set
   }, [promotions])
 
-  // Alina pick: priority — service in active promo (shows "Популярно" badge),
+  // SERA pick: priority — service in active promo (shows "Популярно" badge),
   // otherwise fallback to the first active service so the recommendation slot
   // is always present once the salon has at least one service.
-  const alinaPick = useMemo(() => {
+  const seraPick = useMemo(() => {
     const withPromo = services.find(s => promoServiceIds.has(s.id))
     if (withPromo) return { service: withPromo, hasPromo: true }
     const firstActive = services.find(s => s.is_active)
@@ -101,7 +103,7 @@ export default function ServicesPage() {
     return null
   }, [services, promoServiceIds])
 
-  // Filter by selected category (Alina pick is rendered separately above the list)
+  // Filter by selected category (SERA pick is rendered separately above the list)
   const filteredServices = useMemo(() => {
     const base =
       selectedCategoryId === ALL_ID
@@ -151,8 +153,9 @@ export default function ServicesPage() {
       <div className="flex flex-col gap-4 px-5 pt-4">
         {/* AI mini hero — welcome + "Написать" → /chat */}
         <FadeInUp delay={0.05}>
-          <AlinaHeroCard
+          <SeraHeroCard
             variant="mini"
+            name={aiName}
             welcome="Помогу подобрать идеальную процедуру"
             onChatClick={() => router.push('/chat')}
           />
@@ -172,20 +175,20 @@ export default function ServicesPage() {
           </FadeInUp>
         )}
 
-        {/* Alina recommends — service with active promo (popular badge), or first active fallback */}
-        {alinaPick && (
+        {/* SERA recommends — service with active promo (popular badge), or first active fallback */}
+        {seraPick && (
           <FadeInUp delay={0.15}>
-            <AlinaPickCard
-              title={alinaPick.service.name}
-              description={alinaPick.service.description}
+            <SeraPickCard
+              title={seraPick.service.name}
+              description={seraPick.service.description}
               price={
-                alinaPick.service.price_from
-                  ? `от ${formatPrice(alinaPick.service.price_from, alinaPick.service.currency)}`
-                  : formatPrice(alinaPick.service.price, alinaPick.service.currency)
+                seraPick.service.price_from
+                  ? `от ${formatPrice(seraPick.service.price_from, seraPick.service.currency)}`
+                  : formatPrice(seraPick.service.price, seraPick.service.currency)
               }
-              photoSrc={alinaPick.service.image_url}
+              photoSrc={seraPick.service.image_url}
               popular
-              onClick={() => handleSelect(alinaPick.service)}
+              onClick={() => handleSelect(seraPick.service)}
             />
           </FadeInUp>
         )}

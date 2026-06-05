@@ -2,7 +2,7 @@
 import Image from 'next/image'
 import { ChevronRight, Flame, Sparkles } from 'lucide-react'
 
-type AlinaPickCardProps = {
+type SeraPickCardProps = {
   /** Service title */
   title: string
   /** Short tagline */
@@ -24,7 +24,7 @@ type AlinaPickCardProps = {
  * Horizontal "SERA рекомендует" pick card for booking pages.
  * Peach-tint gradient + small SERA mark + service info + photo on the right.
  */
-export function AlinaPickCard({
+export function SeraPickCard({
   title,
   description,
   price,
@@ -34,7 +34,7 @@ export function AlinaPickCard({
   popular = false,
   onClick,
   className = '',
-}: AlinaPickCardProps) {
+}: SeraPickCardProps) {
   return (
     <button
       type="button"

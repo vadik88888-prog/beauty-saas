@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
-import { AlinaCareOrb } from '@/components/motion/AlinaCareOrb'
+import { SeraOrb } from '@/components/motion/SeraOrb'
 
 type NavItem = { href: string; icon: typeof LayoutGrid; label: string }
 
@@ -88,7 +88,7 @@ export function AdminSidebar({ role: _role }: { role: string }) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
             <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,0.10)', border: `1px solid ${S.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <AlinaCareOrb state="online" size={24} />
+              <SeraOrb state="online" size={24} />
             </div>
             <div className="min-w-0">
               <p style={{ fontSize: 14, fontWeight: 600, color: S.textPrimary, lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -163,7 +163,7 @@ export function AdminSidebar({ role: _role }: { role: string }) {
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)' }}
         >
           <div style={{ flexShrink: 0, marginTop: 2 }}>
-            <AlinaCareOrb state="online" size={38} />
+            <SeraOrb state="online" size={38} />
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
             <p style={{ fontSize: 14, fontWeight: 700, color: S.textPrimary, lineHeight: 1.3 }}>SERA</p>
@@ -252,7 +252,7 @@ export function AdminSidebar({ role: _role }: { role: string }) {
           <Menu size={20} strokeWidth={1.5} />
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 8 }}>
-          <AlinaCareOrb state="online" size={24} />
+          <SeraOrb state="online" size={24} />
           <span style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>{tenant?.name ?? 'AI Beauty'}</span>
         </div>
       </div>

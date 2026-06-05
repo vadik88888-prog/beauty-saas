@@ -8,7 +8,7 @@ import {
   TrendingUp, Users, Tag, Settings,
 } from 'lucide-react'
 import { getAiStats } from '@/lib/admin/get-ai-stats'
-import { AlinaCareOrb } from '@/components/motion/AlinaCareOrb'
+import { SeraOrb } from '@/components/motion/SeraOrb'
 import { DateNav } from './_components/DateNav'
 import { AtRiskSection } from './_components/AtRiskSection'
 import { TodayDate } from '@/components/admin/TodayDate'
@@ -252,7 +252,7 @@ export default async function DashboardPage({
               background: '#ffffff',
             }}
           >
-            <AlinaCareOrb state={isToday ? 'online' : 'idle'} size={96} />
+            <SeraOrb state={isToday ? 'online' : 'idle'} size={96} />
           </div>
 
           {/* SERA identity card */}
@@ -265,7 +265,7 @@ export default async function DashboardPage({
             }}
           >
             <div className="flex md:hidden items-center gap-3 mb-1">
-              <AlinaCareOrb state={isToday ? 'online' : 'idle'} size={44} />
+              <SeraOrb state={isToday ? 'online' : 'idle'} size={44} />
             </div>
             <div>
               <p style={{ fontSize: 17, fontWeight: 700, color: C.ink, lineHeight: 1.2 }}>SERA</p>

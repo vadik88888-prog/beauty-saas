@@ -19,7 +19,7 @@ export type CareOrbState =
   | 'celebrating' // празднует (ярче success, 8 частиц)
   | 'resting'     // отдыхает ночью (тёмный + полумесяц)
 
-export interface AlinaCareOrbProps {
+export interface SeraOrbProps {
   state?: CareOrbState
   size?: number
   className?: string
@@ -36,91 +36,79 @@ interface OrbCfg {
   glowBase: number
   pulseHz: number
   pulseScale: [number, number]
-  outerRotHz: number   // outer petal ring rotation (seconds / full turn)
-  innerRotHz: number   // inner petal ring rotation
-  orbitHz: number      // fastest particle orbit period (s)
+  outerRotHz: number
+  innerRotHz: number
+  orbitHz: number
   particleN: number
 }
 
 const CFGS: Record<CareOrbState, OrbCfg> = {
-  // Тёплый оливково-золотой — очень медленно, спокойствие
   idle: {
     stroke: '#b0aa7c', fill: 'rgba(176,170,124,0.07)',
     center: '#f2e8c0', glow: '#c8b060', particle: '#dcc880',
     glowBase: 0.55, pulseHz: 6.0, pulseScale: [0.97, 1.00],
     outerRotHz: 45, innerRotHz: 72, orbitHz: 22, particleN: 3,
   },
-  // Шалфей-зелёный — умеренно активна
   online: {
     stroke: '#80a87c', fill: 'rgba(128,168,124,0.08)',
     center: '#c4e0b4', glow: '#68a868', particle: '#98c890',
     glowBase: 0.80, pulseHz: 3.8, pulseScale: [0.98, 1.02],
     outerRotHz: 28, innerRotHz: 46, orbitHz: 15, particleN: 4,
   },
-  // ПИНК-МАДЖЕНТА — быстро, яркий пульс
   thinking: {
     stroke: '#e080b0', fill: 'rgba(224,128,176,0.09)',
     center: '#fff0f8', glow: '#d04888', particle: '#e8a0c8',
     glowBase: 0.92, pulseHz: 1.8, pulseScale: [0.92, 1.08],
     outerRotHz: 10, innerRotHz: 16, orbitHz: 5, particleN: 5,
   },
-  // Тёплый розовый — среднебыстро
   responding: {
     stroke: '#d898b0', fill: 'rgba(216,152,176,0.08)',
     center: '#ffd8e4', glow: '#b86880', particle: '#e8b0c8',
     glowBase: 0.85, pulseHz: 2.2, pulseScale: [0.97, 1.04],
     outerRotHz: 16, innerRotHz: 26, orbitHz: 8, particleN: 4,
   },
-  // Шалфей + активные частицы
   booking: {
     stroke: '#78a870', fill: 'rgba(120,168,112,0.08)',
     center: '#b8e0a8', glow: '#508050', particle: '#88c078',
     glowBase: 0.82, pulseHz: 2.8, pulseScale: [0.98, 1.03],
     outerRotHz: 14, innerRotHz: 22, orbitHz: 7, particleN: 6,
   },
-  // ЗОЛОТОЙ-МЕДНЫЙ — расширяется, быстрые частицы
   success: {
     stroke: '#c09028', fill: 'rgba(192,144,40,0.10)',
     center: '#f8e060', glow: '#d09810', particle: '#e8c040',
     glowBase: 1.00, pulseHz: 1.8, pulseScale: [1.00, 1.12],
     outerRotHz: 12, innerRotHz: 20, orbitHz: 5, particleN: 6,
   },
-  // Холодный тиль-зелёный — медленно, настойчивый
   reminder: {
     stroke: '#6ca8a0', fill: 'rgba(108,168,160,0.07)',
     center: '#a8d8d0', glow: '#407878', particle: '#80c0b8',
     glowBase: 0.62, pulseHz: 4.8, pulseScale: [0.97, 1.01],
     outerRotHz: 36, innerRotHz: 58, orbitHz: 20, particleN: 3,
   },
-  // Тёплый роз-персик — плавно, с заботой
   followUp: {
     stroke: '#c88898', fill: 'rgba(200,136,152,0.08)',
     center: '#fcc8d4', glow: '#a05868', particle: '#e0a0b8',
     glowBase: 0.75, pulseHz: 4.0, pulseScale: [0.97, 1.03],
     outerRotHz: 24, innerRotHz: 38, orbitHz: 13, particleN: 4,
   },
-  // СИНИЙ-ИНДИГО — явно синий, очень медленно
   handover: {
     stroke: '#6878c8', fill: 'rgba(104,120,200,0.08)',
     center: '#b8c4e8', glow: '#4858a8', particle: '#8898d8',
     glowBase: 0.60, pulseHz: 5.5, pulseScale: [0.98, 1.01],
     outerRotHz: 38, innerRotHz: 62, orbitHz: 24, particleN: 3,
   },
-  // Янтарно-золотой — размеренно, созерцательно
   learning: {
     stroke: '#b89820', fill: 'rgba(184,152,32,0.08)',
     center: '#e8c840', glow: '#987810', particle: '#d0a830',
     glowBase: 0.76, pulseHz: 3.5, pulseScale: [0.97, 1.03],
     outerRotHz: 28, innerRotHz: 44, orbitHz: 12, particleN: 5,
   },
-  // Ярко-золотой — ещё ярче success, 8 частиц, быстро
   celebrating: {
     stroke: '#d4a020', fill: 'rgba(212,160,32,0.12)',
     center: '#fff4a0', glow: '#e0b010', particle: '#f0c830',
     glowBase: 1.00, pulseHz: 1.5, pulseScale: [1.00, 1.15],
     outerRotHz: 10, innerRotHz: 16, orbitHz: 4, particleN: 8,
   },
-  // ТЁМНЫЙ — почти статика, специальный рендер с полумесяцем
   resting: {
     stroke: '#2a2e48', fill: 'rgba(30,32,52,0.15)',
     center: '#a0a8c4', glow: '#181c2e', particle: '#404460',
@@ -129,26 +117,23 @@ const CFGS: Record<CareOrbState, OrbCfg> = {
   },
 }
 
-// 5 outer petals (0°, 36°, 72°, 108°, 144°) + 5 inner offset 18°
 const OUTER_A = [0, 36, 72, 108, 144]
 const INNER_A = [18, 54, 90, 126, 162]
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function AlinaCareOrb({ state = 'idle', size = 120, className }: AlinaCareOrbProps) {
+export function SeraOrb({ state = 'idle', size = 120, className }: SeraOrbProps) {
   const reduced = useReducedMotion()
   const uid = useId().replace(/:/g, 'x')
 
-  // SVG filter/gradient IDs — unique per instance
   const fGlow  = `cg${uid}`
   const fOuter = `og${uid}`
   const gRad   = `rg${uid}`
-  const mMoon  = `mm${uid}`   // moon mask (resting only)
+  const mMoon  = `mm${uid}`
 
   const cfg = CFGS[state]
   const isResting = state === 'resting'
 
-  // Color transition for state changes
   const ct = { duration: 1.4, ease: [0.4, 0, 0.2, 1] as const }
 
   const particles = useMemo(
@@ -176,7 +161,6 @@ export function AlinaCareOrb({ state = 'idle', size = 120, className }: AlinaCar
         role="img"
       >
         <defs>
-          {/* Center bloom filter */}
           <filter id={fGlow} x="-80%" y="-80%" width="260%" height="260%">
             <feGaussianBlur in="SourceGraphic" stdDeviation="4.5" result="b" />
             <feMerge>
@@ -185,27 +169,22 @@ export function AlinaCareOrb({ state = 'idle', size = 120, className }: AlinaCar
             </feMerge>
           </filter>
 
-          {/* Wide ambient haze */}
           <filter id={fOuter} x="-120%" y="-120%" width="340%" height="340%">
             <feGaussianBlur in="SourceGraphic" stdDeviation="10" />
           </filter>
 
-          {/* Center radial gradient */}
           <radialGradient id={gRad} cx="50%" cy="50%" r="50%">
             <stop offset="0%"   stopColor={cfg.center} stopOpacity="1" />
             <stop offset="42%"  stopColor={cfg.glow}   stopOpacity="0.55" />
             <stop offset="100%" stopColor={cfg.glow}   stopOpacity="0" />
           </radialGradient>
 
-          {/* Crescent moon mask — used only for resting state */}
           <mask id={mMoon}>
             <rect x="0" y="0" width="120" height="120" fill="white" />
-            {/* Offset dark circle bites into the lit circle → crescent */}
             <circle cx="65" cy="57" r="9.5" fill="black" />
           </mask>
         </defs>
 
-        {/* ── 1. Ambient outer haze ── */}
         <motion.circle
           cx="60" cy="60" r="54"
           fill={cfg.glow}
@@ -220,7 +199,6 @@ export function AlinaCareOrb({ state = 'idle', size = 120, className }: AlinaCar
           }}
         />
 
-        {/* ── 2. Background fill disc ── */}
         <motion.circle
           cx="60" cy="60" r="47"
           fill={cfg.fill}
@@ -231,7 +209,6 @@ export function AlinaCareOrb({ state = 'idle', size = 120, className }: AlinaCar
           }}
         />
 
-        {/* ── 3. Breathing scale wrapper ── */}
         <motion.g
           style={{ transformOrigin: '60px 60px' }}
           animate={reduced ? {} : {
@@ -243,7 +220,6 @@ export function AlinaCareOrb({ state = 'idle', size = 120, className }: AlinaCar
             opacity: { duration: ct.duration, ease: ct.ease },
           }}
         >
-          {/* ── 3a. Outer petal ring — clockwise ── */}
           <motion.g
             style={{ transformOrigin: '60px 60px' }}
             animate={reduced ? {} : { rotate: [0, 360] }}
@@ -276,7 +252,6 @@ export function AlinaCareOrb({ state = 'idle', size = 120, className }: AlinaCar
             ))}
           </motion.g>
 
-          {/* ── 3b. Inner petal ring — counter-clockwise ── */}
           <motion.g
             style={{ transformOrigin: '60px 60px' }}
             animate={reduced ? {} : { rotate: [0, -360] }}
@@ -309,10 +284,8 @@ export function AlinaCareOrb({ state = 'idle', size = 120, className }: AlinaCar
             ))}
           </motion.g>
 
-          {/* ── 3c. Center radial fill ── */}
           <circle cx="60" cy="60" r="23" fill={`url(#${gRad})`} />
 
-          {/* ── 3d. Orbiting particles ── */}
           {particles.map(p => (
             <motion.g
               key={p.id}
@@ -343,7 +316,6 @@ export function AlinaCareOrb({ state = 'idle', size = 120, className }: AlinaCar
             </motion.g>
           ))}
 
-          {/* ── 3e. Center core — normal states ── */}
           {!isResting && (
             <>
               <motion.circle
@@ -370,7 +342,6 @@ export function AlinaCareOrb({ state = 'idle', size = 120, className }: AlinaCar
             </>
           )}
 
-          {/* ── 3f. Crescent moon — resting state only ── */}
           {isResting && (
             <motion.circle
               cx="60" cy="60" r="11.5"

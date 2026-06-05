@@ -3,7 +3,7 @@ import { type ReactNode } from 'react'
 import { ChevronRight, MessageCircle } from 'lucide-react'
 import { PortraitAvatar } from './PortraitAvatar'
 import { OnlineDot } from '@/components/motion/OnlineDot'
-import { AlinaCareOrb } from '@/components/motion/AlinaCareOrb'
+import { SeraOrb } from '@/components/motion/SeraOrb'
 
 type QuickAction = {
   id: string
@@ -11,7 +11,7 @@ type QuickAction = {
   onClick: () => void
 }
 
-type AlinaHeroCardProps = {
+type SeraHeroCardProps = {
   variant?: 'full' | 'mini'
   name?: string
   /** AI manager photo (admin-uploaded). Falls back to the name initial. */
@@ -37,7 +37,7 @@ type AlinaHeroCardProps = {
  * - variant=full: home page (large avatar 64px + welcome message + 3 CTAs)
  * - variant=mini: booking pages (compact 4 quick-q grid 2x2)
  */
-export function AlinaHeroCard({
+export function SeraHeroCard({
   variant = 'full',
   name = 'SERA',
   avatarSrc,
@@ -50,7 +50,7 @@ export function AlinaHeroCard({
   onChatClick,
   chatLabel = 'Написать',
   className = '',
-}: AlinaHeroCardProps) {
+}: SeraHeroCardProps) {
   if (variant === 'mini') {
     return (
       <div
@@ -115,7 +115,7 @@ export function AlinaHeroCard({
       />
 
       <div className="relative flex items-start gap-4">
-        <AlinaCareOrb state="online" size={72} />
+        <SeraOrb state="online" size={72} />
         <div className="flex-1 min-w-0 pt-1">
           <div className="font-serif text-xl text-ink leading-tight">{name}</div>
           <div className="text-sm text-ink-2 flex items-center gap-1.5 mt-1">

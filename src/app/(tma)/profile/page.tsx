@@ -22,6 +22,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { PortraitAvatar } from '@/components/shared/PortraitAvatar'
 import { Stagger, StaggerItem } from '@/components/motion/Stagger'
 import { waitForTmaToken, getTenantSlug } from '@/lib/tma-token'
+import { useTmaContext } from '@/components/tma/TmaContext'
 
 const RU_MONTHS_GEN = [
   'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
@@ -71,6 +72,7 @@ type Tenant = {
 
 export default function ProfilePage() {
   const router = useRouter()
+  const { aiName } = useTmaContext()
   const [data, setData] = useState<ProfileData | null>(null)
   const [tenant, setTenant] = useState<Tenant | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -165,7 +167,7 @@ export default function ProfilePage() {
           <div className="grid grid-cols-3 gap-2">
             <QuickAction icon={ClipboardList} label="Мои записи" hint="Посмотреть и управлять" onClick={() => router.push('/appointments')} />
             <QuickAction icon={Gift} label="Акции" hint="Подарки и скидки" onClick={() => router.push('/promotions')} dimmed={!hasPromos} />
-            <QuickAction icon={MessageCircle} label="Написать SERA" hint="AI-администратор" onClick={() => router.push('/chat')} />
+            <QuickAction icon={MessageCircle} label={`Написать ${aiName}`} hint="AI-администратор" onClick={() => router.push('/chat')} />
           </div>
         </StaggerItem>
 
@@ -217,7 +219,7 @@ export default function ProfilePage() {
               className="mt-1 w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-sage-tint text-sage border border-sage-soft font-medium py-3 text-sm hover:bg-sage-soft transition-colors"
             >
               <MessageCircle className="w-4 h-4" strokeWidth={1.8} />
-              Написать SERA
+              Написать {aiName}
             </button>
           </div>
         </DialogContent>
