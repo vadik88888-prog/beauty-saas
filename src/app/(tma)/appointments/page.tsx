@@ -264,7 +264,7 @@ export default function AppointmentsPage() {
           upcoming.length === 0 ? (
             <EmptyDashedCard
               title="Нет предстоящих записей"
-              description="Самое время выбрать услугу и удобное время — Алина поможет."
+              description="Самое время выбрать услугу и удобное время — SERA поможет."
               cta={{ label: 'Записаться', onClick: () => router.push('/booking/services') }}
             />
           ) : (
@@ -637,7 +637,7 @@ function RescheduleSheet({
               ) : days.length === 0 ? (
                 <EmptyDashedCard
                   title="Нет свободных окон"
-                  description="На ближайшие две недели мест нет. Попробуйте позже или напишите Алине."
+                  description="На ближайшие две недели мест нет. Попробуйте позже или напишите SERA."
                 />
               ) : (
                 <div className="flex flex-col gap-5">

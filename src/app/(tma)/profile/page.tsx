@@ -165,7 +165,7 @@ export default function ProfilePage() {
           <div className="grid grid-cols-3 gap-2">
             <QuickAction icon={ClipboardList} label="Мои записи" hint="Посмотреть и управлять" onClick={() => router.push('/appointments')} />
             <QuickAction icon={Gift} label="Акции" hint="Подарки и скидки" onClick={() => router.push('/promotions')} dimmed={!hasPromos} />
-            <QuickAction icon={MessageCircle} label="Написать Алине" hint="AI-администратор" onClick={() => router.push('/chat')} />
+            <QuickAction icon={MessageCircle} label="Написать SERA" hint="AI-администратор" onClick={() => router.push('/chat')} />
           </div>
         </StaggerItem>
 
@@ -217,7 +217,7 @@ export default function ProfilePage() {
               className="mt-1 w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-sage-tint text-sage border border-sage-soft font-medium py-3 text-sm hover:bg-sage-soft transition-colors"
             >
               <MessageCircle className="w-4 h-4" strokeWidth={1.8} />
-              Написать Алине
+              Написать SERA
             </button>
           </div>
         </DialogContent>

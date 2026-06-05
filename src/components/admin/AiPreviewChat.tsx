@@ -75,7 +75,7 @@ export function AiPreviewChat({
       </form>
 
       <div className="min-h-[120px] rounded-xl bg-cream-2 border border-line-soft p-3">
-        {loading && <TypingWave label="Алина печатает…" />}
+        {loading && <TypingWave label="SERA печатает…" />}
         {!loading && error && (
           <p className="text-sm text-destructive">{error}</p>
         )}

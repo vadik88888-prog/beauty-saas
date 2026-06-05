@@ -62,7 +62,7 @@ export function AlinaPickCard({
       <div className="flex-1 min-w-0 py-3 pr-3">
         <div className="flex items-center justify-between gap-2 mb-1">
           <span className="text-[10px] font-medium uppercase tracking-wider text-ink-2">
-            Алина рекомендует
+            SERA рекомендует
           </span>
           {popular && (
             <span className="inline-flex items-center gap-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-2">

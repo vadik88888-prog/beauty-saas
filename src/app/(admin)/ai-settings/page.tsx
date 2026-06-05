@@ -301,7 +301,7 @@ export default function AiSettingsPage() {
                 <Input
                   value={settings.admin_name}
                   onChange={e => setSettings(s => ({ ...s, admin_name: e.target.value }))}
-                  placeholder="Алина"
+                  placeholder="SERA"
                   maxLength={100}
                 />
               </div>
@@ -326,7 +326,7 @@ export default function AiSettingsPage() {
           {/* Tone */}
           <section className="card-elevated p-5 md:p-6">
             <h2 className="text-h2">Стиль общения</h2>
-            <p className="text-[12px] text-muted-foreground mt-1 mb-4">Как Алина разговаривает с клиентами</p>
+            <p className="text-[12px] text-muted-foreground mt-1 mb-4">Как SERA разговаривает с клиентами</p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {TONES.map(t => {
                 const active = settings.tone_of_voice === t.key
@@ -598,7 +598,7 @@ export default function AiSettingsPage() {
           <section className="card-elevated p-5 md:p-6">
             <h2 className="text-h2">Особенности вашего салона</h2>
             <p className="text-[12px] text-muted-foreground mt-1 mb-4">
-              Что Алина должна знать. Эти инструкции добавляются к её базовым правилам.
+              Что SERA должна знать. Эти инструкции добавляются к её базовым правилам.
               Не нужно прописывать команды AI — только специфику салона.
             </p>
             <textarea
