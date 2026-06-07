@@ -23,6 +23,7 @@ export type UpcomingAppointment = {
   master: string
   master_photo_url: string | null
   client: string
+  client_telegram: string | null
   price: number | null
   currency: string
 }
@@ -142,7 +143,7 @@ export async function getAiStats(tenantId: string, dateStr?: string): Promise<Ai
       .limit(3),
 
     isToday ? supabase.from('appointments')
-      .select('id, starts_at, client:clients(first_name, last_name), master:masters(id, name, photo_url), service:services(name, price, currency)')
+      .select('id, starts_at, client:clients(first_name, last_name, telegram_username), master:masters(id, name, photo_url), service:services(name, price, currency)')
       .eq('tenant_id', tenantId)
       .in('status', ['pending', 'confirmed'])
       .gte('starts_at', nowIso)
@@ -222,7 +223,7 @@ export async function getAiStats(tenantId: string, dateStr?: string): Promise<Ai
     days_absent: Math.floor((Date.now() - new Date(c.last_visit_at).getTime()) / 86400000),
   }))
 
-  type UpcomingRow = { id: string; starts_at: string; client: { first_name: string | null; last_name: string | null } | null; master: { id: string; name: string; photo_url: string | null } | null; service: { name: string; price: number | null; currency: string } | null }
+  type UpcomingRow = { id: string; starts_at: string; client: { first_name: string | null; last_name: string | null; telegram_username: string | null } | null; master: { id: string; name: string; photo_url: string | null } | null; service: { name: string; price: number | null; currency: string } | null }
   const upcomingList: UpcomingAppointment[] = ((upcomingData ?? []) as unknown as UpcomingRow[]).map(a => ({
     id: a.id,
     starts_at: a.starts_at,
@@ -230,6 +231,7 @@ export async function getAiStats(tenantId: string, dateStr?: string): Promise<Ai
     master: a.master?.name ?? '',
     master_photo_url: a.master?.photo_url ?? null,
     client: [a.client?.first_name, a.client?.last_name].filter(Boolean).join(' ') || 'Клиент',
+    client_telegram: a.client?.telegram_username ?? null,
     price: a.service?.price ?? null,
     currency: a.service?.currency ?? 'BYN',
   }))

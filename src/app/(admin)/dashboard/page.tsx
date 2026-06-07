@@ -455,17 +455,6 @@ export default async function DashboardPage({
                     {nextAppt.service}
                   </p>
 
-                  {/* Client row */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <Avatar name={nextAppt.client} size={40} />
-                    <div style={{ minWidth: 0 }}>
-                      <p style={{ fontSize: 11, color: C.muted }}>Клиент</p>
-                      <p style={{ fontSize: 12, fontWeight: 600, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {nextAppt.client}
-                      </p>
-                    </div>
-                  </div>
-
                   {/* Master row */}
                   {nextAppt.master && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
@@ -491,23 +480,23 @@ export default async function DashboardPage({
             })()}
             </div>{/* end left column */}
 
-            {/* Right: big master avatar */}
-            {nextAppt?.master && (() => {
-              const mc = masterColorDash(nextAppt.master)
-              const initials = nextAppt.master.split(' ').filter(Boolean).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+            {/* Right: client block */}
+            {nextAppt && (() => {
+              const clientInitials = nextAppt.client.split(' ').filter(Boolean).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+              const tg = nextAppt.client_telegram && !/^\d+$/.test(nextAppt.client_telegram) ? nextAppt.client_telegram : null
               return (
-                <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0, gap: 6, minWidth: 72 }}>
+                  {/* Avatar: sage-tint bg, sage text — TMA design system 7.5 */}
                   <div style={{
-                    width: 64, height: 64, borderRadius: '50%', overflow: 'hidden', flexShrink: 0,
-                    boxShadow: `inset 0 0 0 2.5px ${mc.bar}`,
-                    background: nextAppt.master_photo_url ? 'transparent' : mc.tint,
+                    width: 64, height: 64, borderRadius: '50%', flexShrink: 0,
+                    background: C.sageTint,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    {nextAppt.master_photo_url ? (
-                      <img src={nextAppt.master_photo_url} alt={nextAppt.master} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                    ) : (
-                      <span style={{ fontSize: 20, fontWeight: 700, color: mc.ink, lineHeight: 1 }}>{initials}</span>
-                    )}
+                    <span style={{ fontSize: 22, fontWeight: 700, color: C.sage, lineHeight: 1 }}>{clientInitials}</span>
+                  </div>
+                  <div style={{ textAlign: 'center', minWidth: 0, maxWidth: 80 }}>
+                    <p style={{ fontSize: 11, fontWeight: 600, color: C.ink, lineHeight: 1.3, wordBreak: 'break-word' }}>{nextAppt.client}</p>
+                    {tg && <p style={{ fontSize: 10, color: C.sage, marginTop: 2 }}>@{tg}</p>}
                   </div>
                 </div>
               )
