@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import {
   ChevronLeft, ChevronRight, X, Phone,
   MessageCircle, CheckCircle, XCircle, Sparkles, Plus,
-  Check, Clock, CheckCheck,
+  Check, Clock, CheckCheck, PanelRight,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { AiBadge } from '@/components/shared/AiBadge'
@@ -221,6 +221,7 @@ export default function CalendarPage() {
   const [newApptOpen, setNewApptOpen] = useState(false)
   const [newApptDef, setNewApptDef]   = useState<NewApptDefaults>({ date: new Date() })
   const [isMobile, setIsMobile]       = useState(false)
+  const [railOpen, setRailOpen]       = useState(false)
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
   const todayStr = getToday()
@@ -254,6 +255,13 @@ export default function CalendarPage() {
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
   }, [])
+
+  useEffect(() => {
+    if (!railOpen) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setRailOpen(false) }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [railOpen])
 
   const filtered = appointments
     .filter(a => selectedMasterId   ? a.master?.id          === selectedMasterId   : true)
@@ -569,6 +577,127 @@ export default function CalendarPage() {
   // ── Mini calendar ──
   const weeks = calendarMonth(miniYear, miniMonth)
 
+  // ── Right rail content (shared: desktop column + mobile drawer) ──
+  const railContent = (
+    <>
+      {/* Load % */}
+      <div style={{ background: 'var(--card)', border: '1px solid var(--card-border)', borderRadius: 14, padding: '12px 14px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-2)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Загрузка дня</span>
+          <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>{loadPct}%</span>
+        </div>
+        <div style={{ height: 6, borderRadius: 3, background: 'var(--line)', overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${loadPct}%`, background: loadPct > 80 ? 'var(--sage)' : 'var(--sage-2)', borderRadius: 3, transition: 'width 0.5s' }} />
+        </div>
+        <p style={{ fontSize: 11, color: 'var(--ink-2)', marginTop: 6 }}>
+          {Math.floor(busyMin / 60)}ч {Math.round(busyMin % 60)}м занято · {freeH}ч {freeMin2}м свободно
+        </p>
+      </div>
+
+      {/* SERA insight — only if free windows */}
+      {freeWinDay > 0 && (
+        <div style={{ background: 'var(--sage-tint)', border: '1px solid var(--sage-soft)', borderRadius: 14, padding: '12px 14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <SeraOrb state="online" size={32} />
+            <div>
+              <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)', margin: 0 }}>Совет от SERA</p>
+              <p style={{ fontSize: 11, color: 'var(--sage)', margin: 0 }}>
+                {freeWinDay} свободных {pluralOkno(freeWinDay)} сегодня
+              </p>
+            </div>
+          </div>
+          <p style={{ fontSize: 12, color: 'var(--ink-2)', lineHeight: 1.5, marginBottom: 8 }}>
+            Есть свободное время — хороший момент запустить акцию и заполнить расписание.
+          </p>
+          <button onClick={() => toast.info('Функция в разработке')} className="sera-btn sera-btn--secondary sera-btn--sm" style={{ width: '100%' }}>
+            Заполнить окна
+          </button>
+        </div>
+      )}
+
+      {/* Mini calendar */}
+      <div style={{ background: 'var(--card)', border: '1px solid var(--card-border)', borderRadius: 14, padding: '12px 14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <button onClick={() => { if (miniMonth===0){setMiniMonth(11);setMiniYear(y=>y-1)}else setMiniMonth(m=>m-1) }} className="sera-btn-icon" style={{ width:24,height:24, color:'var(--ink-2)', borderColor:'var(--line)' }}><ChevronLeft size={12}/></button>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)' }}>{MONTHS_RU[miniMonth]} {miniYear}</span>
+          <button onClick={() => { if (miniMonth===11){setMiniMonth(0);setMiniYear(y=>y+1)}else setMiniMonth(m=>m+1) }} className="sera-btn-icon" style={{ width:24,height:24, color:'var(--ink-2)', borderColor:'var(--line)' }}><ChevronRight size={12}/></button>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', marginBottom: 2 }}>
+          {['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(d => (
+            <span key={d} style={{ textAlign: 'center', fontSize: 9, fontWeight: 700, color: 'var(--ink-2)', textTransform: 'uppercase' }}>{d}</span>
+          ))}
+        </div>
+        {weeks.map((week, wi) => (
+          <div key={wi} style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)' }}>
+            {week.map((day, di) => {
+              if (!day) return <div key={di} />
+              const d   = new Date(miniYear, miniMonth, day)
+              const ds  = localIsoDate(d)
+              const isT = ds === todayStr
+              const isSel = ds === localIsoDate(selectedDay)
+              const hasDots = appointments.some(a => localDateOf(a.starts_at) === ds)
+              return (
+                <button key={di} onClick={() => goToDay(miniYear, miniMonth, day)} style={{
+                  width: '100%', aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: isSel || isT ? 700 : 400,
+                  background: isSel ? 'var(--ink)' : isT ? 'var(--sage-tint)' : 'transparent',
+                  color: isSel ? 'var(--page)' : isT ? 'var(--sage)' : 'var(--ink)',
+                  position: 'relative',
+                }}>
+                  {day}
+                  {hasDots && !isSel && <span style={{ position:'absolute',bottom:2,width:4,height:4,borderRadius:'50%',background:'var(--sage)' }} />}
+                </button>
+              )
+            })}
+          </div>
+        ))}
+      </div>
+
+      {/* Upcoming today */}
+      {(() => {
+        const nowIso  = new Date().toISOString()
+        const upcoming = [...dayAppts]
+          .filter(a => a.starts_at > nowIso && a.status !== 'cancelled')
+          .sort((a,b) => a.starts_at.localeCompare(b.starts_at))
+          .slice(0, 4)
+        if (!upcoming.length) return null
+        return (
+          <div style={{ background: 'var(--card)', border: '1px solid var(--card-border)', borderRadius: 14, overflow: 'hidden' }}>
+            <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid var(--line-soft)' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Ближайшие</span>
+            </div>
+            {upcoming.map((a, i) => {
+              const name = [a.client?.first_name, a.client?.last_name].filter(Boolean).join(' ') || 'Клиент'
+              const st   = STATUS[a.status] ?? STATUS.pending
+              return (
+                <button key={a.id} onClick={() => setSelectedAppt(a)} style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px',
+                  width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer',
+                  background: 'transparent', borderBottom: i < upcoming.length - 1 ? '1px solid var(--line-soft)' : 'none',
+                  transition: 'background 0.1s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--sage-tint)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                  <div style={{ width:28,height:28,borderRadius:'50%',background:'var(--sage-tint)',color:'var(--sage)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,flexShrink:0 }}>
+                    {name.charAt(0)}
+                  </div>
+                  <div style={{ flex:1,minWidth:0 }}>
+                    <p style={{ fontSize:12,fontWeight:600,color:'var(--ink)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',margin:0 }}>{name}</p>
+                    <p style={{ fontSize:10,color:'var(--muted)',margin:0 }}>{a.service?.name ?? '—'}</p>
+                  </div>
+                  <div style={{ display:'flex',alignItems:'center',gap:4,flexShrink:0 }}>
+                    <span style={{ width:6,height:6,borderRadius:'50%',background:st.dot }} />
+                    <span style={{ fontSize:11,fontFamily:'var(--font-mono)',color:'var(--muted)',fontWeight:600 }}>{formatTime(a.starts_at)}</span>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        )
+      })()}
+    </>
+  )
+
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
     <div style={{ height: '100%', overflow: 'hidden', minHeight: 0, display: 'flex', flexDirection: 'column', background: 'var(--page)', boxSizing: 'border-box' }}>
@@ -618,6 +747,12 @@ export default function CalendarPage() {
         </div>
 
         <div style={{ flex: 1 }} />
+
+        {isMobile && (
+          <button onClick={() => setRailOpen(true)} className="sera-btn-icon" aria-label="Информация" style={{ color: 'var(--ink-2)', borderColor: 'var(--line)' }}>
+            <PanelRight size={15} />
+          </button>
+        )}
 
         <button onClick={() => openNewAppt({ date: selectedDay })} className="sera-btn sera-btn--sera" style={{ gap: 6 }}>
           <Plus size={14} /> Новая запись
@@ -676,126 +811,41 @@ export default function CalendarPage() {
           )}
         </div>
 
-        {/* ── Right rail ─── */}
-        <div style={{ width: 248, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', paddingRight: 8 }}>
-
-          {/* Load % */}
-          <div style={{ background: 'var(--card)', border: '1px solid var(--card-border)', borderRadius: 14, padding: '12px 14px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-2)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Загрузка дня</span>
-              <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>{loadPct}%</span>
-            </div>
-            <div style={{ height: 6, borderRadius: 3, background: 'var(--line)', overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${loadPct}%`, background: loadPct > 80 ? 'var(--sage)' : 'var(--sage-2)', borderRadius: 3, transition: 'width 0.5s' }} />
-            </div>
-            <p style={{ fontSize: 11, color: 'var(--ink-2)', marginTop: 6 }}>
-              {Math.floor(busyMin / 60)}ч {Math.round(busyMin % 60)}м занято · {freeH}ч {freeMin2}м свободно
-            </p>
+        {/* ── Right rail (desktop only) ─── */}
+        {!isMobile && (
+          <div style={{ width: 248, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', paddingRight: 8 }}>
+            {railContent}
           </div>
-
-          {/* SERA insight — only if free windows */}
-          {freeWinDay > 0 && (
-            <div style={{ background: 'var(--sage-tint)', border: '1px solid var(--sage-soft)', borderRadius: 14, padding: '12px 14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <SeraOrb state="online" size={32} />
-                <div>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)', margin: 0 }}>Совет от SERA</p>
-                  <p style={{ fontSize: 11, color: 'var(--sage)', margin: 0 }}>
-                    {freeWinDay} свободных {pluralOkno(freeWinDay)} сегодня
-                  </p>
-                </div>
-              </div>
-              <p style={{ fontSize: 12, color: 'var(--ink2)', lineHeight: 1.5, marginBottom: 8 }}>
-                Есть свободное время — хороший момент запустить акцию и заполнить расписание.
-              </p>
-              <button onClick={() => toast.info('Функция в разработке')} className="sera-btn sera-btn--secondary sera-btn--sm" style={{ width: '100%' }}>
-                Заполнить окна
-              </button>
-            </div>
-          )}
-
-          {/* Mini calendar */}
-          <div style={{ background: 'var(--card)', border: '1px solid var(--card-border)', borderRadius: 14, padding: '12px 14px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <button onClick={() => { if (miniMonth===0){setMiniMonth(11);setMiniYear(y=>y-1)}else setMiniMonth(m=>m-1) }} className="sera-btn-icon" style={{ width:24,height:24, color:'var(--ink-2)', borderColor:'var(--line)' }}><ChevronLeft size={12}/></button>
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)' }}>{MONTHS_RU[miniMonth]} {miniYear}</span>
-              <button onClick={() => { if (miniMonth===11){setMiniMonth(0);setMiniYear(y=>y+1)}else setMiniMonth(m=>m+1) }} className="sera-btn-icon" style={{ width:24,height:24, color:'var(--ink-2)', borderColor:'var(--line)' }}><ChevronRight size={12}/></button>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', marginBottom: 2 }}>
-              {['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(d => (
-                <span key={d} style={{ textAlign: 'center', fontSize: 9, fontWeight: 700, color: 'var(--ink-2)', textTransform: 'uppercase' }}>{d}</span>
-              ))}
-            </div>
-            {weeks.map((week, wi) => (
-              <div key={wi} style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)' }}>
-                {week.map((day, di) => {
-                  if (!day) return <div key={di} />
-                  const d   = new Date(miniYear, miniMonth, day)
-                  const ds  = localIsoDate(d)
-                  const isT = ds === todayStr
-                  const isSel = ds === localIsoDate(selectedDay)
-                  const hasDots = appointments.some(a => localDateOf(a.starts_at) === ds)
-                  return (
-                    <button key={di} onClick={() => goToDay(miniYear, miniMonth, day)} style={{
-                      width: '100%', aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                      borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: isSel || isT ? 700 : 400,
-                      background: isSel ? 'var(--ink)' : isT ? 'var(--sage-tint)' : 'transparent',
-                      color: isSel ? 'var(--page)' : isT ? 'var(--sage)' : 'var(--ink)',
-                      position: 'relative',
-                    }}>
-                      {day}
-                      {hasDots && !isSel && <span style={{ position:'absolute',bottom:2,width:4,height:4,borderRadius:'50%',background:'var(--sage)' }} />}
-                    </button>
-                  )
-                })}
-              </div>
-            ))}
-          </div>
-
-          {/* Upcoming today */}
-          {(() => {
-            const nowIso  = new Date().toISOString()
-            const upcoming = [...dayAppts]
-              .filter(a => a.starts_at > nowIso && a.status !== 'cancelled')
-              .sort((a,b) => a.starts_at.localeCompare(b.starts_at))
-              .slice(0, 4)
-            if (!upcoming.length) return null
-            return (
-              <div style={{ background: 'var(--card)', border: '1px solid var(--card-border)', borderRadius: 14, overflow: 'hidden' }}>
-                <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid var(--line-soft)' }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Ближайшие</span>
-                </div>
-                {upcoming.map((a, i) => {
-                  const name = [a.client?.first_name, a.client?.last_name].filter(Boolean).join(' ') || 'Клиент'
-                  const st   = STATUS[a.status] ?? STATUS.pending
-                  return (
-                    <button key={a.id} onClick={() => setSelectedAppt(a)} style={{
-                      display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px',
-                      width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer',
-                      background: 'transparent', borderBottom: i < upcoming.length - 1 ? '1px solid var(--line-soft)' : 'none',
-                      transition: 'background 0.1s',
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--sage-tint)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                      <div style={{ width:28,height:28,borderRadius:'50%',background:'var(--sage-tint)',color:'var(--sage)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,flexShrink:0 }}>
-                        {name.charAt(0)}
-                      </div>
-                      <div style={{ flex:1,minWidth:0 }}>
-                        <p style={{ fontSize:12,fontWeight:600,color:'var(--ink)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',margin:0 }}>{name}</p>
-                        <p style={{ fontSize:10,color:'var(--muted)',margin:0 }}>{a.service?.name ?? '—'}</p>
-                      </div>
-                      <div style={{ display:'flex',alignItems:'center',gap:4,flexShrink:0 }}>
-                        <span style={{ width:6,height:6,borderRadius:'50%',background:st.dot }} />
-                        <span style={{ fontSize:11,fontFamily:'var(--font-mono)',color:'var(--muted)',fontWeight:600 }}>{formatTime(a.starts_at)}</span>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            )
-          })()}
-        </div>
+        )}
       </div>
+
+      {/* ── Mobile rail drawer ─── */}
+      {isMobile && (
+        <>
+          {railOpen && (
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 99, background: 'rgba(27,42,34,0.45)' }}
+              onClick={() => setRailOpen(false)}
+            />
+          )}
+          <div style={{
+            position: 'fixed', top: 0, right: 0, height: '100%',
+            width: 'min(86vw, 340px)', background: 'var(--page)',
+            boxShadow: 'var(--shadow-hero)', zIndex: 100,
+            display: 'flex', flexDirection: 'column',
+            transform: railOpen ? 'translateX(0)' : 'translateX(100%)',
+            transition: 'transform 0.3s var(--ease-glide)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderBottom: '1px solid var(--line)', flexShrink: 0 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>Расписание</span>
+              <button className="sera-btn-icon" onClick={() => setRailOpen(false)} aria-label="Закрыть"><X size={15}/></button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {railContent}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* ── New appointment modal ───────────────────────────────────── */}
       <NewAppointmentModal

@@ -450,7 +450,7 @@ export default async function DashboardPage({
 
                   {/* Client row */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <Avatar name={nextAppt.client} size={28} />
+                    <Avatar name={nextAppt.client} size={40} />
                     <div style={{ minWidth: 0 }}>
                       <p style={{ fontSize: 11, color: C.muted }}>Клиент</p>
                       <p style={{ fontSize: 12, fontWeight: 600, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -462,7 +462,7 @@ export default async function DashboardPage({
                   {/* Master row */}
                   {nextAppt.master && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                      <Avatar name={nextAppt.master} size={28} />
+                      <Avatar name={nextAppt.master} photo_url={nextAppt.master_photo_url} size={40} />
                       <div style={{ minWidth: 0 }}>
                         <p style={{ fontSize: 11, color: C.muted }}>Мастер</p>
                         <p style={{ fontSize: 12, fontWeight: 600, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
