@@ -152,6 +152,24 @@ function calendarMonth(year: number, month: number): (number|null)[][] {
 }
 
 
+// ── Master color palette ──────────────────────────────────────────────────────
+
+const MASTER_PALETTE = [
+  { bar: 'var(--m1-bar)', tint: 'var(--m1-tint)', ink: 'var(--m1-ink)' },
+  { bar: 'var(--m2-bar)', tint: 'var(--m2-tint)', ink: 'var(--m2-ink)' },
+  { bar: 'var(--m3-bar)', tint: 'var(--m3-tint)', ink: 'var(--m3-ink)' },
+  { bar: 'var(--m4-bar)', tint: 'var(--m4-tint)', ink: 'var(--m4-ink)' },
+  { bar: 'var(--m5-bar)', tint: 'var(--m5-tint)', ink: 'var(--m5-ink)' },
+  { bar: 'var(--m6-bar)', tint: 'var(--m6-tint)', ink: 'var(--m6-ink)' },
+  { bar: 'var(--m7-bar)', tint: 'var(--m7-tint)', ink: 'var(--m7-ink)' },
+  { bar: 'var(--m8-bar)', tint: 'var(--m8-tint)', ink: 'var(--m8-ink)' },
+]
+
+function masterColor(idOrName: string) {
+  const idx = idOrName.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % 8
+  return MASTER_PALETTE[idx]
+}
+
 // ── Grid primitives ───────────────────────────────────────────────────────────
 
 const GRID_H = HOURS.length * SLOT_H
@@ -330,19 +348,7 @@ export default function CalendarPage() {
     const { top, height } = apptPos(appt)
     const isAi = appt.source === 'ai'
 
-    const MASTER_PALETTE = [
-      { bar: 'var(--m1-bar)', tint: 'var(--m1-tint)', ink: 'var(--m1-ink)' },
-      { bar: 'var(--m2-bar)', tint: 'var(--m2-tint)', ink: 'var(--m2-ink)' },
-      { bar: 'var(--m3-bar)', tint: 'var(--m3-tint)', ink: 'var(--m3-ink)' },
-      { bar: 'var(--m4-bar)', tint: 'var(--m4-tint)', ink: 'var(--m4-ink)' },
-      { bar: 'var(--m5-bar)', tint: 'var(--m5-tint)', ink: 'var(--m5-ink)' },
-      { bar: 'var(--m6-bar)', tint: 'var(--m6-tint)', ink: 'var(--m6-ink)' },
-      { bar: 'var(--m7-bar)', tint: 'var(--m7-tint)', ink: 'var(--m7-ink)' },
-      { bar: 'var(--m8-bar)', tint: 'var(--m8-tint)', ink: 'var(--m8-ink)' },
-    ]
-    const hashKey = appt.master?.id ?? appt.master?.name ?? 'default'
-    const hashIdx = hashKey.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % 8
-    const mc = MASTER_PALETTE[hashIdx]
+    const mc = masterColor(appt.master?.id ?? appt.master?.name ?? 'default')
 
     const StatusIcon =
       appt.status === 'confirmed' ? Check :
@@ -735,15 +741,24 @@ export default function CalendarPage() {
 
         {/* Master chips */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-          {[{ id: null, name: 'Все мастера' }, ...masters].map(m => (
-            <button key={m.id ?? '__all'} onClick={() => setSelectedMasterId(m.id ?? null)} style={{
-              padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer',
-              background: selectedMasterId === (m.id ?? null) ? 'var(--sage)' : 'var(--sage-tint)',
-              color:      selectedMasterId === (m.id ?? null) ? '#fff' : 'var(--sage)',
-            }}>
-              {m.name}
-            </button>
-          ))}
+          {([{ id: null as string | null, name: 'Все мастера' }, ...masters]).map(m => {
+            const isAll = m.id === null
+            const isSelected = selectedMasterId === m.id
+            const mc = !isAll && m.id ? masterColor(m.id) : null
+            return (
+              <button key={m.id ?? '__all'} onClick={() => setSelectedMasterId(m.id)} style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                background: isSelected ? (isAll ? 'var(--sage)' : mc!.tint) : 'var(--card-sunken)',
+                color:      isSelected ? (isAll ? 'var(--page)' : mc!.ink) : 'var(--ink-2)',
+                border:     isSelected && mc ? `1.5px solid ${mc.bar}` : '1px solid var(--line)',
+                transition: 'all 0.15s',
+              }}>
+                {mc && <span style={{ width: 7, height: 7, borderRadius: '50%', background: mc.bar, flexShrink: 0 }} />}
+                {m.name}
+              </button>
+            )
+          })}
         </div>
 
         <div style={{ flex: 1 }} />
@@ -838,7 +853,7 @@ export default function CalendarPage() {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderBottom: '1px solid var(--line)', flexShrink: 0 }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>Расписание</span>
-              <button className="sera-btn-icon" onClick={() => setRailOpen(false)} aria-label="Закрыть"><X size={15}/></button>
+              <button className="sera-btn-icon" onClick={() => setRailOpen(false)} aria-label="Закрыть" style={{ color: 'var(--ink)', background: 'var(--card-sunken)', border: '1px solid var(--line)' }} onMouseEnter={e=>(e.currentTarget.style.background='var(--line-soft)')} onMouseLeave={e=>(e.currentTarget.style.background='var(--card-sunken)')}><X size={18}/></button>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {railContent}
@@ -874,7 +889,7 @@ export default function CalendarPage() {
                 <h2 style={{ fontFamily:'var(--font-display)',fontSize:20,fontWeight:600,color:'var(--ink)',margin:0 }}>Детали записи</h2>
                 {selectedAppt.source === 'ai' && <AiBadge />}
               </div>
-              <button onClick={() => setSelectedAppt(null)} className="sera-btn-icon"><X size={15}/></button>
+              <button onClick={() => setSelectedAppt(null)} className="sera-btn-icon" aria-label="Закрыть" style={{ color: 'var(--ink)', background: 'var(--card-sunken)', border: '1px solid var(--line)' }} onMouseEnter={e=>(e.currentTarget.style.background='var(--line-soft)')} onMouseLeave={e=>(e.currentTarget.style.background='var(--card-sunken)')}><X size={18}/></button>
             </div>
 
             {(() => {

@@ -309,7 +309,7 @@ export function NewAppointmentModal({
         {/* ── Header ── */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
           <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, color: 'var(--ink)', margin: 0 }}>Новая запись</h2>
-          <button onClick={onClose} className="sera-btn-icon"><X size={15} /></button>
+          <button onClick={onClose} className="sera-btn-icon" aria-label="Закрыть" style={{ color: 'var(--ink)', background: 'var(--card-sunken)', border: '1px solid var(--line)' }} onMouseEnter={e=>(e.currentTarget.style.background='var(--line-soft)')} onMouseLeave={e=>(e.currentTarget.style.background='var(--card-sunken)')}><X size={18} /></button>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>

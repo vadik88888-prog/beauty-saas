@@ -142,8 +142,8 @@ export function AddClientModal() {
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 600, color: 'var(--ink)', margin: 0 }}>
                 Новый клиент
               </h2>
-              <button className="sera-btn-icon" onClick={closeModal} aria-label="Закрыть">
-                <X size={15} />
+              <button className="sera-btn-icon" onClick={closeModal} aria-label="Закрыть" style={{ color: 'var(--ink)', background: 'var(--card-sunken)', border: '1px solid var(--line)' }} onMouseEnter={e=>(e.currentTarget.style.background='var(--line-soft)')} onMouseLeave={e=>(e.currentTarget.style.background='var(--card-sunken)')}>
+                <X size={18} />
               </button>
             </div>
 
