@@ -117,8 +117,8 @@
   --input: oklch(0.93 0.010 80);
   --ring: oklch(0.70 0.075 155);
 
-  /* Primary — graphite, для CTA и текста */
-  --primary: oklch(0.22 0.01 60);
+  /* Primary — фирменный зелёный SERA (мост к shadcn). Старое значение: oklch(0.22 0.01 60) графит */
+  --primary: var(--sage-deep);
   --primary-foreground: oklch(0.985 0.008 80);
   --secondary: oklch(0.96 0.012 80);
   --secondary-foreground: oklch(0.22 0.01 60);
