@@ -54,7 +54,7 @@ export function Avatar({ name, id, photo_url, size = 'md', className }: AvatarPr
 
   const base: React.CSSProperties = {
     width: sizePx, height: sizePx,
-    borderRadius: '50%', flexShrink: 0,
+    borderRadius: 12, flexShrink: 0,
     overflow: 'hidden', display: 'inline-flex',
     alignItems: 'center', justifyContent: 'center',
   }

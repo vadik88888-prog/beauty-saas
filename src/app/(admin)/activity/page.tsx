@@ -214,7 +214,7 @@ export default async function ActivityPage({
             <div key={card.clientId} className="rounded-2xl bg-cream border border-line overflow-hidden animate-card-in">
               {/* Client header */}
               <div className="flex items-center gap-3 px-4 py-3 border-b border-line bg-cream-2/50">
-                <span className="w-8 h-8 rounded-full bg-sage/15 text-sage flex items-center justify-center text-xs font-bold shrink-0">
+                <span className="w-8 h-8 rounded-xl bg-sage/15 text-sage flex items-center justify-center text-xs font-bold shrink-0">
                   {card.clientName.charAt(0).toUpperCase()}
                 </span>
                 <div className="min-w-0 flex-1">

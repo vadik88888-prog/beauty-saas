@@ -485,10 +485,10 @@ export default async function DashboardPage({
               const clientInitials = nextAppt.client.split(' ').filter(Boolean).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
               const tg = nextAppt.client_telegram && !/^\d+$/.test(nextAppt.client_telegram) ? nextAppt.client_telegram : null
               return (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0, gap: 6, minWidth: 72 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0, gap: 6, width: 92 }}>
                   {/* Avatar: sage-tint bg, sage text — TMA design system 7.5 */}
                   <div style={{
-                    width: 64, height: 64, borderRadius: '50%', flexShrink: 0,
+                    width: 80, height: 80, borderRadius: 12, flexShrink: 0,
                     background: C.sageTint,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>

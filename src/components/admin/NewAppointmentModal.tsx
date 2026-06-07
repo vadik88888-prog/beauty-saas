@@ -357,7 +357,7 @@ export function NewAppointmentModal({
                 {/* Selected badge */}
                 {selectedClient && (
                   <div style={{ marginTop: 6, padding: '7px 10px', background: 'var(--sage-tint)', borderRadius: 8, border: '1px solid var(--sage-soft)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--sage)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--sage)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
                       {(selectedClient.first_name ?? '?').charAt(0).toUpperCase()}
                     </div>
                     <div style={{ flex: 1 }}>

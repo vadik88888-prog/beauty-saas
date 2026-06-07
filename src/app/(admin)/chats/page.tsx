@@ -155,7 +155,7 @@ function ConversationRow({
       className="w-full text-left flex items-start gap-4 p-4 rounded-xl border bg-card hover:bg-muted/50 transition-colors"
     >
       {/* Avatar */}
-      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
         <User className="w-5 h-5 text-primary" />
       </div>
 

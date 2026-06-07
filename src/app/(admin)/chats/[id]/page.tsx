@@ -180,7 +180,7 @@ export default function ChatDetailPage({ params }: { params: Promise<{ id: strin
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <div className="w-9 h-9 rounded-full bg-surface-sunken flex items-center justify-center text-[13px] font-semibold text-foreground">
+          <div className="w-9 h-9 rounded-xl bg-surface-sunken flex items-center justify-center text-[13px] font-semibold text-foreground">
             {clientInitial}
           </div>
           <div className="flex-1 min-w-0">
@@ -482,7 +482,7 @@ function MessageBubble({
   return (
     <div className={cn('flex gap-2', isUser ? 'flex-row' : 'flex-row-reverse')}>
       <div className={cn(
-        'w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-1 text-[11px] font-semibold',
+        'w-7 h-7 rounded-xl flex items-center justify-center shrink-0 mt-1 text-[11px] font-semibold',
         isUser ? 'bg-surface-sunken text-foreground' :
         isAI ? 'bg-ai text-white' :
         'bg-foreground text-background'
