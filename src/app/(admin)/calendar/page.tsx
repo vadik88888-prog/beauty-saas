@@ -139,6 +139,66 @@ function apptPos(a: Appointment): { top: number; height: number } {
   return { top: (sh - HOUR_START) * SLOT_H, height: Math.max((eh - sh) * SLOT_H, 32) }
 }
 
+// Compute column layout for overlapping appointments (Google Calendar style).
+// Returns { col, total } for each appointment id.
+function computeColumns(appts: Appointment[]): Map<string, { col: number; total: number }> {
+  const result = new Map<string, { col: number; total: number }>()
+  if (appts.length === 0) return result
+
+  const sorted = [...appts].sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+
+  // Greedy column assignment: place each appt in the first column whose last appt ends at or before this one starts
+  const colEnds: number[] = []
+  const colAssign = new Map<string, number>()
+  for (const appt of sorted) {
+    const aStart = new Date(appt.starts_at).getTime()
+    let placed = false
+    for (let c = 0; c < colEnds.length; c++) {
+      if (colEnds[c] <= aStart) {
+        colEnds[c] = new Date(appt.ends_at).getTime()
+        colAssign.set(appt.id, c)
+        placed = true
+        break
+      }
+    }
+    if (!placed) {
+      colAssign.set(appt.id, colEnds.length)
+      colEnds.push(new Date(appt.ends_at).getTime())
+    }
+  }
+
+  // Union-Find: group appointments into clusters connected by any overlap
+  const parent = new Map<string, string>()
+  for (const a of sorted) parent.set(a.id, a.id)
+  function find(id: string): string {
+    if (parent.get(id) !== id) parent.set(id, find(parent.get(id)!))
+    return parent.get(id)!
+  }
+  for (let i = 0; i < sorted.length; i++) {
+    const aS = new Date(sorted[i].starts_at).getTime()
+    const aE = new Date(sorted[i].ends_at).getTime()
+    for (let j = i + 1; j < sorted.length; j++) {
+      const bS = new Date(sorted[j].starts_at).getTime()
+      if (bS >= aE) break
+      const bE = new Date(sorted[j].ends_at).getTime()
+      if (aS < bE) { const ra = find(sorted[i].id), rb = find(sorted[j].id); if (ra !== rb) parent.set(ra, rb) }
+    }
+  }
+
+  // Max column index per cluster → total columns for that cluster
+  const clusterMax = new Map<string, number>()
+  for (const appt of sorted) {
+    const root = find(appt.id)
+    const col = colAssign.get(appt.id) ?? 0
+    clusterMax.set(root, Math.max(clusterMax.get(root) ?? 0, col))
+  }
+  for (const appt of sorted) {
+    const col = colAssign.get(appt.id) ?? 0
+    result.set(appt.id, { col, total: (clusterMax.get(find(appt.id)) ?? 0) + 1 })
+  }
+  return result
+}
+
 function calendarMonth(year: number, month: number): (number|null)[][] {
   const first = new Date(year, month, 1)
   let dow = first.getDay() - 1; if (dow < 0) dow = 6
@@ -343,7 +403,7 @@ export default function CalendarPage() {
     : `${fmtDateLabel(weekDays[0])} – ${fmtDateLabel(weekDays[6])}`
 
   // ── Appointment card ──
-  function ApptCard({ appt, compact = false }: { appt: Appointment; compact?: boolean }) {
+  function ApptCard({ appt, compact = false, col = 0, total = 1 }: { appt: Appointment; compact?: boolean; col?: number; total?: number }) {
     const name = [appt.client?.first_name, appt.client?.last_name].filter(Boolean).join(' ') || 'Клиент'
     const { top, height } = apptPos(appt)
     const isAi = appt.source === 'ai'
@@ -376,7 +436,10 @@ export default function CalendarPage() {
         onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(0.94)')}
         onMouseLeave={e => (e.currentTarget.style.filter = '')}
         style={{
-          position: 'absolute', left: 3, right: 3, top, height,
+          position: 'absolute',
+          left: col === 0 ? 3 : `calc(${(col / total) * 100}% + 1px)`,
+          right: col === total - 1 ? 3 : `calc(${((total - col - 1) / total) * 100}% + 1px)`,
+          top, height,
           background: mc.tint,
           border: isPending ? '1px dashed rgba(27,42,34,.22)' : 'none',
           borderLeft: `7px solid ${mc.bar}`,
@@ -518,7 +581,13 @@ export default function CalendarPage() {
       >
         <HourLines />
         {freeSlots.map((s, i) => <FreeSlotCard key={i} startH={s.startH} endH={s.endH} compact={compact} day={day} />)}
-        {appts.map(a => <ApptCard key={a.id} appt={a} compact={compact} />)}
+        {(() => {
+          const colMap = selectedMasterId === null ? computeColumns(appts) : null
+          return appts.map(a => {
+            const cc = colMap?.get(a.id)
+            return <ApptCard key={a.id} appt={a} compact={compact} col={cc?.col} total={cc?.total} />
+          })
+        })()}
         {isToday && <NowLine />}
       </div>
     )
