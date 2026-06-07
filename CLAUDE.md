@@ -29,6 +29,15 @@ Prod: `https://beauty-saas-vert.vercel.app` · GitHub: `vadik88888-prog/beauty-s
 
 ---
 
+## Аватары
+
+- **Форма SaaS:** squircle `border-radius: 12px` (как TMA `rounded-xl`). Источник — `src/components/shared/Avatar.tsx`, новые страницы получают форму автоматически.
+- **TMA и Календарь** эту форму **не используют** — у них свои стили (`MasterCard/ServiceCard: rounded-xl overflow-hidden`; календарный чип мастера: `boxShadow: inset 0 0 0 2px mc.bar` — это цветовое кольцо Variant A, **не трогать**).
+- **Карточка «Следующая запись» (дашборд):** правая зона = аватар клиента (80px, squircle, sage-tint/sage) + имя/фамилия + `@username` только если не числовой ID.
+- **⚠️ Известный баг:** двойная `@@username` на странице `/clients` — чинить при работе над этой страницей.
+
+---
+
 ## Дизайн — точка правды
 
 - **`docs/DESIGN_SYSTEM_REFERENCE.html`** — визуальный эталон (токены, компоненты, статусы, календарь, bento-дашборд, эффекты).
