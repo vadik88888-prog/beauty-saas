@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import {
   ChevronLeft, ChevronRight, X, Phone,
   MessageCircle, CheckCircle, XCircle, Sparkles, Plus,
+  Check, Clock, CheckCheck,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { AiBadge } from '@/components/shared/AiBadge'
@@ -11,7 +12,6 @@ import { SeraOrb } from '@/components/sera'
 import { formatPrice } from '@/lib/utils/format'
 import { formatTime, localIsoDate, getToday } from '@/lib/utils/date'
 import { NewAppointmentModal, type NewApptDefaults } from '@/components/admin/NewAppointmentModal'
-import { Avatar } from '@/components/shared/Avatar'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -305,10 +305,43 @@ export default function CalendarPage() {
 
   // ── Appointment card ──
   function ApptCard({ appt, compact = false }: { appt: Appointment; compact?: boolean }) {
-    const st   = STATUS[appt.status] ?? STATUS.pending
     const name = [appt.client?.first_name, appt.client?.last_name].filter(Boolean).join(' ') || 'Клиент'
     const { top, height } = apptPos(appt)
     const isAi = appt.source === 'ai'
+
+    const MASTER_PALETTE = [
+      { bar: 'var(--m1-bar)', tint: 'var(--m1-tint)', ink: 'var(--m1-ink)' },
+      { bar: 'var(--m2-bar)', tint: 'var(--m2-tint)', ink: 'var(--m2-ink)' },
+      { bar: 'var(--m3-bar)', tint: 'var(--m3-tint)', ink: 'var(--m3-ink)' },
+      { bar: 'var(--m4-bar)', tint: 'var(--m4-tint)', ink: 'var(--m4-ink)' },
+      { bar: 'var(--m5-bar)', tint: 'var(--m5-tint)', ink: 'var(--m5-ink)' },
+      { bar: 'var(--m6-bar)', tint: 'var(--m6-tint)', ink: 'var(--m6-ink)' },
+      { bar: 'var(--m7-bar)', tint: 'var(--m7-tint)', ink: 'var(--m7-ink)' },
+      { bar: 'var(--m8-bar)', tint: 'var(--m8-tint)', ink: 'var(--m8-ink)' },
+    ]
+    const hashKey = appt.master?.id ?? appt.master?.name ?? 'default'
+    const hashIdx = hashKey.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % 8
+    const mc = MASTER_PALETTE[hashIdx]
+
+    const StatusIcon =
+      appt.status === 'confirmed' ? Check :
+      appt.status === 'completed' ? CheckCheck :
+      (appt.status === 'no_show' || appt.status === 'cancelled') ? X :
+      Clock
+
+    const statusIconColor =
+      appt.status === 'no_show'   ? 'var(--error)' :
+      appt.status === 'cancelled' ? '#9AA79B' :
+      mc.bar
+
+    const isPending   = appt.status === 'pending'
+    const isCompleted = appt.status === 'completed'
+    const isNoShow    = appt.status === 'no_show'
+    const isCancelled = appt.status === 'cancelled'
+
+    const masterInitials = appt.master
+      ? appt.master.name.split(' ').filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase()
+      : ''
 
     return (
       <div
@@ -317,14 +350,16 @@ export default function CalendarPage() {
         onMouseLeave={e => (e.currentTarget.style.filter = '')}
         style={{
           position: 'absolute', left: 3, right: 3, top, height,
-          background: st.bg,
-          borderLeft: `3px solid ${st.accent}`,
+          background: mc.tint,
+          border: isPending ? '1px dashed rgba(27,42,34,.22)' : 'none',
+          borderLeft: `7px solid ${mc.bar}`,
           borderRadius: '0 7px 7px 0',
           padding: compact ? '2px 5px' : '4px 7px',
           overflow: 'hidden', cursor: 'pointer',
           boxSizing: 'border-box', transition: 'filter 0.15s',
-          boxShadow: 'var(--shadow-sm)',
+          boxShadow: isNoShow ? 'inset 0 0 0 2px rgba(185,64,64,.5)' : 'var(--shadow-sm)',
           display: 'flex', flexDirection: 'column',
+          opacity: isCompleted ? 0.5 : isCancelled ? 0.45 : 1,
         }}
       >
         {/* Time */}
@@ -338,21 +373,38 @@ export default function CalendarPage() {
         </p>
         {/* Service — pushes master to bottom */}
         {height > 44 && appt.service && (
-          <p style={{ fontSize: 9, color: 'var(--ink-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: '1px 0 0', flex: 1 }}>
+          <p style={{ fontSize: 9, color: 'var(--ink-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: '1px 0 0', flex: 1, textDecoration: isCancelled ? 'line-through' : 'none' }}>
             {appt.service.name}
           </p>
         )}
         {/* Spacer when no service shown */}
         {height <= 44 && <div style={{ flex: 1 }} />}
-        {/* Master — always at bottom when room allows */}
+        {/* Master chip — always at bottom when room allows */}
         {height > 60 && appt.master && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2, flexShrink: 0 }}>
-            <Avatar name={appt.master.name} id={appt.master.id} size={compact ? 14 : 20} />
-            <span style={{ fontSize: 10, color: 'var(--ink-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+            <div style={{
+              width: compact ? 14 : 20, height: compact ? 14 : 20,
+              borderRadius: '50%', background: '#fff',
+              boxShadow: `inset 0 0 0 2px ${mc.bar}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: compact ? 7 : 9, fontWeight: 700, color: mc.ink, flexShrink: 0,
+            }}>
+              {masterInitials}
+            </div>
+            <span style={{ fontSize: 10, color: mc.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
               {appt.master.name}
             </span>
           </div>
         )}
+        {/* Status icon — top right corner */}
+        <div style={{
+          position: 'absolute', top: 3, right: 3,
+          width: 19, height: 19, borderRadius: '50%', background: '#fff',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+        }}>
+          <StatusIcon size={11} color={statusIconColor} />
+        </div>
       </div>
     )
   }

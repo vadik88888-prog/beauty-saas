@@ -97,6 +97,16 @@
   --dur-base:       250ms;
   --dur-slow:       400ms;
   --dur-orb:        4000ms;
+
+  /* ── Палитра мастеров (календарь, 8 цветов) ── */
+  --m1-bar:#2E6B4F; --m1-tint:#D7EADD; --m1-ink:#1E4E39;
+  --m2-bar:#C98A2B; --m2-tint:#F8E9C9; --m2-ink:#8A5E12;
+  --m3-bar:#C26B4E; --m3-tint:#F3D9CC; --m3-ink:#8E4429;
+  --m4-bar:#8A5E8F; --m4-tint:#E8D9EB; --m4-ink:#5E3C63;
+  --m5-bar:#5B7FA6; --m5-tint:#DCE6F0; --m5-ink:#385672;
+  --m6-bar:#3E8C86; --m6-tint:#CFEAE6; --m6-ink:#28615C;
+  --m7-bar:#BD6A77; --m7-tint:#F1D7DC; --m7-ink:#8A3F4B;
+  --m8-bar:#7E8A3F; --m8-tint:#E8ECCF; --m8-ink:#565E22;
 }
 
 /* =============================================================
