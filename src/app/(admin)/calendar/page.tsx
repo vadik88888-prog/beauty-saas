@@ -24,10 +24,10 @@ type Appointment = {
   notes: string | null
   source: string | null
   client: { first_name: string | null; last_name: string | null; phone: string | null; telegram_username: string | null } | null
-  master: { id: string; name: string } | null
+  master: { id: string; name: string; photo_url: string | null } | null
   service: { name: string; duration_min: number; category_id?: string | null } | null
 }
-type Master      = { id: string; name: string }
+type Master      = { id: string; name: string; photo_url?: string | null }
 type Category    = { id: string; name: string; icon: string | null; sort_order: number }
 type WorkingHour = { master_id: string; day_of_week: number; start_time: string; end_time: string; is_working: boolean }
 
@@ -220,6 +220,7 @@ export default function CalendarPage() {
   const [miniMonth, setMiniMonth]     = useState(() => new Date().getMonth())
   const [newApptOpen, setNewApptOpen] = useState(false)
   const [newApptDef, setNewApptDef]   = useState<NewApptDefaults>({ date: new Date() })
+  const [isMobile, setIsMobile]       = useState(false)
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
   const todayStr = getToday()
@@ -241,6 +242,18 @@ export default function CalendarPage() {
   }, [from, to])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width:768px)')
+    const handler = (e: MediaQueryListEvent) => {
+      setIsMobile(e.matches)
+      if (e.matches) setView('day')
+    }
+    setIsMobile(mq.matches)
+    if (mq.matches) setView('day')
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
 
   const filtered = appointments
     .filter(a => selectedMasterId   ? a.master?.id          === selectedMasterId   : true)
@@ -388,8 +401,15 @@ export default function CalendarPage() {
               boxShadow: `inset 0 0 0 2px ${mc.bar}`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: compact ? 7 : 9, fontWeight: 700, color: mc.ink, flexShrink: 0,
+              overflow: 'hidden',
             }}>
-              {masterInitials}
+              {appt.master.photo_url ? (
+                <img
+                  src={appt.master.photo_url}
+                  alt={appt.master.name}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                />
+              ) : masterInitials}
             </div>
             <span style={{ fontSize: 10, color: mc.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
               {appt.master.name}
@@ -424,13 +444,13 @@ export default function CalendarPage() {
         }}
         onMouseLeave={e => {
           const el = e.currentTarget as HTMLElement
-          el.style.background = 'var(--sage-tint)'
-          el.style.borderColor = 'var(--sage-soft)'
+          el.style.background = 'var(--card)'
+          el.style.borderColor = 'var(--line)'
         }}
         style={{
           position: 'absolute', left: 3, right: 3, top, height,
-          background: 'var(--sage-tint)',
-          border: '1.5px dashed var(--sage-soft)',
+          background: 'var(--card)',
+          border: '1.5px dashed var(--line)',
           borderRadius: 7,
           padding: compact ? '2px 5px' : '6px 9px',
           overflow: 'hidden', cursor: 'pointer',
@@ -452,7 +472,7 @@ export default function CalendarPage() {
               </p>
             </div>
             {height > 44 && (
-              <p style={{ fontSize: 9, color: 'var(--sage-2)', lineHeight: 1.3, margin: 0 }}>Заполнить через SERA</p>
+              <p style={{ fontSize: 9, color: 'var(--text-muted)', lineHeight: 1.3, margin: 0 }}>Заполнить через SERA</p>
             )}
           </>
         )}
@@ -480,7 +500,7 @@ export default function CalendarPage() {
     return (
       <div
         onClick={handleGridClick}
-        style={{ position: 'relative', height: GRID_H, background: isToday ? 'rgba(231,238,226,0.18)' : 'transparent', cursor: 'crosshair' }}
+        style={{ position: 'relative', height: GRID_H, background: 'transparent', cursor: 'crosshair' }}
       >
         <HourLines />
         {freeSlots.map((s, i) => <FreeSlotCard key={i} startH={s.startH} endH={s.endH} compact={compact} day={day} />)}
@@ -524,12 +544,12 @@ export default function CalendarPage() {
                 onClick={() => { setSelectedDay(day); setView('day') }}
                 style={{
                   height: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1,
-                  cursor: 'pointer', background: isToday ? 'var(--sage-tint)' : 'transparent',
-                  borderBottom: '1px solid var(--line)', flexShrink: 0,
+                  cursor: 'pointer', background: 'transparent',
+                  borderBottom: isToday ? '2px solid var(--sage)' : '1px solid var(--line)', flexShrink: 0,
                   transition: 'background 0.15s',
                 }}
-                onMouseEnter={e => { if (!isToday) (e.currentTarget as HTMLElement).style.background = 'var(--page-alt)' }}
-                onMouseLeave={e => { if (!isToday) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--page-alt)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
               >
                 <span style={{ fontSize: 9, fontWeight: 700, color: isToday ? 'var(--sage)' : 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                   {DAYS_RU[day.getDay()]}
@@ -568,19 +588,21 @@ export default function CalendarPage() {
           <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-2)', marginLeft: 4, whiteSpace: 'nowrap' }}>{rangeLabel}</span>
         </div>
 
-        {/* View toggle */}
-        <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--line)', flexShrink: 0 }}>
-          {(['day','week'] as const).map(v => (
-            <button key={v} onClick={() => setView(v)} style={{
-              padding: '5px 12px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer',
-              background: view === v ? 'var(--ink)' : 'transparent',
-              color:      view === v ? 'var(--page)' : 'var(--ink-2)',
-              transition: 'all 0.15s',
-            }}>
-              {v === 'day' ? 'День' : 'Неделя'}
-            </button>
-          ))}
-        </div>
+        {/* View toggle — скрыт на мобиле */}
+        {!isMobile && (
+          <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--line)', flexShrink: 0 }}>
+            {(['day','week'] as const).map(v => (
+              <button key={v} onClick={() => setView(v)} style={{
+                padding: '5px 12px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer',
+                background: view === v ? 'var(--ink)' : 'transparent',
+                color:      view === v ? 'var(--page)' : 'var(--ink-2)',
+                transition: 'all 0.15s',
+              }}>
+                {v === 'day' ? 'День' : 'Неделя'}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Master chips */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>

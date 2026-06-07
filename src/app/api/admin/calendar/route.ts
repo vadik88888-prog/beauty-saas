@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
       .select(`
         id, starts_at, ends_at, status, price, notes, source,
         client:clients(first_name, last_name, phone, telegram_id, telegram_username),
-        master:masters(id, name),
+        master:masters(id, name, photo_url),
         service:services(name, duration_min, category_id)
       `)
       .eq('tenant_id', tenantId)
@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
     // Active masters for filter chips
     supabase
       .from('masters')
-      .select('id, name')
+      .select('id, name, photo_url')
       .eq('tenant_id', tenantId)
       .eq('is_active', true)
       .order('sort_order'),
