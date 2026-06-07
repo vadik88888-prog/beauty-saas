@@ -75,6 +75,11 @@ function timeUntil(iso: string): { label: string; urgent: boolean } {
   return { label: formatApptLabel(iso), urgent: false }
 }
 
+function masterColorDash(name: string) {
+  const idx = name.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % 8 + 1
+  return { bar: `var(--m${idx}-bar)`, tint: `var(--m${idx}-tint)`, ink: `var(--m${idx}-ink)` }
+}
+
 // Activity dot color
 function actColor(type: string): string {
   if (type === 'booking')  return C.sage
@@ -420,7 +425,9 @@ export default async function DashboardPage({
               Открыть календарь <ChevronRight size={12} />
             </Link>
           </div>
-          <div style={{ flex: 1, padding: '16px 16px 14px', display: 'flex', flexDirection: 'column', overflowY: 'auto', minHeight: 0 }}>
+          <div style={{ flex: 1, padding: '16px 16px 14px', display: 'flex', flexDirection: 'row', gap: 12, overflow: 'hidden', minHeight: 0 }}>
+            {/* Left: main content */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflowY: 'auto' }}>
             {nextAppt == null ? (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 0' }}>
                 <Calendar size={28} strokeWidth={1.5} style={{ color: C.sageSoft }} />
@@ -480,6 +487,29 @@ export default async function DashboardPage({
                     </p>
                   </div>
                 </>
+              )
+            })()}
+            </div>{/* end left column */}
+
+            {/* Right: big master avatar */}
+            {nextAppt?.master && (() => {
+              const mc = masterColorDash(nextAppt.master)
+              const initials = nextAppt.master.split(' ').filter(Boolean).map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                  <div style={{
+                    width: 64, height: 64, borderRadius: '50%', overflow: 'hidden', flexShrink: 0,
+                    boxShadow: `inset 0 0 0 2.5px ${mc.bar}`,
+                    background: nextAppt.master_photo_url ? 'transparent' : mc.tint,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {nextAppt.master_photo_url ? (
+                      <img src={nextAppt.master_photo_url} alt={nextAppt.master} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                    ) : (
+                      <span style={{ fontSize: 20, fontWeight: 700, color: mc.ink, lineHeight: 1 }}>{initials}</span>
+                    )}
+                  </div>
+                </div>
               )
             })()}
           </div>
