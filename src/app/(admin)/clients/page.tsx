@@ -3,13 +3,14 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
-  Search, UserPlus, Phone, AtSign, Calendar,
+  Search, Phone, AtSign, Calendar,
   AlertTriangle, Gift, UserCheck, Sparkles, ChevronRight,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { PageHeader, DataCard, EmptyState } from '@/components/sera'
 import { Avatar } from '@/components/shared/Avatar'
 import { formatDate } from '@/lib/utils/date'
+import { AddClientModal } from '@/components/admin/AddClientModal'
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
@@ -329,11 +330,7 @@ export default async function ClientsPage({
         <PageHeader
           title="Клиенты"
           subtitle={`${total} ${pl(total, ['клиент', 'клиента', 'клиентов'])}${filterLabel ? ` · ${filterLabel}` : ''}`}
-          action={
-            <button className="sera-btn sera-btn--sera" style={{ gap: 6 }}>
-              <UserPlus size={14} /> Добавить клиента
-            </button>
-          }
+          action={<AddClientModal />}
         />
 
         {/* ── SERA Insight Strip ─────────────────────────────────────── */}
