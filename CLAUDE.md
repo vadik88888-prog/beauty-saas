@@ -1,176 +1,66 @@
-# BeautySaaS — Project Context for Claude
+# SERA — beauty-saas
 
-> Multi-tenant B2B SaaS — Telegram Mini App для beauty-салонов с AI-администратором SERA.  
-> TMA (`/`) — клиенты; Admin Panel — персонал; Bot — Grammy.js; AI — GPT-4o-mini serverless.  
-> Prod: `https://beauty-saas-vert.vercel.app` · GitHub: `vadik88888-prog/beauty-saas` (master = prod) · Supabase: `severincev-beauty`, EU
-
----
-
-## Core Rules
-
-1. **Бренд — только SERA.** Запрещены: Алина, бот, движок, нейросеть, BeautySaaS. Разрешено: «SERA онлайн», «SERA записала», «Написать SERA».
-2. **Multi-tenant.** `tenant_id` в каждой таблице. Admin API — только через `getStaffContext()`. Никогда из тела запроса.
-3. **Токены — только `tokens.css`.** Никаких hex/rgba inline. Для вторичного текста — `--text-muted` (`--muted` перекрывается globals.css светлым shadcn-значением).
-4. **SERA-компоненты** (`@/components/sera`): `PageHeader → DataCard → EmptyState`. Карточки — только `.sera-card` (bg `--card`, border `--card-border` 1px, radius 14px, shadow `--shadow-sm`).
-5. **Dashboard no-scroll:** `display: grid; gridTemplateRows: 'auto auto 1fr 0.62fr auto'; height: 100%; overflow: hidden`. Не flex-1.
-6. **source поля записей:** `admin` / `ai` / `tma`. Метрика «через SERA» считает только `ai`.
-7. **Даты — локальные.** `getToday()` вместо `toISOString().slice(0,10)`. Форматтеры: `formatDate/Time/Price` из утилит.
-8. **Checkpoint:** `git commit` перед задачей. `npm run build` зелёный после.
+Мультитенантный SaaS для салонов красоты. SERA = бренд платформы + AI-администратор (B2B-продукт).  
+Prod: `https://beauty-saas-vert.vercel.app` · GitHub: `vadik88888-prog/beauty-saas` (master = prod) · Supabase: `severincev-beauty`, EU
 
 ---
 
-## Stack
+## Стек и команды
 
-- **Next.js 16** App Router, Turbopack. Route groups: `(tma)` `(admin)` `(auth)` `(onboarding)`
-- **Supabase** PostgreSQL + RLS · **Tailwind v4** + shadcn/ui · **framer-motion** 12.40
-- Middleware: `proxy.ts` (не `middleware.ts`). Promotions: `/promo` (не `/promotions`). Server Components: нет event handlers.
-
----
-
-## Critical RLS Pattern
-
-```typescript
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-
-async function getStaffContext() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const admin = createAdminClient()
-  const { data } = await admin.from('tenant_users')
-    .select('tenant_id, role').eq('user_id', user.id).eq('is_active', true).single()
-  if (!data) return null
-  const d = data as { tenant_id: string; role: string }
-  return { tenantId: d.tenant_id, role: d.role }  // DB column = tenant_id, map!
-}
-```
+- Next.js 16 (App Router, Turbopack) + TypeScript + Tailwind v4 + shadcn/ui
+- Supabase (PostgreSQL + RLS) · framer-motion 12 · Grammy.js (bot) · OpenAI GPT-4o-mini (`OPENAI_API_KEY`)
+- Route groups: `(tma)` `(admin)` `(auth)` `(onboarding)` · Middleware: `proxy.ts` (не `middleware.ts`)
+- `npm run build` · деплой: `git push` (Vercel автодеплой)
 
 ---
 
-## Auth
+## Железные правила (не нарушать)
 
-- **Admin:** Supabase Auth (email/password) → `tenant_users`
-- **TMA clients:** initData HMAC → JWT (7d, HS256 `SUPABASE_JWT_SECRET`) → `clients`. `telegram_id` пишется при первом открытии ТМА или первом сообщении боту.
-- **Bot:** без JWT, `runAdministrator()` с `tenant_id + client_id`
-- **TMA race-fix:** `waitForTmaToken()` + `getTenantSlug()` из `@/lib/tma-token`. Публичные данные по `?slug=` без JWT.
-- **Tenant routing:** webhook secret = UUID → tenant bot; `?slug` → ТМА; fallback = brute-force по `telegram_bot_token`.
-
----
-
-## AI
-
-- `/api/ai/chat` — TMA (JWT) · `/api/ai/chat/bot` — bot bridge · `/api/ai/transcribe` — Whisper
-- `/api/cron/daily-notifications` — 14:00 UTC · `/api/cron/complete-appointments` — 23:00 UTC
-- Entry point: `src/lib/ai/administrator/index.ts` → `runAdministrator()`. **Не Edge Function** (блокирует кастомный JWT).
-- Тюнинг без деплоя: `tenant_ai_settings` (`admin_name`, `tone_of_voice`, `birthday_discount_percent`, …)
+1. **Бренд платформы — только «SERA».** Слова «Алина»/«Alina» запрещены везде: код, UI, тексты, имена файлов.
+2. **Имя ассистента** задаёт владелец салона (`admin_name` в `tenant_ai_settings`). В TMA показываем ИМЯ АССИСТЕНТА из базы, не слово «SERA». Заглушка до загрузки — `'SERA'`. Источник: `TmaContext` (единый для всего TMA).
+3. **Два контекста имени:** наружу (клиент, TMA) — имя ассистента + орб, без слова SERA. Внутрь (владелец, Admin) — бренд SERA везде.
+4. **Мультитенантность:** каждый Admin API-запрос — только через `getStaffContext()`. `tenant_id` никогда из тела запроса.
+5. **Токены — единственный источник:** `src/styles/tokens.css`. Никаких hex/rgba inline. `--muted` перекрывается globals.css — для текста использовать `--text-muted`.
+6. **`--primary` = зелёный (`--sage-deep`).** Чёрная кнопка — вторичный вариант, не primary.
+7. **Миграции БД** применяет владелец вручную в Supabase SQL Editor. Claude Code только создаёт файл и крупно пишет ⚠️ ПРИМЕНИТЬ В SUPABASE SQL EDITOR. Доступа к prod-базе нет.
+8. **Деплой:** после `build зелёный` → `git push` → подождать → проверка на проде. Локальный build ≠ прод.
+9. **Темп:** маленькие шаги, одна задача. Перед правкой — диагностика. `git commit` перед каждой задачей.
 
 ---
 
-## SERA Design System
+## Точка правды по дизайну
 
-**Токены** (`src/styles/tokens.css`):
-
-| Группа | Переменные |
-|---|---|
-| Поверхности | `--page` `--page-alt` `--card` `--card-sunken` `--card-border` |
-| Текст | `--ink` `--ink-2` `--text-muted` · ~~`--muted`~~ (фон, не текст) · ~~`--muted-2`~~ (только декор) |
-| Цвета | `--sage` `--sage-tint` `--sage-soft` `--sage-deep` · `--gold` · `--success/warning/error/info` + `-soft` |
-| Форма | `--radius-sm/md/lg/xl/2xl` · `--shadow-xs/sm/md/lg/hero` · `--font-display/body/mono` |
-
-**Компоненты** (`@/components/sera`): `SeraOrb`, `PageHeader`, `KpiStrip`, `FiltersBar`, `DataCard`, `RightRail`, `EmptyState`, `StatusPill`, `SectionLabel`, `AiHelperBanner`
-
-**Сайдбар:** только регулярные разделы (Главная/Записи/Клиенты/Услуги/…). Контекстные страницы (профиль клиента, /activity) — не добавлять.
+- **`docs/DESIGN_SYSTEM_REFERENCE.html`** — визуальный эталон (токены, компоненты, статусы, календарь, bento-дашборд, эффекты).
+- Карточки/страницы собираем скиллом `/sera-page` (генерит `.sera-card` через токены — не переписывать).
+- **Реальные числа:** `.sera-card` = 14px (`--radius-lg`), `.sera-btn` = 8px (`--radius-sm`). Эталон-HTML приводится к этим числам, не наоборот.
+- Сайдбар: только регулярные разделы. Контекстные страницы (профиль клиента, /activity) — не добавлять.
+- Даты: `getToday()` вместо `toISOString().slice(0,10)`. Форматтеры: `formatDate/Time/Price` из `@/lib/utils`.
 
 ---
 
-## Pages
+## Орб
 
-| URL | Статус | Примечание |
-|---|---|---|
-| `/dashboard` | ✓ redesigned | SERA tokens, CSS Grid no-scroll, Hero+5KPI |
-| `/calendar` | ✓ redesigned | Day/week grid, create-appointment modal, SERA insight |
-| `/clients` | ✓ redesigned | Insight strip (3 фильтра), Avatar rows, `?filter=attention` |
-| `/clients/[id]` | ✓ redesigned | SERA Ритм, история визитов, ContactButton (3 состояния) |
-| `/analytics` `/chats` `/masters` `/services` `/promo` `/ai-settings` `/settings` `/activity` | functional | Реальные данные, legacy дизайн |
-
-TMA (все redesigned): `/` `/booking/*` `/appointments` `/chat` `/promotions` `/profile`
+`SeraOrb` (`src/components/motion/SeraOrb.tsx`) — 12 состояний, SVG + framer-motion. Владелец заменит анимацию своей из Claude Design позже. **Не трогать без задачи.**  
+CSS-версия `.sera-orb` (13 состояний включая `alert`) живёт в `tokens.css` — отдельная, для статичного HTML.
 
 ---
 
-## Статус работ
+## Где планы
 
-- ✅ **L1 «Касание через SERA»** — закрыто. `POST /api/admin/chats/[id]`, черновик в `conversations.draft`, `ContactButton` по `telegram_id`.
-- ⏳ **L2 «Касание через SERA»** — запланирован. SERA генерит персональный текст через LLM (ритм + история клиента), салон одобряет → отправка. Строить поверх L1. **Только после починки AI-администратора** (сейчас не отвечает). L2 завязан на работающий AI.
-- ✅ **Карточки** — унифицированы на `.sera-card` (дашборд + `/clients`). Остальные shadcn-страницы — при доработке каждой, не отдельно.
-- ✅ **Дубли клиентов** — закрыто. Нормализация телефона digits-only, `.in()` по обоим форматам, плашка выбора (`forceCreate`), миграции 025/026/027 применены.
-- **Далее:** кнопка «Добавить клиента» на `/clients` (пустышка → подключить к `/api/admin/clients`), затем страница Услуги.
+- `docs/` — документация и планы. `docs/PLANS_INDEX.md` — указатель по всем файлам планов.
+- `.claude/` — рабочая память Claude Code. **Не трогать и не переносить.**
+- Миграции 001–027 применены. Следующая = 028.
 
 ---
 
-## Migrations (prod)
+## Текущая стадия (редизайн)
 
-```
-001–009  initial_schema → knowledge_base
-010  messages_metadata          016  anti_noshow
-011  ai_goals                   017  conversation_summary
-012  handoff_reason             018  voice_messages
-013  min_cancel_hours           019  live_status
-014  promo_application          020  promotion_image
-015  client_stats_trigger ←     021  fix_service_prices
-     total_visits trigger!      022  nullable_telegram_id
-                                023  messages_role_admin (+ 'admin' в CHECK)
-                                024  conversation_draft (draft TEXT + draft_meta JSONB)
-                                025  unique_client_phone (→ сразу сброшен 026)
-                                026  drop_phone_unique_index (дубли по телефону — soft-warning)
-                                027  normalize_existing_phones (digits-only в prod)
-```
+**Сделано:**
+- Бренд «Алина» вычищен полностью (A1–A4).
+- Единый источник имени AI в TMA: `TmaContext` в `TmaInner`, все экраны читают через `useTmaContext()`.
+- Компоненты переименованы: `AlinaCareOrb` → `SeraOrb`, `AlinaHeroCard` → `SeraHeroCard`, `AlinaPickCard` → `SeraPickCard`.
+- Admin-страницы redesigned: dashboard (bento), calendar, clients, clients/[id].
 
----
+**Следующий шаг:** завести `--sage-deep` в `--primary` (globals.css), не задев `.sera-card` / `.sera-btn` / shadcn-компоненты.
 
-## Deployment & Env
-
-`npm run dev` / `npm run build` / `bash scripts/smoke-test.sh`  
-Workflow: checkpoint → code → build → push → smoke 12/12
-
-| Переменная | Назначение |
-|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL/ANON_KEY` | Supabase public |
-| `SUPABASE_SERVICE_ROLE_KEY` | Admin (bypass RLS) |
-| `SUPABASE_JWT_SECRET` | TMA JWT |
-| `OPENAI_API_KEY` | GPT-4o-mini + Whisper (**добавить в preview env!**) |
-| `NEXT_PUBLIC_APP_URL` | App URL |
-| `TELEGRAM_WEBHOOK_SECRET` / `CRON_SECRET` | Bot webhook / cron |
-| `TELEGRAM_BOT_TOKEN` / `NEXT_PUBLIC_DEFAULT_TENANT_SLUG` | Legacy |
-
----
-
-## Known Issues & TODO
-
-**Визуальные:** дашборд-футер наезжает при < 820px · карточка записи в календаре блёклая · рекомендации SERA статичные (нужен `getSalonInsights()`)  
-**Будущие миграции:** `masters` (experience/rating) · `services` (is_popular/visibility) · `promotions` (type) · `tenant_ai_settings` (greeting/feature_flags)  
-**TMA backlog:** AI slot-chips · Waitlist push · Share booking (premium)
-
----
-
-## Facts
-
-- **Working Hours Fallback:** нет строк в `working_hours` → Пн–Сб 9:00–18:00 (`src/lib/booking/slots.ts`)
-- **Telegram Channel:** `tenants.telegram_channel_id` — handoff-уведомления. Группа: бот-член. Личный: пользователь писал хоть раз.
-- **Исходящее касание:** только `POST /api/admin/chats/[id]` (INSERT `messages(role='admin')` + Telegram). `trigger-client-message` — для будущих cron. Черновик в `conversations.draft`, очищается после отправки. `ContactButton`: нет `telegram_id` → disabled.
-
----
-
-## Rules
-
-**Karpathy:** Think Before Coding · Simplicity First · Surgical Changes · Goal-Driven
-
-**Communication:** в конце фазы — объяснить как ребёнку через аналогии из салона · No duplicate CTAs
-
-**Миграции:** при создании любой миграции — в конце ответа крупно писать ⚠️ ПРИМЕНИТЬ В SUPABASE SQL EDITOR. Claude Code не имеет доступа к prod-базе.
-
-**Деплой:** после «build зелёный» — ОБЯЗАТЕЛЬНО git push → подождать 1-2 мин → Ctrl+Shift+R, ПОТОМ тестировать. Локальный build ≠ прод.
-
-**Планы и спеки — в `docs/`.** Не слеплять в один файл. Не держать вне `docs/`.
-
-**Reference:** HISTORY.md · SMOKE_CHECKLIST.md · scripts/smoke-test.sh · docs/SERA_PLAN_ALL_PAGES.md · docs/SERA_DESIGN_SYSTEM.md
+**Далее по страницам:** design-system page → analytics → masters → services → promo → ai-settings.
