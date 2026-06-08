@@ -469,7 +469,7 @@ export default function ServicesAdminPage() {
               />
               <div>
                 <span className="text-[13px]" style={{ color: 'var(--ink)' }}>Продвигать в витрине</span>
-                <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>SERA будет рекомендовать первой при отсутствии персональных данных</p>
+                <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: 'var(--text-muted)' }}>Показывать новым клиентам и тем, у кого нет персональной рекомендации. Постоянным SERA сначала предлагает то, что нужно именно им.</p>
               </div>
             </label>
           </div>
