@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Send, CheckCircle2 } from 'lucide-react'
+import { Send, CheckCircle2, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { Avatar } from '@/components/shared/Avatar'
 import { formatPrice } from '@/lib/utils/format'
@@ -30,6 +30,11 @@ type OverdueClient = {
   daysOverdue: number
 }
 
+type BulkResult = { sent: number; failed: number }
+
+const DEFAULT_BULK_TEMPLATE =
+  '{имя}, мы скучаем по вам! 💚\n\nЗапишитесь на процедуру и получите скидку 10% — только для вас как для постоянного клиента.\n\nЖдём вас! 🌸'
+
 export function OverdueBlock() {
   const [services, setServices] = useState<OverdueService[] | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -38,8 +43,15 @@ export function OverdueBlock() {
   const [clients, setClients] = useState<OverdueClient[] | null>(null)
   const [clientsLoading, setClientsLoading] = useState(false)
 
+  // Individual winback
   const [winback, setWinback] = useState<{ clientId: string; clientName: string } | null>(null)
   const [sending, setSending] = useState(false)
+
+  // Bulk send
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [bulkTemplate, setBulkTemplate] = useState(DEFAULT_BULK_TEMPLATE)
+  const [bulkSending, setBulkSending] = useState(false)
+  const [bulkResult, setBulkResult] = useState<BulkResult | null>(null)
 
   useEffect(() => {
     fetch('/api/admin/services/overdue')
@@ -81,10 +93,47 @@ export function OverdueBlock() {
     }
   }
 
+  function openBulk() {
+    setBulkTemplate(DEFAULT_BULK_TEMPLATE)
+    setBulkResult(null)
+    setBulkOpen(true)
+  }
+
+  async function sendBulk() {
+    const targets = (clients ?? []).filter(c => c.telegramId)
+    if (targets.length === 0) return
+    setBulkSending(true)
+    let sent = 0
+    let failed = 0
+    for (const client of targets) {
+      try {
+        const firstName = client.clientName.split(' ')[0] || client.clientName
+        const customText = bulkTemplate.replace(/\{имя\}/gi, firstName)
+        const res = await fetch('/api/admin/trigger-client-message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientId: client.clientId, template: 'custom', customText }),
+        })
+        if (res.ok) sent++
+        else failed++
+      } catch {
+        failed++
+      }
+    }
+    setBulkResult({ sent, failed })
+    setBulkSending(false)
+  }
+
+  const telegramClients = (clients ?? []).filter(c => c.telegramId)
+
   return (
     <>
-      <div className="flex items-center mt-1">
-        <span className="sera-label">Совет от SERA</span>
+      {/* Block header */}
+      <div className="flex flex-col gap-0.5 mt-1">
+        <span className="sera-label">Вернуть клиентов</span>
+        <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+          Клиенты, которым пора повторить услугу — напомните о себе
+        </p>
       </div>
 
       <div className="sera-card overflow-hidden">
@@ -141,10 +190,25 @@ export function OverdueBlock() {
             <DialogTitle>Просрочили повтор</DialogTitle>
           </DialogHeader>
           {selected && (
-            <p className="text-[12px] -mt-2 mb-1" style={{ color: 'var(--text-muted)' }}>
+            <p className="text-[12px] -mt-2" style={{ color: 'var(--text-muted)' }}>
               {selected.serviceName} · {selected.clientCount} {plurClient(selected.clientCount)} · ~{formatPrice(selected.missedRevenue, selected.currency)}
             </p>
           )}
+          <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+            Были давно, повтор услуги просрочен — самое время вернуть
+          </p>
+
+          {/* Написать всем — только когда список загружен и есть Telegram-клиенты */}
+          {!clientsLoading && telegramClients.length > 0 && (
+            <button
+              onClick={openBulk}
+              className="sera-btn sera-btn--sera sera-btn--sm w-full inline-flex items-center justify-center gap-1.5"
+            >
+              <Users className="w-3.5 h-3.5" />
+              Написать всем ({telegramClients.length})
+            </button>
+          )}
+
           <div className="flex flex-col max-h-[55vh] overflow-y-auto -mx-6 px-0">
             {clientsLoading ? (
               <p className="text-[13px] text-center py-8" style={{ color: 'var(--text-muted)' }}>Загружаем…</p>
@@ -180,7 +244,7 @@ export function OverdueBlock() {
         </DialogContent>
       </Dialog>
 
-      {/* Winback send dialog */}
+      {/* Individual winback dialog */}
       <Dialog open={!!winback} onOpenChange={open => { if (!open) setWinback(null) }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -213,6 +277,104 @@ export function OverdueBlock() {
                 >
                   <Send className="w-3.5 h-3.5" />
                   {sending ? 'Отправляем…' : 'Отправить через SERA'}
+                </button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk send dialog */}
+      <Dialog
+        open={bulkOpen}
+        onOpenChange={open => { if (!open && !bulkSending) { setBulkOpen(false); setBulkResult(null) } }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Написать всем</DialogTitle>
+          </DialogHeader>
+
+          {bulkResult ? (
+            /* Result screen */
+            <div className="flex flex-col gap-4 py-1">
+              <div className="flex flex-col items-center gap-2 py-4 text-center">
+                <CheckCircle2 className="w-8 h-8" style={{ color: 'var(--sage-deep)' }} strokeWidth={1.5} />
+                <p className="text-[15px] font-semibold" style={{ color: 'var(--ink)' }}>
+                  Отправлено {bulkResult.sent} из {bulkResult.sent + bulkResult.failed}
+                </p>
+                {bulkResult.failed > 0 && (
+                  <p className="text-[12px]" style={{ color: 'var(--text-muted)' }}>
+                    {bulkResult.failed} не удалось — проверьте, подключён ли бот
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => { setBulkOpen(false); setBulkResult(null) }}
+                className="sera-btn sera-btn--secondary w-full"
+              >
+                Закрыть
+              </button>
+            </div>
+          ) : (
+            /* Template editor + confirm */
+            <div className="flex flex-col gap-3 py-1">
+              <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>
+                SERA отправит сообщение{' '}
+                <span className="font-semibold" style={{ color: 'var(--ink)' }}>
+                  {telegramClients.length} {plurClient(telegramClients.length)}
+                </span>{' '}
+                в Telegram. Отредактируйте текст при необходимости.
+              </p>
+
+              <p className="text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>
+                Всем уйдёт это сообщение — имя подставится автоматически
+              </p>
+
+              <textarea
+                value={bulkTemplate}
+                onChange={e => setBulkTemplate(e.target.value)}
+                disabled={bulkSending}
+                rows={6}
+                className="w-full rounded-xl text-[13px] leading-relaxed p-3 resize-none outline-none"
+                style={{
+                  background: 'var(--sage-tint)',
+                  color: 'var(--ink)',
+                  border: '1px solid var(--line)',
+                  fontFamily: 'var(--font-body)',
+                }}
+              />
+
+              <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                <code
+                  style={{
+                    background: 'var(--card-sunken)',
+                    padding: '1px 5px',
+                    borderRadius: 4,
+                    fontFamily: 'var(--font-mono)',
+                  }}
+                >
+                  {'{имя}'}
+                </code>{' '}
+                заменится на имя каждого клиента. Ответы появятся в «Сообщениях».
+              </p>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setBulkOpen(false)}
+                  disabled={bulkSending}
+                  className="sera-btn sera-btn--secondary flex-1"
+                >
+                  Отмена
+                </button>
+                <button
+                  onClick={sendBulk}
+                  disabled={bulkSending || !bulkTemplate.trim()}
+                  className="sera-btn sera-btn--sera flex-[2] inline-flex items-center justify-center gap-1.5"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  {bulkSending
+                    ? 'Отправляем…'
+                    : `Отправить ${telegramClients.length} ${plurClient(telegramClients.length)}`}
                 </button>
               </div>
             </div>
