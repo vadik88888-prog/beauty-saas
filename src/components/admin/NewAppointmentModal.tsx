@@ -443,6 +443,11 @@ export function NewAppointmentModal({
                 ) : null}
               </p>
             )}
+            {offerPreview?.hasDiscount && (
+              <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, letterSpacing: '0.01em' }}>
+                Персональная скидка клиента
+              </p>
+            )}
           </div>
 
           {/* ── Master ── */}

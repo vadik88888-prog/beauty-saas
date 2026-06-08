@@ -280,6 +280,7 @@ export default function AppointmentsPage() {
                       serviceName={appt.service.name}
                       masterName={appt.master.name}
                       startsAt={appt.starts_at}
+                      price={priceOf(appt)}
                       photoSrc={appt.service.image_url ?? null}
                       actions={upcomingActions(appt)}
                     />

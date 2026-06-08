@@ -53,6 +53,10 @@ export interface CreateAppointmentResponse {
   confirmationText: string
   startsAt: string
   endsAt: string
+  price: number | null
+  originalPrice: number | null
+  discountAmount: number | null
+  currency: string
 }
 
 export interface RescheduleAppointmentRequest {

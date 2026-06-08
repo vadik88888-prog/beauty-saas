@@ -70,6 +70,7 @@ type BookedDetails = {
   datetime: string
   durationMin: number
   price: string
+  originalPriceStr: string | null
   notes: string
 }
 
@@ -163,13 +164,28 @@ export default function ConfirmPage() {
 
       const json = await res.json()
       window.Telegram?.WebApp.HapticFeedback?.notificationOccurred?.('success')
+      const apptData = json?.data as {
+        appointmentId?: string
+        price?: number | null
+        originalPrice?: number | null
+        discountAmount?: number | null
+        currency?: string
+      } | undefined
+      const currency = apptData?.currency ?? service.currency
+      const priceStr = apptData?.price != null
+        ? formatPrice(apptData.price, currency)
+        : formatPrice(service.price, service.currency)
+      const originalPriceStr = (apptData?.originalPrice != null && apptData?.discountAmount != null)
+        ? formatPrice(apptData.originalPrice, currency)
+        : null
       setBookedDetails({
-        appointmentId: json?.data?.appointmentId ?? null,
+        appointmentId: apptData?.appointmentId ?? null,
         serviceName: service.name,
         masterName: selectedSlot.masterName,
         datetime: selectedSlot.datetime,
         durationMin: service.duration_min,
-        price: formatPrice(service.price, service.currency),
+        price: priceStr,
+        originalPriceStr,
         notes,
       })
       setIsBooked(true)
@@ -418,7 +434,18 @@ function SuccessScreen({
               { id: 'date', icon: Calendar, label: 'Дата', value: formatHumanDate(details.datetime) },
               { id: 'time', icon: Clock, label: 'Время', value: formatHumanTime(details.datetime) },
               { id: 'dur', icon: Hourglass, label: 'Длительность', value: formatDuration(details.durationMin) },
-              { id: 'price', icon: Wallet, label: 'Стоимость', value: details.price, emphasis: true },
+              {
+                id: 'price', icon: Wallet, label: 'Стоимость',
+                value: details.originalPriceStr ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <s className="text-[12px] font-normal" style={{ color: 'var(--text-muted)' }}>
+                      {details.originalPriceStr}
+                    </s>
+                    <span>{details.price}</span>
+                  </span>
+                ) : details.price,
+                emphasis: true,
+              },
             ]}
           />
         </StaggerItem>

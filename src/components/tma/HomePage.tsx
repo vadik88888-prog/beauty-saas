@@ -17,6 +17,7 @@ import type { TenantPublicData, AppointmentWithRelations } from '@/types'
 import type { Service, Master, Promotion } from '@/types/database'
 import { useBookingStore } from '@/stores/bookingStore'
 import { getTenantSlug } from '@/lib/tma-token'
+import { formatPrice } from '@/lib/utils/format'
 
 interface ClientInfo {
   first_name?: string | null
@@ -208,6 +209,11 @@ export function TmaHomePage() {
               serviceName={nextAppointment.service.name}
               masterName={nextAppointment.master.name}
               startsAt={nextAppointment.starts_at}
+              price={
+                nextAppointment.price != null
+                  ? formatPrice(nextAppointment.price, nextAppointment.service.currency)
+                  : undefined
+              }
               photoSrc={nextAppointment.service.image_url ?? null}
               onClick={() => router.push('/appointments')}
               actions={

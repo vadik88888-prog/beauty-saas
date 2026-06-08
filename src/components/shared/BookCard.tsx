@@ -59,6 +59,7 @@ function NextVariant({
   serviceName,
   masterName,
   startsAt,
+  price,
   photoSrc,
   label = 'Ближайшая запись',
   actions,
@@ -108,6 +109,9 @@ function NextVariant({
                 <User className="w-3 h-3" strokeWidth={1.8} />
                 <span className="text-ink-2 truncate">{masterName}</span>
               </span>
+            )}
+            {price && (
+              <span className="font-medium text-ink">{price}</span>
             )}
           </div>
         </div>

@@ -110,7 +110,7 @@ export async function POST(
       source:           'tma',
       status:           'pending',
     })
-    .select('id, starts_at, ends_at')
+    .select('id, starts_at, ends_at, price, original_price, discount_amount')
     .single()
 
   if (error || !appointment) {
@@ -126,17 +126,26 @@ export async function POST(
     await markOfferUsed(offerResult.appliedOfferId)
   }
 
+  const a = appointment as {
+    id: string; starts_at: string; ends_at: string
+    price: number | null; original_price: number | null; discount_amount: number | null
+  }
+
   const confirmationText =
     `✅ Запись создана!\n` +
     `${service.name} — ${masterRes.data.name}\n` +
-    `${new Date(appointment.starts_at).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' })}`
+    `${new Date(a.starts_at).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' })}`
 
   return NextResponse.json({
     data: {
-      appointmentId: appointment.id,
+      appointmentId:  a.id,
       confirmationText,
-      startsAt: appointment.starts_at,
-      endsAt: appointment.ends_at,
+      startsAt:       a.starts_at,
+      endsAt:         a.ends_at,
+      price:          a.price,
+      originalPrice:  a.original_price,
+      discountAmount: a.discount_amount,
+      currency:       service.currency,
     },
   })
 }
