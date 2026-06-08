@@ -317,18 +317,28 @@ export default async function ClientProfilePage({
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 14 }}>
                 {client.phone && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--ink-2)' }}>
-                    <Phone size={13} strokeWidth={1.8} style={{ color: 'var(--muted)', flexShrink: 0 }} />
+                    <Phone size={13} strokeWidth={1.8} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                     {client.phone}
                   </div>
                 )}
                 {client.telegram_username && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--ink-2)' }}>
-                    <AtSign size={13} strokeWidth={1.8} style={{ color: 'var(--muted)', flexShrink: 0 }} />
-                    @{client.telegram_username.replace(/^@+/, '')}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                    <AtSign size={13} strokeWidth={1.8} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                    <span style={{ color: 'var(--text-muted)' }}>Telegram</span>
+                    <a
+                      href={`https://t.me/${client.telegram_username.replace(/^@+/, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: 'var(--ink-2)', textDecoration: 'none' }}
+                      onMouseOver={e => (e.currentTarget.style.textDecoration = 'underline')}
+                      onMouseOut={e => (e.currentTarget.style.textDecoration = 'none')}
+                    >
+                      @{client.telegram_username.replace(/^@+/, '')}
+                    </a>
                   </div>
                 )}
                 {!client.phone && !client.telegram_username && (
-                  <p style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>Контакты не указаны</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>Контакты не указаны</p>
                 )}
               </div>
 
