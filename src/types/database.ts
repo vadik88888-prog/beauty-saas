@@ -144,12 +144,15 @@ export type Database = {
           name: string
           description: string | null
           duration_min: number
+          buffer_after_min: number
           price: number
           price_from: number | null
           currency: string
           image_url: string | null
           is_active: boolean
           sort_order: number
+          repeat_interval_days: number | null
+          show_in_storefront: boolean
           created_at: string
         }
         Insert: Omit<Database['public']['Tables']['services']['Row'], 'id' | 'created_at'>

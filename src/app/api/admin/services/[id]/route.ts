@@ -30,6 +30,8 @@ const PatchSchema = z.object({
   currency: z.string().optional(),
   is_active: z.boolean().optional(),
   sort_order: z.number().int().optional(),
+  repeat_interval_days: z.number().int().min(1).max(365).nullable().optional(),
+  show_in_storefront: z.boolean().optional(),
 })
 
 export async function PATCH(

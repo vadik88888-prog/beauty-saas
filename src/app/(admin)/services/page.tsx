@@ -1,7 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Plus, Pencil, Trash2, Clock, Search, Scissors, Tag } from 'lucide-react'
+import { useEffect, useState, useCallback } from 'react'
+import {
+  Plus, Pencil, Trash2, Clock, Search, Scissors, RefreshCw,
+  ExternalLink, TrendingUp, TrendingDown, Minus, EyeOff,
+} from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
 import {
@@ -28,7 +31,23 @@ type ServiceItem = {
   currency: string
   is_active: boolean
   sort_order: number
+  repeat_interval_days: number | null
+  show_in_storefront: boolean
   category: { id: string; name: string } | null
+}
+
+type ServiceStat = {
+  count: number
+  revenue: number
+  aiCount: number
+  delta: number | null
+}
+
+type SidebarStats = {
+  totalCount: number
+  totalRevenue: number
+  avgCheck: number
+  repeatRate: number
 }
 
 type SortKey = 'name' | 'price' | 'duration_min'
@@ -43,11 +62,17 @@ const EMPTY_FORM = {
   currency: 'BYN',
   is_active: true,
   sort_order: 0,
+  repeat_interval_days: '',
+  show_in_storefront: true,
 }
 
 export default function ServicesAdminPage() {
   const [services, setServices] = useState<ServiceItem[]>([])
+  const [statsMap, setStatsMap] = useState<Record<string, ServiceStat>>({})
+  const [sidebar, setSidebar] = useState<SidebarStats | null>(null)
+  const [tenantSlug, setTenantSlug] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [period, setPeriod] = useState(30)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
@@ -57,14 +82,25 @@ export default function ServicesAdminPage() {
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
 
-  async function loadServices() {
-    const res = await fetch('/api/admin/services')
-    const { data } = await res.json()
-    setServices(data ?? [])
-    setIsLoading(false)
-  }
+  const loadAll = useCallback(async (p: number) => {
+    setIsLoading(true)
+    const [servRes, analyticsRes, settingsRes] = await Promise.all([
+      fetch('/api/admin/services'),
+      fetch(`/api/admin/services/analytics?period=${p}`),
+      fetch('/api/admin/settings'),
+    ])
+    const { data: servData } = await servRes.json()
+    const analyticsJson = await analyticsRes.json()
+    const settingsJson = await settingsRes.json()
 
-  useEffect(() => { loadServices() }, [])
+    setServices(servData ?? [])
+    setStatsMap(analyticsJson?.data?.byService ?? {})
+    setSidebar(analyticsJson?.data?.sidebar ?? null)
+    setTenantSlug(settingsJson?.data?.slug ?? null)
+    setIsLoading(false)
+  }, [])
+
+  useEffect(() => { loadAll(period) }, [period, loadAll])
 
   function openCreate() {
     setEditingId(null)
@@ -84,16 +120,20 @@ export default function ServicesAdminPage() {
       currency: s.currency,
       is_active: s.is_active,
       sort_order: s.sort_order,
+      repeat_interval_days: s.repeat_interval_days != null ? String(s.repeat_interval_days) : '',
+      show_in_storefront: s.show_in_storefront,
     })
     setDialogOpen(true)
   }
 
   async function handleSave() {
     setSaving(true)
+    const intervalDays = form.repeat_interval_days !== '' ? parseInt(String(form.repeat_interval_days)) : null
     const payload = {
       ...form,
       price: Number(form.price),
       price_from: form.price_from !== '' ? Number(form.price_from) : null,
+      repeat_interval_days: intervalDays && !isNaN(intervalDays) ? intervalDays : null,
     }
 
     const url = editingId ? `/api/admin/services/${editingId}` : '/api/admin/services'
@@ -107,7 +147,7 @@ export default function ServicesAdminPage() {
 
     if (res.ok) {
       setDialogOpen(false)
-      await loadServices()
+      await loadAll(period)
     }
     setSaving(false)
   }
@@ -115,7 +155,7 @@ export default function ServicesAdminPage() {
   async function handleDelete(id: string) {
     await fetch(`/api/admin/services/${id}`, { method: 'DELETE' })
     setDeleteId(null)
-    await loadServices()
+    await loadAll(period)
   }
 
   async function toggleActive(s: ServiceItem) {
@@ -127,7 +167,11 @@ export default function ServicesAdminPage() {
     setServices(prev => prev.map(x => x.id === s.id ? { ...x, is_active: !x.is_active } : x))
   }
 
-  const categories = Array.from(new Set(services.map(s => s.category?.name).filter(Boolean) as string[])).sort()
+  const currency = services[0]?.currency ?? 'BYN'
+
+  const categories = Array.from(
+    new Set(services.map(s => s.category?.name).filter(Boolean) as string[])
+  ).sort()
 
   const filtered = services
     .filter(s => !categoryFilter || s.category?.name === categoryFilter)
@@ -143,7 +187,6 @@ export default function ServicesAdminPage() {
       return 0
     })
 
-  // Group by category for visual sections
   const grouped = filtered.reduce<Record<string, ServiceItem[]>>((acc, s) => {
     const key = s.category?.name ?? 'Без категории'
     if (!acc[key]) acc[key] = []
@@ -151,118 +194,166 @@ export default function ServicesAdminPage() {
     return acc
   }, {})
 
+  const storefrontUrl = tenantSlug
+    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/booking/services?slug=${encodeURIComponent(tenantSlug)}`
+    : null
+
   return (
-    <div className="p-5 md:p-8 max-w-5xl mx-auto flex flex-col gap-6">
+    <div className="p-5 md:p-8 max-w-6xl mx-auto flex flex-col gap-6">
       <PageHeader
         title="Услуги"
-        description={services.length > 0 ? `${services.length} ${pluralize(services.length, ['услуга', 'услуги', 'услуг'])} · AI использует их для записи` : 'AI использует услуги для записи клиентов'}
+        description={
+          services.length > 0
+            ? `${services.length} ${pluralize(services.length, ['услуга', 'услуги', 'услуг'])} · SERA использует их при записи`
+            : 'SERA использует услуги для записи клиентов'
+        }
         actions={
-          <button
-            onClick={openCreate}
-            className="px-4 h-10 rounded-xl bg-foreground text-background text-[13px] font-medium hover:opacity-90 transition-opacity inline-flex items-center gap-2"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Добавить услугу</span>
-            <span className="sm:hidden">Добавить</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {storefrontUrl && (
+              <a
+                href={storefrontUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="sera-btn sera-btn--secondary sera-btn--sm inline-flex items-center gap-1.5"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Открыть в витрине</span>
+              </a>
+            )}
+            <button onClick={openCreate} className="sera-btn sera-btn--sera sera-btn--sm inline-flex items-center gap-1.5">
+              <Plus className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Добавить услугу</span>
+              <span className="sm:hidden">Добавить</span>
+            </button>
+          </div>
         }
       />
 
-      {/* Search + filter + sort */}
-      {services.length > 0 && (
-        <div className="flex flex-col md:flex-row gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Поиск услуг..."
-              className="pl-9"
-            />
-          </div>
-
-          {categories.length > 0 && (
-            <div className="flex gap-1 overflow-x-auto scrollbar-hide">
-              <FilterChip
-                active={categoryFilter === null}
-                onClick={() => setCategoryFilter(null)}
-              >
-                Все
-              </FilterChip>
-              {categories.map(cat => (
-                <FilterChip
-                  key={cat}
-                  active={categoryFilter === cat}
-                  onClick={() => setCategoryFilter(cat)}
+      <div className="flex gap-6 items-start">
+        {/* Main content */}
+        <div className="flex-1 min-w-0 flex flex-col gap-4">
+          {/* Search + filters */}
+          {services.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: 'var(--text-muted)' }} />
+                  <Input
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder="Поиск услуг..."
+                    className="pl-9"
+                  />
+                </div>
+                <select
+                  value={sortKey}
+                  onChange={e => setSortKey(e.target.value as SortKey)}
+                  className="h-10 px-3 rounded-xl border text-[12px] font-medium shrink-0"
+                  style={{ background: 'var(--card-sunken)', borderColor: 'var(--line)', color: 'var(--ink)' }}
                 >
-                  {cat}
-                </FilterChip>
-              ))}
+                  <option value="name">По названию</option>
+                  <option value="price">По цене</option>
+                  <option value="duration_min">По длительности</option>
+                </select>
+              </div>
+              {categories.length > 0 && (
+                <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
+                  <FilterChip active={categoryFilter === null} onClick={() => setCategoryFilter(null)}>Все</FilterChip>
+                  {categories.map(cat => (
+                    <FilterChip key={cat} active={categoryFilter === cat} onClick={() => setCategoryFilter(cat)}>
+                      {cat}
+                    </FilterChip>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
-          <select
-            value={sortKey}
-            onChange={e => setSortKey(e.target.value as SortKey)}
-            className="h-10 px-3 rounded-xl border border-border bg-surface-sunken text-[12px] font-medium shrink-0"
-          >
-            <option value="name">По названию</option>
-            <option value="price">По цене</option>
-            <option value="duration_min">По длительности</option>
-          </select>
+          {isLoading ? (
+            <div className="text-[13px]" style={{ color: 'var(--text-muted)' }}>Загрузка...</div>
+          ) : services.length === 0 ? (
+            <EmptyState
+              icon={Scissors}
+              title="Услуги ещё не добавлены"
+              description="Добавьте первую услугу — SERA сможет записывать клиентов и рассказывать о ценах"
+              action={
+                <button onClick={openCreate} className="sera-btn sera-btn--sera sera-btn--sm inline-flex items-center gap-1.5">
+                  <Plus className="w-3.5 h-3.5" />
+                  Добавить услугу
+                </button>
+              }
+            />
+          ) : filtered.length === 0 ? (
+            <EmptyState
+              icon={Search}
+              title="Ничего не найдено"
+              description={`По запросу «${search || categoryFilter}» услуг нет`}
+            />
+          ) : (
+            <div className="flex flex-col gap-6">
+              {Object.entries(grouped).map(([category, items]) => (
+                <section key={category}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <h2 className="sera-label">{category}</h2>
+                    <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>· {items.length}</span>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {items.map(service => (
+                      <ServiceCard
+                        key={service.id}
+                        service={service}
+                        stat={statsMap[service.id] ?? null}
+                        period={period}
+                        onToggle={() => toggleActive(service)}
+                        onEdit={() => openEdit(service)}
+                        onDelete={() => setDeleteId(service.id)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
         </div>
-      )}
 
-      {isLoading ? (
-        <div className="text-muted-foreground text-sm">Загрузка...</div>
-      ) : services.length === 0 ? (
-        <EmptyState
-          icon={Scissors}
-          title="Услуги ещё не добавлены"
-          description="Добавьте первую услугу — AI сможет записывать клиентов и рассказывать о ценах"
-          action={
-            <button
-              onClick={openCreate}
-              className="px-4 h-10 rounded-xl bg-foreground text-background text-[13px] font-medium hover:opacity-90 transition-opacity inline-flex items-center gap-2"
+        {/* Sidebar */}
+        <div className="w-72 shrink-0 hidden md:flex flex-col gap-3">
+          {/* Period selector */}
+          <div className="flex items-center justify-between">
+            <span className="sera-label">Статистика услуг</span>
+            <select
+              value={period}
+              onChange={e => setPeriod(Number(e.target.value))}
+              className="h-7 px-2 rounded-lg border text-[11px] font-medium"
+              style={{ background: 'var(--card-sunken)', borderColor: 'var(--line)', color: 'var(--ink)' }}
             >
-              <Plus className="w-3.5 h-3.5" />
-              Добавить услугу
-            </button>
-          }
-        />
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          icon={Search}
-          title="Ничего не найдено"
-          description={`По запросу «${search || categoryFilter}» услуг нет`}
-        />
-      ) : (
-        <div className="flex flex-col gap-6">
-          {Object.entries(grouped).map(([category, items]) => (
-            <section key={category}>
-              <div className="flex items-center gap-2 mb-3">
-                <Tag className="w-3 h-3 text-muted-foreground" strokeWidth={1.8} />
-                <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {category}
-                </h2>
-                <span className="text-[11px] text-muted-foreground">·</span>
-                <span className="text-[11px] text-muted-foreground">{items.length}</span>
-              </div>
-              <div className="flex flex-col gap-2">
-                {items.map(service => (
-                  <ServiceCard
-                    key={service.id}
-                    service={service}
-                    onToggle={() => toggleActive(service)}
-                    onEdit={() => openEdit(service)}
-                    onDelete={() => setDeleteId(service.id)}
-                  />
-                ))}
-              </div>
-            </section>
-          ))}
+              <option value={7}>7 дней</option>
+              <option value={30}>30 дней</option>
+              <option value={90}>90 дней</option>
+            </select>
+          </div>
+
+          <div className="sera-card p-4 flex flex-col gap-3">
+            <SidebarStat
+              label="Записей выполнено"
+              value={sidebar ? String(sidebar.totalCount) : '—'}
+            />
+            <SidebarStat
+              label="Выручка"
+              value={sidebar ? formatPrice(sidebar.totalRevenue, currency) : '—'}
+            />
+            <SidebarStat
+              label="Средний чек"
+              value={sidebar && sidebar.avgCheck > 0 ? formatPrice(sidebar.avgCheck, currency) : '—'}
+            />
+            <SidebarStat
+              label="Повторных клиентов"
+              value={sidebar ? `${sidebar.repeatRate}%` : '—'}
+              accent={sidebar ? sidebar.repeatRate > 0 : false}
+            />
+          </div>
         </div>
-      )}
+      </div>
 
       {/* Create / Edit dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -272,7 +363,7 @@ export default function ServicesAdminPage() {
           </DialogHeader>
           <div className="flex flex-col gap-4 py-2">
             <div>
-              <label className="text-[12px] font-medium text-muted-foreground mb-1.5 block">Название *</label>
+              <label className="text-[12px] font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Название *</label>
               <Input
                 value={form.name}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
@@ -280,7 +371,7 @@ export default function ServicesAdminPage() {
               />
             </div>
             <div>
-              <label className="text-[12px] font-medium text-muted-foreground mb-1.5 block">Описание</label>
+              <label className="text-[12px] font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Описание</label>
               <Input
                 value={form.description}
                 onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
@@ -289,7 +380,7 @@ export default function ServicesAdminPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[12px] font-medium text-muted-foreground mb-1.5 block">Длительность (мин) *</label>
+                <label className="text-[12px] font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Длительность (мин) *</label>
                 <Input
                   type="number"
                   value={form.duration_min}
@@ -299,7 +390,7 @@ export default function ServicesAdminPage() {
                 />
               </div>
               <div>
-                <label className="text-[12px] font-medium text-muted-foreground mb-1.5 block">Пауза после (мин)</label>
+                <label className="text-[12px] font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Пауза после (мин)</label>
                 <Input
                   type="number"
                   value={form.buffer_after_min}
@@ -311,7 +402,7 @@ export default function ServicesAdminPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[12px] font-medium text-muted-foreground mb-1.5 block">Цена *</label>
+                <label className="text-[12px] font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Цена *</label>
                 <Input
                   type="number"
                   value={form.price}
@@ -321,7 +412,7 @@ export default function ServicesAdminPage() {
                 />
               </div>
               <div>
-                <label className="text-[12px] font-medium text-muted-foreground mb-1.5 block">Валюта</label>
+                <label className="text-[12px] font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Валюта</label>
                 <Input
                   value={form.currency}
                   onChange={e => setForm(f => ({ ...f, currency: e.target.value }))}
@@ -329,7 +420,7 @@ export default function ServicesAdminPage() {
               </div>
             </div>
             <div>
-              <label className="text-[12px] font-medium text-muted-foreground mb-1.5 block">Цена «от» (необязательно)</label>
+              <label className="text-[12px] font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Цена «от» (необязательно)</label>
               <Input
                 type="number"
                 value={form.price_from}
@@ -337,25 +428,49 @@ export default function ServicesAdminPage() {
                 min={0}
               />
             </div>
+            {/* New fields */}
+            <div>
+              <label className="text-[12px] font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>
+                Интервал повтора (дней, необязательно)
+              </label>
+              <Input
+                type="number"
+                value={form.repeat_interval_days}
+                onChange={e => setForm(f => ({ ...f, repeat_interval_days: e.target.value }))}
+                placeholder="Например: 28"
+                min={1}
+                max={365}
+              />
+              <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                Через сколько дней клиенту стоит повторить услугу
+              </p>
+            </div>
             <label className="flex items-center gap-2.5 cursor-pointer">
               <Switch
                 checked={form.is_active}
                 onCheckedChange={v => setForm(f => ({ ...f, is_active: v }))}
               />
-              <span className="text-[13px] text-foreground">Активна — видна клиентам и AI</span>
+              <span className="text-[13px]" style={{ color: 'var(--ink)' }}>Активна — видна клиентам и SERA</span>
+            </label>
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <Switch
+                checked={form.show_in_storefront}
+                onCheckedChange={v => setForm(f => ({ ...f, show_in_storefront: v }))}
+              />
+              <span className="text-[13px]" style={{ color: 'var(--ink)' }}>Показывать в клиентской витрине</span>
             </label>
           </div>
           <DialogFooter>
             <button
               onClick={() => setDialogOpen(false)}
-              className="px-4 h-10 rounded-xl bg-muted text-foreground text-[13px] font-medium hover:bg-surface-sunken transition-colors"
+              className="sera-btn sera-btn--secondary"
             >
               Отмена
             </button>
             <button
               onClick={handleSave}
               disabled={saving || !form.name}
-              className="px-4 h-10 rounded-xl bg-foreground text-background text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-40"
+              className="sera-btn sera-btn--sera"
             >
               {saving ? 'Сохраняем...' : 'Сохранить'}
             </button>
@@ -363,25 +478,22 @@ export default function ServicesAdminPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete confirm dialog */}
+      {/* Delete confirm */}
       <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Удалить услугу?</DialogTitle>
           </DialogHeader>
-          <p className="text-[13px] text-muted-foreground">
+          <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>
             Это действие нельзя отменить. Все записи на эту услугу останутся в истории.
           </p>
           <DialogFooter>
-            <button
-              onClick={() => setDeleteId(null)}
-              className="px-4 h-10 rounded-xl bg-muted text-foreground text-[13px] font-medium hover:bg-surface-sunken transition-colors"
-            >
+            <button onClick={() => setDeleteId(null)} className="sera-btn sera-btn--secondary">
               Отмена
             </button>
             <button
               onClick={() => deleteId && handleDelete(deleteId)}
-              className="px-4 h-10 rounded-xl bg-destructive text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
+              className="sera-btn sera-btn--danger"
             >
               Удалить
             </button>
@@ -392,16 +504,17 @@ export default function ServicesAdminPage() {
   )
 }
 
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
 function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       onClick={onClick}
-      className={cn(
-        'h-10 px-3.5 rounded-xl text-[12px] font-medium whitespace-nowrap transition-colors shrink-0',
-        active
-          ? 'bg-foreground text-background'
-          : 'bg-surface-sunken text-muted-foreground hover:bg-muted'
-      )}
+      className="h-8 px-3.5 rounded-xl text-[12px] font-medium whitespace-nowrap transition-colors shrink-0"
+      style={active
+        ? { background: 'var(--ink)', color: 'var(--card)' }
+        : { background: 'var(--card-sunken)', color: 'var(--text-muted)' }
+      }
     >
       {children}
     </button>
@@ -409,69 +522,158 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
 }
 
 function ServiceCard({
-  service, onToggle, onEdit, onDelete,
+  service, stat, period, onToggle, onEdit, onDelete,
 }: {
   service: ServiceItem
+  stat: ServiceStat | null
+  period: number
   onToggle: () => void
   onEdit: () => void
   onDelete: () => void
 }) {
   return (
-    <div
-      className={cn(
-        'flex items-center gap-4 p-4 rounded-2xl border bg-surface-elevated transition-opacity',
-        !service.is_active && 'opacity-60'
-      )}
-      style={{ boxShadow: 'var(--shadow-xs)' }}
-    >
-      <div className="w-10 h-10 rounded-xl bg-surface-sunken flex items-center justify-center shrink-0">
-        <Scissors className="w-4 h-4 text-foreground" strokeWidth={1.8} />
-      </div>
+    <div className={cn('sera-card p-4 flex flex-col gap-3', !service.is_active && 'opacity-60')}>
+      {/* Row 1: icon + info + controls */}
+      <div className="flex items-start gap-3">
+        <div
+          className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: 'var(--sage-tint)' }}
+        >
+          <Scissors className="w-4 h-4" style={{ color: 'var(--sage-deep)' }} strokeWidth={1.8} />
+        </div>
 
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 mb-0.5">
-          <p className="font-semibold text-[14px] text-foreground truncate">{service.name}</p>
-          {!service.is_active && (
-            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-              скрыта
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="font-semibold text-[14px]" style={{ color: 'var(--ink)' }}>{service.name}</span>
+            {service.category && (
+              <span
+                className="text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+                style={{ background: 'var(--sage-tint)', color: 'var(--sage-deep)' }}
+              >
+                {service.category.name}
+              </span>
+            )}
+            {!service.is_active && (
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ background: 'var(--card-sunken)', color: 'var(--text-muted)' }}>
+                скрыта
+              </span>
+            )}
+            {!service.show_in_storefront && service.is_active && (
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ background: 'var(--warning-soft)', color: 'var(--warning)' }}>
+                <EyeOff className="w-2.5 h-2.5" />
+                не в витрине
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap text-[12px]" style={{ color: 'var(--text-muted)' }}>
+            <span className="flex items-center gap-1">
+              <Clock className="w-3 h-3" strokeWidth={1.8} />
+              {formatDuration(service.duration_min)}
             </span>
-          )}
+            <span className="font-semibold" style={{ color: 'var(--ink)' }}>
+              {service.price_from
+                ? `от ${formatPrice(service.price_from, service.currency)}`
+                : formatPrice(service.price, service.currency)
+              }
+            </span>
+            {service.repeat_interval_days && (
+              <span className="flex items-center gap-1">
+                <RefreshCw className="w-3 h-3" strokeWidth={1.8} />
+                каждые {service.repeat_interval_days} д.
+              </span>
+            )}
+          </div>
         </div>
-        {service.description && (
-          <p className="text-[12px] text-muted-foreground line-clamp-1 mb-1">{service.description}</p>
-        )}
-        <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-          <span className="flex items-center gap-1">
-            <Clock className="w-3 h-3" strokeWidth={1.8} />
-            {formatDuration(service.duration_min)}
-            {service.buffer_after_min ? (
-              <span className="text-muted-foreground/70">+{service.buffer_after_min}м</span>
-            ) : null}
-          </span>
-          <span className="text-foreground font-semibold">
-            {service.price_from
-              ? `от ${formatPrice(service.price_from, service.currency)}`
-              : formatPrice(service.price, service.currency)
-            }
-          </span>
+
+        <div className="flex items-center gap-1 shrink-0">
+          <Switch checked={service.is_active} onCheckedChange={onToggle} />
+          <button
+            onClick={onEdit}
+            className="sera-btn-icon"
+            style={{ color: 'var(--ink-2)', borderColor: 'var(--line)' }}
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={onDelete}
+            className="sera-btn-icon"
+            style={{ color: 'var(--error)', borderColor: 'transparent' }}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
 
-      <div className="flex items-center gap-1 shrink-0">
-        <Switch checked={service.is_active} onCheckedChange={onToggle} />
-        <button
-          onClick={onEdit}
-          className="p-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
-        >
-          <Pencil className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={onDelete}
-          className="p-2 rounded-lg hover:bg-destructive-soft text-destructive transition-colors"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
+      {/* Row 2: metrics */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <MetricChip label="Записей" value={String(stat?.count ?? 0)} />
+        <MetricChip
+          label="Выручка"
+          value={stat && stat.revenue > 0 ? formatPrice(stat.revenue, service.currency) : '—'}
+        />
+        <DeltaChip delta={stat?.delta ?? null} period={period} />
+        <MetricChip label="AI" value={String(stat?.aiCount ?? 0)} sage />
       </div>
+    </div>
+  )
+}
+
+function MetricChip({ label, value, sage }: { label: string; value: string; sage?: boolean }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium"
+      style={sage
+        ? { background: 'var(--sage-tint)', color: 'var(--sage-deep)' }
+        : { background: 'var(--card-sunken)', color: 'var(--ink-2)' }
+      }
+    >
+      <span style={{ color: 'var(--text-muted)' }}>{label}:</span>
+      <span>{value}</span>
+    </span>
+  )
+}
+
+function DeltaChip({ delta, period }: { delta: number | null; period: number }) {
+  if (delta === null) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium"
+        style={{ background: 'var(--card-sunken)', color: 'var(--text-muted)' }}
+        title={`Нет данных за предыдущие ${period} дней`}
+      >
+        <Minus className="w-2.5 h-2.5" />
+        Динамика: —
+      </span>
+    )
+  }
+  const positive = delta >= 0
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium"
+      style={positive
+        ? { background: 'var(--success-soft)', color: 'var(--success)' }
+        : { background: 'var(--error-soft)', color: 'var(--error)' }
+      }
+    >
+      {positive
+        ? <TrendingUp className="w-2.5 h-2.5" />
+        : <TrendingDown className="w-2.5 h-2.5" />
+      }
+      {positive && delta > 0 ? `+${delta}%` : `${delta}%`}
+    </span>
+  )
+}
+
+function SidebarStat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>{label}</span>
+      <span
+        className="text-[13px] font-semibold tabular-nums"
+        style={{ color: accent ? 'var(--sage-deep)' : 'var(--ink)' }}
+      >
+        {value}
+      </span>
     </div>
   )
 }
