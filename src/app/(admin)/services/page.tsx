@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   Plus, Pencil, Trash2, Clock, Search, Scissors, RefreshCw,
-  ExternalLink, EyeOff,
+  ExternalLink, EyeOff, Zap,
 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
@@ -33,6 +33,7 @@ type ServiceItem = {
   sort_order: number
   repeat_interval_days: number | null
   show_in_storefront: boolean
+  is_promoted: boolean
   category: { id: string; name: string } | null
 }
 
@@ -64,6 +65,7 @@ const EMPTY_FORM = {
   sort_order: 0,
   repeat_interval_days: '',
   show_in_storefront: true,
+  is_promoted: false,
 }
 
 export default function ServicesAdminPage() {
@@ -122,6 +124,7 @@ export default function ServicesAdminPage() {
       sort_order: s.sort_order,
       repeat_interval_days: s.repeat_interval_days != null ? String(s.repeat_interval_days) : '',
       show_in_storefront: s.show_in_storefront,
+      is_promoted: s.is_promoted ?? false,
     })
     setDialogOpen(true)
   }
@@ -459,6 +462,16 @@ export default function ServicesAdminPage() {
               />
               <span className="text-[13px]" style={{ color: 'var(--ink)' }}>Показывать в клиентской витрине</span>
             </label>
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <Switch
+                checked={form.is_promoted}
+                onCheckedChange={v => setForm(f => ({ ...f, is_promoted: v }))}
+              />
+              <div>
+                <span className="text-[13px]" style={{ color: 'var(--ink)' }}>Продвигать в витрине</span>
+                <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>SERA будет рекомендовать первой при отсутствии персональных данных</p>
+              </div>
+            </label>
           </div>
           <DialogFooter>
             <button
@@ -564,6 +577,13 @@ function ServiceCard({
               style={{ background: 'var(--warning-soft)', color: 'var(--warning)' }}>
               <EyeOff className="w-2.5 h-2.5" />
               не в витрине
+            </span>
+          )}
+          {service.is_promoted && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0"
+              style={{ background: 'var(--gold-soft)', color: 'var(--gold)' }}>
+              <Zap className="w-2.5 h-2.5" />
+              продвигается
             </span>
           )}
         </div>

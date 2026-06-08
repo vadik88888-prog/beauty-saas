@@ -32,6 +32,7 @@ const ServiceSchema = z.object({
   sort_order: z.number().int().default(0),
   repeat_interval_days: z.number().int().min(1).max(365).nullable().optional(),
   show_in_storefront: z.boolean().default(true),
+  is_promoted: z.boolean().default(false),
 })
 
 export async function GET(req: NextRequest) {

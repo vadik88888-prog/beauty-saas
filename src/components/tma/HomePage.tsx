@@ -50,10 +50,10 @@ export function TmaHomePage() {
     async function loadPublic() {
       const slug = getTenantSlug()
 
-      const [tenantRes, promoRes, servicesRes] = await Promise.all([
+      const [tenantRes, promoRes, recRes] = await Promise.all([
         fetch(`/api/tenant?slug=${encodeURIComponent(slug)}`),
         fetch(`/api/promotions?slug=${encodeURIComponent(slug)}`),
-        fetch(`/api/services?slug=${encodeURIComponent(slug)}`),
+        fetch(`/api/services/recommendation?slug=${encodeURIComponent(slug)}`),
       ])
 
       if (cancelled) return
@@ -67,11 +67,9 @@ export function TmaHomePage() {
         const list = (data ?? []) as Promotion[]
         if (!cancelled && list.length > 0) setTopPromo(list[0])
       }
-      if (servicesRes.ok) {
-        const { data } = await servicesRes.json()
-        const list = (data ?? []) as Service[]
-        const active = list.find(s => s.is_active) ?? list[0] ?? null
-        if (!cancelled) setRecommendation(active)
+      if (recRes.ok) {
+        const json = await recRes.json()
+        if (!cancelled && json?.data?.service) setRecommendation(json.data.service as Service)
       }
       if (!cancelled) setIsLoading(false)
     }
@@ -82,9 +80,10 @@ export function TmaHomePage() {
       if (privateLoaded) return
       const headers = { Authorization: `Bearer ${token}` }
 
-      const [apptRes, meRes] = await Promise.all([
+      const [apptRes, meRes, recRes] = await Promise.all([
         fetch('/api/appointments?upcoming=1&limit=1', { headers }),
         fetch('/api/auth/me', { headers }),
+        fetch('/api/services/recommendation', { headers }),
       ])
 
       if (cancelled) return
@@ -103,6 +102,11 @@ export function TmaHomePage() {
       if (cancelled) return
       if (json?.client) setClient(json.client as ClientInfo)
       if (json?.usual) setUsual(json.usual as UsualBooking)
+      // Override recommendation with personalized result when client context is available
+      if (!cancelled && recRes.ok) {
+        const recJson = await recRes.json()
+        if (!cancelled && recJson?.data?.service) setRecommendation(recJson.data.service as Service)
+      }
       if (!cancelled) setIsPrivateLoading(false)
     }
 

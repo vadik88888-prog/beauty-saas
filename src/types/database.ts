@@ -153,6 +153,7 @@ export type Database = {
           sort_order: number
           repeat_interval_days: number | null
           show_in_storefront: boolean
+          is_promoted: boolean
           created_at: string
         }
         Insert: Omit<Database['public']['Tables']['services']['Row'], 'id' | 'created_at'>

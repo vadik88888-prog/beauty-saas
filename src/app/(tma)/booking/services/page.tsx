@@ -20,12 +20,15 @@ import { waitForTmaToken, getTenantSlug } from '@/lib/tma-token'
 const ALL_ID = '__all__'
 const NEW_DAYS = 30
 
+type PickResult = { service: ServiceWithCategory; reason: string }
+
 export default function ServicesPage() {
   const router = useRouter()
   const { setService } = useBookingStore()
   const { aiName } = useTmaContext()
   const [services, setServices] = useState<ServiceWithCategory[]>([])
   const [promotions, setPromotions] = useState<Promotion[]>([])
+  const [apiPick, setApiPick] = useState<PickResult | null>(null)
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(ALL_ID)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -40,6 +43,9 @@ export default function ServicesPage() {
       const promotionsUrl = token
         ? '/api/promotions'
         : `/api/promotions?slug=${encodeURIComponent(slug)}`
+      const recUrl = token
+        ? '/api/services/recommendation'
+        : `/api/services/recommendation?slug=${encodeURIComponent(slug)}`
       const headers: Record<string, string> = token
         ? { Authorization: `Bearer ${token}` }
         : {}
@@ -54,7 +60,10 @@ export default function ServicesPage() {
         )
       }
 
-      const promoRes = await fetch(promotionsUrl, { headers })
+      const [promoRes, recRes] = await Promise.all([
+        fetch(promotionsUrl, { headers }),
+        fetch(recUrl, { headers }),
+      ])
 
       if (servicesRes.ok) {
         const { data } = await servicesRes.json()
@@ -63,6 +72,10 @@ export default function ServicesPage() {
       if (promoRes.ok) {
         const { data } = await promoRes.json()
         setPromotions((data ?? []) as Promotion[])
+      }
+      if (recRes.ok) {
+        const json = await recRes.json()
+        if (json?.data?.service) setApiPick(json.data as PickResult)
       }
       setIsLoading(false)
     }
@@ -92,16 +105,23 @@ export default function ServicesPage() {
     return set
   }, [promotions])
 
-  // SERA pick: priority — service in active promo (shows "Популярно" badge),
-  // otherwise fallback to the first active service so the recommendation slot
-  // is always present once the salon has at least one service.
+  // SERA pick: use API recommendation when available, otherwise client-side fallback.
+  // API covers: overdue-repeat, cross-sell, promoted, popular.
+  // Client-side fallback: promo service → is_promoted → first active.
   const seraPick = useMemo(() => {
+    if (apiPick) {
+      const inPromo = promoServiceIds.has(apiPick.service.id)
+      const showFlame = inPromo || apiPick.reason === 'popular' || apiPick.reason === 'promoted'
+      return { service: apiPick.service, hasPromo: showFlame, reason: apiPick.reason }
+    }
     const withPromo = services.find(s => promoServiceIds.has(s.id))
-    if (withPromo) return { service: withPromo, hasPromo: true }
+    if (withPromo) return { service: withPromo, hasPromo: true, reason: 'popular' }
+    const withPromoted = services.find(s => (s as ServiceWithCategory & { is_promoted?: boolean }).is_promoted === true)
+    if (withPromoted) return { service: withPromoted, hasPromo: false, reason: 'promoted' }
     const firstActive = services.find(s => s.is_active)
-    if (firstActive) return { service: firstActive, hasPromo: false }
+    if (firstActive) return { service: firstActive, hasPromo: false, reason: 'fallback' }
     return null
-  }, [services, promoServiceIds])
+  }, [apiPick, services, promoServiceIds])
 
   // Filter by selected category (SERA pick is rendered separately above the list)
   const filteredServices = useMemo(() => {
@@ -187,7 +207,8 @@ export default function ServicesPage() {
                   : formatPrice(seraPick.service.price, seraPick.service.currency)
               }
               photoSrc={seraPick.service.image_url}
-              popular
+              popular={seraPick.hasPromo}
+              popularLabel={seraPick.reason === 'promoted' ? 'Продвигается' : 'Популярно'}
               onClick={() => handleSelect(seraPick.service)}
             />
           </FadeInUp>
