@@ -265,6 +265,7 @@ export default async function ClientProfilePage({
           .profile-layout  { flex-direction: column; }
           .profile-sidebar { width: 100%; }
         }
+        .tg-link:hover { text-decoration: underline; }
       `}</style>
 
       <div style={{ padding: '20px 20px 48px', maxWidth: 1100, margin: '0 auto' }}>
@@ -329,9 +330,8 @@ export default async function ClientProfilePage({
                       href={`https://t.me/${client.telegram_username.replace(/^@+/, '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
+                      className="tg-link"
                       style={{ color: 'var(--ink-2)', textDecoration: 'none' }}
-                      onMouseOver={e => (e.currentTarget.style.textDecoration = 'underline')}
-                      onMouseOut={e => (e.currentTarget.style.textDecoration = 'none')}
                     >
                       @{client.telegram_username.replace(/^@+/, '')}
                     </a>
