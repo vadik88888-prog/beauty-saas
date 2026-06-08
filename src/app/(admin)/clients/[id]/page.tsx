@@ -9,6 +9,7 @@ import { Avatar } from '@/components/shared/Avatar'
 import { formatDate, formatDateLong } from '@/lib/utils/date'
 import { formatPrice } from '@/lib/utils/format'
 import { ContactButton } from './_components/ContactButton'
+import { ClientOffersBlock } from './_components/ClientOffersBlock'
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
@@ -412,6 +413,9 @@ export default async function ClientProfilePage({
                 />
               </div>
             </div>
+
+            {/* Personal offers block */}
+            <ClientOffersBlock clientId={client.id} currency={currency} />
 
           </aside>
 
