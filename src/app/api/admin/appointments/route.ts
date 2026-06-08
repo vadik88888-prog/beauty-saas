@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { addMinutes } from '@/lib/utils/date'
+import { resolveOfferPrice, markOfferUsed } from '@/lib/booking/price-calculator'
 
 async function getStaffTenantId(): Promise<string | null> {
   const supabase = await createClient()
@@ -55,6 +56,13 @@ export async function POST(req: NextRequest) {
   const endsAt = (customEndsAt && new Date(customEndsAt) > startsDate) ? new Date(customEndsAt) : serviceEnd
   const endsWithBuffer = addMinutes(endsAt, buffer)
 
+  const offerResult = await resolveOfferPrice({
+    tenantId,
+    clientId,
+    serviceId,
+    basePrice: svc.price,
+  })
+
   // Check master conflicts — return who it conflicts with for UI highlight
   const { data: conflicts } = await supabase
     .from('appointments')
@@ -76,17 +84,20 @@ export async function POST(req: NextRequest) {
   const { data: appt, error } = await supabase
     .from('appointments')
     .insert({
-      tenant_id:    tenantId,
-      client_id:    clientId,
-      master_id:    masterId,
-      service_id:   serviceId,
-      starts_at:    startsAt,
-      ends_at:      endsAt.toISOString(),
-      price:        svc.price,
-      notes:        notes ?? null,
-      source:       'admin',
-      status:       'confirmed',
-      confirmed_at: new Date().toISOString(),
+      tenant_id:        tenantId,
+      client_id:        clientId,
+      master_id:        masterId,
+      service_id:       serviceId,
+      starts_at:        startsAt,
+      ends_at:          endsAt.toISOString(),
+      price:            offerResult.finalPrice,
+      original_price:   offerResult.originalPrice,
+      discount_amount:  offerResult.discountAmount,
+      applied_offer_id: offerResult.appliedOfferId,
+      notes:            notes ?? null,
+      source:           'admin',
+      status:           'confirmed',
+      confirmed_at:     new Date().toISOString(),
     })
     .select(`
       id, starts_at, ends_at, status, price, notes, source,
@@ -100,6 +111,10 @@ export async function POST(req: NextRequest) {
     if (error?.code === '23505') return NextResponse.json({ error: 'Время уже занято' }, { status: 409 })
     console.error('Admin appointment create error:', error)
     return NextResponse.json({ error: 'Ошибка создания записи' }, { status: 500 })
+  }
+
+  if (offerResult.appliedOfferId && offerResult.isOneTime) {
+    await markOfferUsed(offerResult.appliedOfferId)
   }
 
   return NextResponse.json({ data: appt }, { status: 201 })

@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { addMinutes } from '@/lib/utils/date'
+import { resolveOfferPrice, markOfferUsed } from '@/lib/booking/price-calculator'
 import type { AiTool, ToolResult } from '@/lib/ai/administrator/types'
 
 export const createBookingTool: AiTool = {
@@ -159,24 +160,48 @@ export async function executeCreateBooking(
       }
     }
 
-    // Resolve promo and compute discount if applicable
+    // Compute promo discount (from AI args)
+    let promoDiscountAmount = 0
+    let resolvedPromoId: string | null = null
+    if (args.applied_promo_id && s.price && s.price > 0) {
+      const promo = await resolveActivePromo(supabase, args.applied_promo_id, tenantId)
+      if (promo && promo.discount_value && promo.discount_value > 0) {
+        promoDiscountAmount = promo.discount_type === 'percent'
+          ? Math.round((s.price * promo.discount_value / 100) * 100) / 100
+          : Math.min(promo.discount_value, s.price)
+        resolvedPromoId = promo.id
+      } else {
+        console.warn(`[booking] Promo not resolved: "${args.applied_promo_id}"`)
+      }
+    }
+
+    // Compute personal offer discount and pick the better discount
+    const offerResult = await resolveOfferPrice({
+      tenantId,
+      clientId,
+      serviceId: args.service_id,
+      basePrice: s.price,
+    })
+    const offerDiscountAmount = offerResult.discountAmount ?? 0
+
     let appliedPromoId: string | null = null
+    let appliedOfferId: string | null = null
+    let offerIsOneTime = false
     let originalPrice: number | null = null
     let discountAmount: number | null = null
     let finalPrice = s.price
 
-    if (args.applied_promo_id && s.price && s.price > 0) {
-      const promo = await resolveActivePromo(supabase, args.applied_promo_id, tenantId)
-      if (promo && promo.discount_value && promo.discount_value > 0) {
-        originalPrice = s.price
-        discountAmount = promo.discount_type === 'percent'
-          ? Math.round((s.price * promo.discount_value / 100) * 100) / 100
-          : Math.min(promo.discount_value, s.price)
-        finalPrice = Math.max(0, s.price - discountAmount)
-        appliedPromoId = promo.id
+    if (promoDiscountAmount > 0 || offerDiscountAmount > 0) {
+      originalPrice = s.price
+      if (promoDiscountAmount >= offerDiscountAmount) {
+        discountAmount = promoDiscountAmount
+        appliedPromoId = resolvedPromoId
       } else {
-        console.warn(`[booking] Promo not resolved: "${args.applied_promo_id}"`)
+        discountAmount = offerDiscountAmount
+        appliedOfferId = offerResult.appliedOfferId
+        offerIsOneTime = offerResult.isOneTime
       }
+      finalPrice = s.price !== null ? Math.max(0, s.price - discountAmount) : s.price
     }
 
     const { data: appt, error } = await supabase
@@ -192,6 +217,7 @@ export async function executeCreateBooking(
         original_price: originalPrice,
         discount_amount: discountAmount,
         applied_promo_id: appliedPromoId,
+        applied_offer_id: appliedOfferId,
         notes: args.notes ?? null,
         source: 'ai',
         status: 'confirmed',
@@ -209,6 +235,10 @@ export async function executeCreateBooking(
         }
       }
       throw error
+    }
+
+    if (appliedOfferId && offerIsOneTime) {
+      await markOfferUsed(appliedOfferId)
     }
 
     const a = appt as { id: string; starts_at: string }

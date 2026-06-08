@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { jwtVerify } from 'jose'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { addMinutes } from '@/lib/utils/date'
+import { resolveOfferPrice, markOfferUsed } from '@/lib/booking/price-calculator'
 import type { ApiResponse, CreateAppointmentResponse } from '@/types/api'
 
 const CreateSchema = z.object({
@@ -70,6 +71,13 @@ export async function POST(
   const endsAtDate = addMinutes(startsAtDate, service.duration_min)
   const endsWithBuffer = addMinutes(startsAtDate, service.duration_min + buffer)
 
+  const offerResult = await resolveOfferPrice({
+    tenantId,
+    clientId,
+    serviceId,
+    basePrice: service.price,
+  })
+
   // Check for conflicting appointments (including buffer time)
   const { data: conflicts } = await supabase
     .from('appointments')
@@ -88,16 +96,19 @@ export async function POST(
   const { data: appointment, error } = await supabase
     .from('appointments')
     .insert({
-      tenant_id: tenantId,
-      client_id: clientId,
-      master_id: masterId,
-      service_id: serviceId,
-      starts_at: startsAt,
-      ends_at: endsAtDate.toISOString(),
-      price: service.price,
-      notes: notes ?? null,
-      source: 'tma',
-      status: 'pending',
+      tenant_id:        tenantId,
+      client_id:        clientId,
+      master_id:        masterId,
+      service_id:       serviceId,
+      starts_at:        startsAt,
+      ends_at:          endsAtDate.toISOString(),
+      price:            offerResult.finalPrice,
+      original_price:   offerResult.originalPrice,
+      discount_amount:  offerResult.discountAmount,
+      applied_offer_id: offerResult.appliedOfferId,
+      notes:            notes ?? null,
+      source:           'tma',
+      status:           'pending',
     })
     .select('id, starts_at, ends_at')
     .single()
@@ -109,6 +120,10 @@ export async function POST(
     }
     console.error('Appointment create error:', error)
     return NextResponse.json({ error: 'Failed to create appointment' }, { status: 500 })
+  }
+
+  if (offerResult.appliedOfferId && offerResult.isOneTime) {
+    await markOfferUsed(offerResult.appliedOfferId)
   }
 
   const confirmationText =
