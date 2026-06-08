@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ArrowLeft,
@@ -55,6 +55,14 @@ function formatHumanTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
 }
 
+type PricePreview = {
+  basePrice: number | null
+  finalPrice: number | null
+  discountAmount: number | null
+  hasDiscount: boolean
+  currency: string
+}
+
 type BookedDetails = {
   appointmentId: string | null
   serviceName: string
@@ -72,6 +80,19 @@ export default function ConfirmPage() {
   const [isBooked, setIsBooked] = useState(false)
   const [notes, setNotes] = useState('')
   const [bookedDetails, setBookedDetails] = useState<BookedDetails | null>(null)
+  const [pricePreview, setPricePreview] = useState<PricePreview | null>(null)
+
+  useEffect(() => {
+    if (!service) return
+    waitForTmaToken().then(token => {
+      if (!token) return
+      fetch(`/api/price-preview?serviceId=${service.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(r => r.ok ? r.json() : null)
+        .then(j => { if (j?.data) setPricePreview(j.data as PricePreview) })
+    })
+  }, [service?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Success state — render dedicated screen (still on /booking/confirm route,
   // no auto-redirect to home).
@@ -232,7 +253,14 @@ export default function ConfirmPage() {
                 id: 'price',
                 icon: Wallet,
                 label: 'Стоимость',
-                value: formatPrice(service.price, service.currency),
+                value: pricePreview?.hasDiscount ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <s className="text-[12px] font-normal" style={{ color: 'var(--text-muted)' }}>
+                      {formatPrice(pricePreview.basePrice!, pricePreview.currency)}
+                    </s>
+                    <span>{formatPrice(pricePreview.finalPrice!, pricePreview.currency)}</span>
+                  </span>
+                ) : formatPrice(service.price, service.currency),
                 emphasis: true,
               },
             ]}

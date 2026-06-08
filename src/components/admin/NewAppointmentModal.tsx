@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { X, Search, UserPlus, ChevronDown, AlertCircle, CheckCircle2 } from 'lucide-react'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -124,6 +124,10 @@ export function NewAppointmentModal({
   const [validationError,   setValidationError]   = useState('')
   const [isSubmitting,      setIsSubmitting]      = useState(false)
   const [duplicateHint,     setDuplicateHint]     = useState<DuplicateClient | null>(null)
+  const [offerPreview,      setOfferPreview]      = useState<{
+    basePrice: number | null; finalPrice: number | null
+    discountAmount: number | null; hasDiscount: boolean; currency: string
+  } | null>(null)
 
   const clientInputRef   = useRef<HTMLInputElement>(null)
   const searchTimer      = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -141,7 +145,7 @@ export function NewAppointmentModal({
     setNewFirst(''); setNewLast(''); setNewPhone(''); setNewTg('')
     setServiceId(''); setMasterId(defaultMasterId ?? ''); setFilteredMasters(allMasters)
     setDate(localIsoDate(defaultDate)); setStartTime(defaultTime ?? ''); setEndTime('')
-    setNotes(''); setConflictMsg(''); setValidationError(''); setDuplicateHint(null)
+    setNotes(''); setConflictMsg(''); setValidationError(''); setDuplicateHint(null); setOfferPreview(null)
     fetch('/api/admin/services')
       .then(r => r.json())
       .then(j => setServices((j.data ?? []).filter((s: Service) => s.is_active !== false)))
@@ -156,6 +160,22 @@ export function NewAppointmentModal({
     document.addEventListener('keydown', h)
     return () => document.removeEventListener('keydown', h)
   }, [isOpen, onClose])
+
+  // ── Price preview (read-only, never marks offer used) ──
+  const fetchOfferPreview = useCallback((clientId: string, svcId: string) => {
+    setOfferPreview(null)
+    fetch(`/api/admin/price-preview?clientId=${clientId}&serviceId=${svcId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(j => { if (j?.data) setOfferPreview(j.data) })
+  }, [])
+
+  useEffect(() => {
+    if (selectedClient?.id && serviceId) {
+      fetchOfferPreview(selectedClient.id, serviceId)
+    } else {
+      setOfferPreview(null)
+    }
+  }, [selectedClient?.id, serviceId, fetchOfferPreview])
 
   // ── Client search (debounced) ──
   function onClientSearchChange(val: string) {
@@ -406,8 +426,21 @@ export function NewAppointmentModal({
               <ChevronDown size={13} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', pointerEvents: 'none' }} />
             </div>
             {svc && (
-              <p style={{ fontSize: 11, color: 'var(--sage)', marginTop: 4 }}>
-                {svc.duration_min} мин{svc.price != null ? ` · ${svc.price} ${svc.currency}` : ''}
+              <p style={{ fontSize: 11, color: 'var(--sage)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                <span>{svc.duration_min} мин</span>
+                {offerPreview?.hasDiscount ? (
+                  <>
+                    <span>·</span>
+                    <s style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
+                      {offerPreview.basePrice} {offerPreview.currency}
+                    </s>
+                    <span style={{ color: 'var(--sage-deep)', fontWeight: 600 }}>
+                      {offerPreview.finalPrice} {offerPreview.currency}
+                    </span>
+                  </>
+                ) : svc.price != null ? (
+                  <><span>·</span><span>{svc.price} {svc.currency}</span></>
+                ) : null}
               </p>
             )}
           </div>
