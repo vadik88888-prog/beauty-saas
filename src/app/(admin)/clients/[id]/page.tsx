@@ -324,7 +324,7 @@ export default async function ClientProfilePage({
                 {client.telegram_username && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--ink-2)' }}>
                     <AtSign size={13} strokeWidth={1.8} style={{ color: 'var(--muted)', flexShrink: 0 }} />
-                    @{client.telegram_username}
+                    @{client.telegram_username.replace(/^@+/, '')}
                   </div>
                 )}
                 {!client.phone && !client.telegram_username && (

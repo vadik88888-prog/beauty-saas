@@ -73,7 +73,7 @@ export function AddClientModal() {
           first_name:        firstName.trim(),
           last_name:         lastName.trim() || null,
           phone:             phone.trim(),
-          telegram_username: telegram.trim() || null,
+          telegram_username: telegram.trim().replace(/^@+/, '') || null,
           ...(forceCreate ? { forceCreate: true } : {}),
         }),
       })

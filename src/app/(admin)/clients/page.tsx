@@ -193,7 +193,7 @@ function ClientRowEl({
           {client.telegram_username && (
             <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>
               <AtSign size={11} strokeWidth={1.8} />
-              {client.telegram_username}
+              @{client.telegram_username.replace(/^@+/, '')}
             </span>
           )}
           <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: isAtRisk ? 'var(--error)' : 'var(--text-muted)' }}>

@@ -241,7 +241,7 @@ export function NewAppointmentModal({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             first_name: newFirst.trim(), last_name: newLast.trim() || null,
-            phone: newPhone.trim(), telegram_username: newTg.trim() || null,
+            phone: newPhone.trim(), telegram_username: newTg.trim().replace(/^@+/, '') || null,
             ...(forceCreateRef.current && { forceCreate: true }),
           }),
         })
