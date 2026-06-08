@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import {
-  Search, Phone, AtSign, Calendar,
+  Search, Phone, Calendar,
   AlertTriangle, Gift, UserCheck, Sparkles, ChevronRight,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -191,8 +191,7 @@ function ClientRowEl({
             </span>
           )}
           {client.telegram_username && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>
-              <AtSign size={11} strokeWidth={1.8} />
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               @{client.telegram_username.replace(/^@+/, '')}
             </span>
           )}
