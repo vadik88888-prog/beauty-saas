@@ -65,7 +65,7 @@ async function findOverdueRepeat(
     .eq('status', 'completed')
     .gte('starts_at', sixMonthsAgo.toISOString())
     .order('starts_at', { ascending: false })
-    .limit(50)
+    .limit(200)
 
   type HistRow = { service_id: string | null; starts_at: string }
   const lastVisit = new Map<string, Date>()

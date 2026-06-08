@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { OverdueBlock } from './_components/OverdueBlock'
 import { formatPrice } from '@/lib/utils/format'
 import { formatDuration } from '@/lib/utils/date'
 import { cn } from '@/lib/utils'
@@ -355,6 +356,8 @@ export default function ServicesAdminPage() {
               accent={sidebar ? sidebar.repeatRate > 0 : false}
             />
           </div>
+
+          <OverdueBlock />
         </div>
       </div>
 
