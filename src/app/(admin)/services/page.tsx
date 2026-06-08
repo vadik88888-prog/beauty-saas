@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   Plus, Pencil, Trash2, Clock, Search, Scissors, RefreshCw,
-  ExternalLink, TrendingUp, TrendingDown, Minus, EyeOff,
+  ExternalLink, EyeOff,
 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
@@ -297,7 +297,7 @@ export default function ServicesAdminPage() {
                     <h2 className="sera-label">{category}</h2>
                     <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>· {items.length}</span>
                   </div>
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-3">
                     {items.map(service => (
                       <ServiceCard
                         key={service.id}
@@ -532,40 +532,58 @@ function ServiceCard({
   onDelete: () => void
 }) {
   return (
-    <div className={cn('sera-card p-4 flex flex-col gap-3', !service.is_active && 'opacity-60')}>
-      {/* Row 1: icon + info + controls */}
-      <div className="flex items-start gap-3">
+    <div className={cn('sera-card p-5 flex flex-col gap-4', !service.is_active && 'opacity-60')}>
+      {/* Top: photo + info + controls */}
+      <div className="flex gap-4">
+        {/* Photo placeholder — squircle 72px */}
         <div
-          className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+          className="w-[72px] h-[72px] rounded-xl flex items-center justify-center shrink-0"
           style={{ background: 'var(--sage-tint)' }}
         >
-          <Scissors className="w-4 h-4" style={{ color: 'var(--sage-deep)' }} strokeWidth={1.8} />
+          <Scissors className="w-7 h-7" style={{ color: 'var(--sage-deep)' }} strokeWidth={1.5} />
         </div>
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="font-semibold text-[14px]" style={{ color: 'var(--ink)' }}>{service.name}</span>
-            {service.category && (
-              <span
-                className="text-[10px] font-medium px-1.5 py-0.5 rounded-full"
-                style={{ background: 'var(--sage-tint)', color: 'var(--sage-deep)' }}
-              >
-                {service.category.name}
+        {/* Name + badges + meta */}
+        <div className="flex-1 min-w-0 flex flex-col justify-center gap-1.5">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">
+              <span className="font-semibold text-[15px] leading-snug" style={{ color: 'var(--ink)' }}>
+                {service.name}
               </span>
-            )}
-            {!service.is_active && (
-              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ background: 'var(--card-sunken)', color: 'var(--text-muted)' }}>
-                скрыта
-              </span>
-            )}
-            {!service.show_in_storefront && service.is_active && (
-              <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ background: 'var(--warning-soft)', color: 'var(--warning)' }}>
-                <EyeOff className="w-2.5 h-2.5" />
-                не в витрине
-              </span>
-            )}
+              {service.category && (
+                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0"
+                  style={{ background: 'var(--sage-tint)', color: 'var(--sage-deep)' }}>
+                  {service.category.name}
+                </span>
+              )}
+              {!service.is_active && (
+                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0"
+                  style={{ background: 'var(--card-sunken)', color: 'var(--text-muted)' }}>
+                  скрыта
+                </span>
+              )}
+              {service.show_in_storefront === false && service.is_active && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0"
+                  style={{ background: 'var(--warning-soft)', color: 'var(--warning)' }}>
+                  <EyeOff className="w-2.5 h-2.5" />
+                  не в витрине
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <Switch checked={service.is_active} onCheckedChange={onToggle} />
+              <button onClick={onEdit} className="sera-btn-icon"
+                style={{ color: 'var(--ink-2)', borderColor: 'var(--line)' }}>
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={onDelete} className="sera-btn-icon"
+                style={{ color: 'var(--error)', borderColor: 'transparent' }}>
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2 mt-0.5 flex-wrap text-[12px]" style={{ color: 'var(--text-muted)' }}>
+
+          <div className="flex items-center gap-3 flex-wrap text-[12px]" style={{ color: 'var(--text-muted)' }}>
             <span className="flex items-center gap-1">
               <Clock className="w-3 h-3" strokeWidth={1.8} />
               {formatDuration(service.duration_min)}
@@ -579,88 +597,76 @@ function ServiceCard({
             {service.repeat_interval_days && (
               <span className="flex items-center gap-1">
                 <RefreshCw className="w-3 h-3" strokeWidth={1.8} />
-                каждые {service.repeat_interval_days} д.
+                Повтор через {service.repeat_interval_days} дн.
               </span>
             )}
           </div>
         </div>
-
-        <div className="flex items-center gap-1 shrink-0">
-          <Switch checked={service.is_active} onCheckedChange={onToggle} />
-          <button
-            onClick={onEdit}
-            className="sera-btn-icon"
-            style={{ color: 'var(--ink-2)', borderColor: 'var(--line)' }}
-          >
-            <Pencil className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={onDelete}
-            className="sera-btn-icon"
-            style={{ color: 'var(--error)', borderColor: 'transparent' }}
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
       </div>
 
-      {/* Row 2: metrics */}
-      <div className="flex items-center gap-1.5 flex-wrap">
-        <MetricChip label="Записей" value={String(stat?.count ?? 0)} />
-        <MetricChip
+      {/* Bottom: 4 metric columns */}
+      <div className="grid grid-cols-4 pt-3" style={{ borderTop: '1px solid var(--line-soft)' }}>
+        <MetricCol label="Записей" value={String(stat?.count ?? 0)} />
+        <MetricCol
           label="Выручка"
           value={stat && stat.revenue > 0 ? formatPrice(stat.revenue, service.currency) : '—'}
+          primary
         />
-        <DeltaChip delta={stat?.delta ?? null} period={period} />
-        <MetricChip label="AI" value={String(stat?.aiCount ?? 0)} sage />
+        <MetricCol label="Динамика" delta={stat?.delta ?? null} period={period} />
+        <MetricCol label="Через AI" value={String(stat?.aiCount ?? 0)} sage />
       </div>
     </div>
   )
 }
 
-function MetricChip({ label, value, sage }: { label: string; value: string; sage?: boolean }) {
-  return (
-    <span
-      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium"
-      style={sage
-        ? { background: 'var(--sage-tint)', color: 'var(--sage-deep)' }
-        : { background: 'var(--card-sunken)', color: 'var(--ink-2)' }
-      }
-    >
-      <span style={{ color: 'var(--text-muted)' }}>{label}:</span>
-      <span>{value}</span>
-    </span>
-  )
-}
+function MetricCol({
+  label, value, primary, sage, delta, period,
+}: {
+  label: string
+  value?: string
+  primary?: boolean
+  sage?: boolean
+  delta?: number | null
+  period?: number
+}) {
+  const isDelta = delta !== undefined
+  let displayValue: string
+  let valueColor: string
 
-function DeltaChip({ delta, period }: { delta: number | null; period: number }) {
-  if (delta === null) {
-    return (
-      <span
-        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium"
-        style={{ background: 'var(--card-sunken)', color: 'var(--text-muted)' }}
-        title={`Нет данных за предыдущие ${period} дней`}
-      >
-        <Minus className="w-2.5 h-2.5" />
-        Динамика: —
-      </span>
-    )
+  if (isDelta) {
+    if (delta === null) {
+      displayValue = '—'
+      valueColor = 'var(--text-muted)'
+    } else if (delta > 0) {
+      displayValue = `+${delta}%`
+      valueColor = 'var(--success)'
+    } else if (delta < 0) {
+      displayValue = `${delta}%`
+      valueColor = 'var(--error)'
+    } else {
+      displayValue = '0%'
+      valueColor = 'var(--text-muted)'
+    }
+  } else {
+    displayValue = value ?? '—'
+    valueColor = primary ? 'var(--ink)' : sage ? 'var(--sage-deep)' : 'var(--ink-2)'
   }
-  const positive = delta >= 0
+
   return (
-    <span
-      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium"
-      style={positive
-        ? { background: 'var(--success-soft)', color: 'var(--success)' }
-        : { background: 'var(--error-soft)', color: 'var(--error)' }
-      }
+    <div
+      className="flex flex-col items-center gap-0.5 px-2 py-1"
+      title={isDelta && delta === null && period !== undefined ? `Нет данных за предыдущие ${period} дней` : undefined}
     >
-      {positive
-        ? <TrendingUp className="w-2.5 h-2.5" />
-        : <TrendingDown className="w-2.5 h-2.5" />
-      }
-      {positive && delta > 0 ? `+${delta}%` : `${delta}%`}
-    </span>
+      <span className="text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>
+        {label}
+      </span>
+      <span
+        className={cn('tabular-nums font-bold text-center leading-tight', primary ? 'text-[15px]' : 'text-[13px]')}
+        style={{ color: valueColor }}
+      >
+        {displayValue}
+      </span>
+    </div>
   )
 }
 
