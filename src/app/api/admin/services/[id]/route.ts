@@ -42,6 +42,7 @@ const PatchSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   description: z.string().max(1000).nullable().optional(),
   category_id: z.string().uuid().nullable().optional(),
+  image_url: z.string().url().nullable().optional(),
   duration_min: z.number().int().min(5).max(480).optional(),
   buffer_after_min: z.number().int().min(0).max(120).optional(),
   price: z.number().min(0).optional(),

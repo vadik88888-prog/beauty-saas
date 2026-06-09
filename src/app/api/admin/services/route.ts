@@ -23,6 +23,7 @@ const ServiceSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(1000).optional().nullable(),
   category_id: z.string().uuid().optional().nullable(),
+  image_url: z.string().url().nullable().optional(),
   duration_min: z.number().int().min(5).max(480),
   buffer_after_min: z.number().int().min(0).max(120).default(0),
   price: z.number().min(0),

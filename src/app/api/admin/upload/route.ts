@@ -19,10 +19,16 @@ async function getStaffTenantId(): Promise<string | null> {
 
 const MAX_SIZE = 5 * 1024 * 1024 // 5MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const ALLOWED_BUCKETS = ['master-photos', 'service-images'] as const
 
 export async function POST(req: NextRequest) {
   const tenantId = await getStaffTenantId()
   if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const bucketParam = req.nextUrl.searchParams.get('bucket')
+  const bucket: string = ALLOWED_BUCKETS.includes(bucketParam as (typeof ALLOWED_BUCKETS)[number])
+    ? (bucketParam as string)
+    : 'master-photos'
 
   try {
     const formData = await req.formData()
@@ -43,7 +49,7 @@ export async function POST(req: NextRequest) {
     const arrayBuffer = await file.arrayBuffer()
 
     const { error: uploadError } = await supabase.storage
-      .from('master-photos')
+      .from(bucket)
       .upload(fileName, arrayBuffer, {
         contentType: file.type,
         upsert: false,
@@ -55,7 +61,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { data: { publicUrl } } = supabase.storage
-      .from('master-photos')
+      .from(bucket)
       .getPublicUrl(fileName)
 
     return NextResponse.json({ url: publicUrl })

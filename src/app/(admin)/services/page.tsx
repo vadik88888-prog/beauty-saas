@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   Plus, Pencil, Trash2, Clock, Search, Scissors, RefreshCw,
-  ExternalLink, EyeOff, Zap, Tag,
+  ExternalLink, EyeOff, Zap, Tag, Upload, X as XIcon,
 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
@@ -26,6 +26,7 @@ type ServiceItem = {
   id: string
   name: string
   description: string | null
+  image_url: string | null
   duration_min: number
   buffer_after_min: number | null
   price: number
@@ -59,6 +60,7 @@ const EMPTY_FORM = {
   name: '',
   description: '',
   category_id: '',
+  image_url: '',
   duration_min: 60,
   buffer_after_min: 0,
   price: 0,
@@ -87,6 +89,7 @@ export default function ServicesAdminPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deleteWorking, setDeleteWorking] = useState(false)
   const [categoriesOpen, setCategoriesOpen] = useState(false)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [formCategories, setFormCategories] = useState<{ id: string; name: string }[]>([])
   const [addingCat, setAddingCat] = useState(false)
   const [newCatName, setNewCatName] = useState('')
@@ -122,6 +125,25 @@ export default function ServicesAdminPage() {
       .then(({ data }) => setFormCategories(data ?? []))
   }, [dialogOpen])
 
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) return
+    setUploadingPhoto(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/admin/upload?bucket=service-images', { method: 'POST', body: fd })
+      if (res.ok) {
+        const { url } = await res.json()
+        setForm(f => ({ ...f, image_url: url }))
+      }
+    } finally {
+      setUploadingPhoto(false)
+      e.target.value = ''
+    }
+  }
+
   async function handleCreateCat() {
     const name = newCatName.trim()
     if (!name) return
@@ -153,6 +175,7 @@ export default function ServicesAdminPage() {
       name: s.name,
       description: s.description ?? '',
       category_id: s.category?.id ?? '',
+      image_url: s.image_url ?? '',
       duration_min: s.duration_min,
       buffer_after_min: s.buffer_after_min ?? 0,
       price: s.price,
@@ -173,6 +196,7 @@ export default function ServicesAdminPage() {
     const payload = {
       ...form,
       category_id: form.category_id || null,
+      image_url: form.image_url || null,
       price: Number(form.price),
       price_from: form.price_from !== '' ? Number(form.price_from) : null,
       repeat_interval_days: intervalDays && !isNaN(intervalDays) ? intervalDays : null,
@@ -474,6 +498,42 @@ export default function ServicesAdminPage() {
                 onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                 placeholder="Краткое описание услуги"
               />
+            </div>
+
+            {/* Фото услуги */}
+            <div>
+              <label className="text-[12px] font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Фото услуги</label>
+              {form.image_url ? (
+                <div className="flex items-center gap-3">
+                  <div className="relative w-20 h-20 rounded-xl overflow-hidden shrink-0" style={{ background: 'var(--sage-tint)' }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={form.image_url} alt="" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, image_url: '' }))}
+                      className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full flex items-center justify-center"
+                      style={{ background: 'rgba(0,0,0,0.6)' }}
+                    >
+                      <XIcon className="w-3 h-3 text-white" />
+                    </button>
+                  </div>
+                  <label className="text-[13px] cursor-pointer" style={{ color: 'var(--sage-deep)' }}>
+                    <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoUpload} className="hidden" />
+                    {uploadingPhoto ? 'Загружаем...' : 'Заменить фото'}
+                  </label>
+                </div>
+              ) : (
+                <label
+                  className="flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed cursor-pointer transition-colors"
+                  style={{ borderColor: 'var(--line)', background: 'var(--card-sunken)' }}
+                >
+                  <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoUpload} className="hidden" />
+                  <Upload className="w-4 h-4 shrink-0" style={{ color: 'var(--text-muted)' }} />
+                  <span className="text-[12px]" style={{ color: 'var(--text-muted)' }}>
+                    {uploadingPhoto ? 'Загружаем...' : 'Загрузить фото (JPG/PNG/WebP, до 5 МБ)'}
+                  </span>
+                </label>
+              )}
             </div>
 
             {/* Категория */}
