@@ -912,19 +912,19 @@ function ServiceCard({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2.5 text-[12px]" style={{ color: 'var(--text-muted)' }}>
-          <span className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-2.5 text-[12px]" style={{ color: 'var(--text-muted)' }}>
+          <span className="flex items-center gap-1 whitespace-nowrap">
             <Clock className="w-3 h-3" strokeWidth={1.8} />
             {formatDuration(service.duration_min)}
           </span>
-          <span className="font-semibold" style={{ color: 'var(--ink)' }}>
+          <span className="font-semibold whitespace-nowrap" style={{ color: 'var(--ink)' }}>
             {service.price_from
               ? `от ${formatPrice(service.price_from, service.currency)}`
               : formatPrice(service.price, service.currency)
             }
           </span>
           {service.repeat_interval_days && (
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1 whitespace-nowrap">
               <RefreshCw className="w-3 h-3" strokeWidth={1.8} />
               {service.repeat_interval_days} дн.
             </span>
