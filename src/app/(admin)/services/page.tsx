@@ -56,6 +56,8 @@ type SidebarStats = {
 
 type SortKey = 'name' | 'price' | 'duration_min' | 'revenue' | 'count'
 
+const KNOWN_CURRENCIES: readonly string[] = ['BYN', 'RUB', 'USD', 'EUR', 'PLN']
+
 const EMPTY_FORM = {
   name: '',
   description: '',
@@ -663,10 +665,21 @@ export default function ServicesAdminPage() {
               </div>
               <div>
                 <label className="text-[12px] font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Валюта</label>
-                <Input
-                  value={form.currency}
+                <select
+                  value={KNOWN_CURRENCIES.includes(form.currency) ? form.currency : ''}
                   onChange={e => setForm(f => ({ ...f, currency: e.target.value }))}
-                />
+                  className="h-10 w-full px-3 rounded-xl border text-[13px]"
+                  style={{ background: 'var(--card-sunken)', borderColor: 'var(--line)', color: 'var(--ink)' }}
+                >
+                  {!KNOWN_CURRENCIES.includes(form.currency) && (
+                    <option value="" disabled>Выберите...</option>
+                  )}
+                  <option value="BYN">BYN — руб.</option>
+                  <option value="RUB">RUB — ₽</option>
+                  <option value="USD">USD — $</option>
+                  <option value="EUR">EUR — €</option>
+                  <option value="PLN">PLN — zł</option>
+                </select>
               </div>
             </div>
 

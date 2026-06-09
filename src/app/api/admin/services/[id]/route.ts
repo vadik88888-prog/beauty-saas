@@ -47,7 +47,7 @@ const PatchSchema = z.object({
   buffer_after_min: z.number().int().min(0).max(120).optional(),
   price: z.number().min(0).optional(),
   price_from: z.number().min(0).nullable().optional(),
-  currency: z.string().optional(),
+  currency: z.enum(['BYN', 'RUB', 'USD', 'EUR', 'PLN']).optional(),
   is_active: z.boolean().optional(),
   sort_order: z.number().int().optional(),
   repeat_interval_days: z.number().int().min(1).max(365).nullable().optional(),

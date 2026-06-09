@@ -28,7 +28,7 @@ const ServiceSchema = z.object({
   buffer_after_min: z.number().int().min(0).max(120).default(0),
   price: z.number().min(0),
   price_from: z.number().min(0).optional().nullable(),
-  currency: z.string().default('BYN'),
+  currency: z.enum(['BYN', 'RUB', 'USD', 'EUR', 'PLN']).default('BYN'),
   is_active: z.boolean().default(true),
   sort_order: z.number().int().default(0),
   repeat_interval_days: z.number().int().min(1).max(365).nullable().optional(),
