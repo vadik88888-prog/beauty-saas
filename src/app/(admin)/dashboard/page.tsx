@@ -296,11 +296,10 @@ export default async function DashboardPage({
               <Link
                 key={i}
                 href={kpi.href}
-                className="flex-1 hover:bg-black/[0.025] transition-colors"
+                className="flex-1 min-w-[calc(50%-1px)] md:min-w-0 hover:bg-black/[0.025] transition-colors"
                 style={{
                   padding: '12px 12px',
                   borderRight: i < kpis.length - 1 ? '1px solid var(--card-border)' : 'none',
-                  minWidth: 0,
                   borderBottom: 'none',
                   textDecoration: 'none',
                   display: 'block',
