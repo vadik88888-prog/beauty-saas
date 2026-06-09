@@ -58,6 +58,7 @@ type SortKey = 'name' | 'price' | 'duration_min'
 const EMPTY_FORM = {
   name: '',
   description: '',
+  category_id: '',
   duration_min: 60,
   buffer_after_min: 0,
   price: 0,
@@ -83,6 +84,10 @@ export default function ServicesAdminPage() {
   const [saving, setSaving] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [categoriesOpen, setCategoriesOpen] = useState(false)
+  const [formCategories, setFormCategories] = useState<{ id: string; name: string }[]>([])
+  const [addingCat, setAddingCat] = useState(false)
+  const [newCatName, setNewCatName] = useState('')
+  const [creatingCat, setCreatingCat] = useState(false)
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
@@ -107,6 +112,32 @@ export default function ServicesAdminPage() {
 
   useEffect(() => { loadAll(period) }, [period, loadAll])
 
+  useEffect(() => {
+    if (!dialogOpen) { setAddingCat(false); setNewCatName(''); return }
+    fetch('/api/admin/categories')
+      .then(r => r.json())
+      .then(({ data }) => setFormCategories(data ?? []))
+  }, [dialogOpen])
+
+  async function handleCreateCat() {
+    const name = newCatName.trim()
+    if (!name) return
+    setCreatingCat(true)
+    const res = await fetch('/api/admin/categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    })
+    if (res.ok) {
+      const { data } = await res.json()
+      setFormCategories(prev => [...prev, data])
+      setForm(f => ({ ...f, category_id: data.id }))
+      setAddingCat(false)
+      setNewCatName('')
+    }
+    setCreatingCat(false)
+  }
+
   function openCreate() {
     setEditingId(null)
     setForm(EMPTY_FORM)
@@ -118,6 +149,7 @@ export default function ServicesAdminPage() {
     setForm({
       name: s.name,
       description: s.description ?? '',
+      category_id: s.category?.id ?? '',
       duration_min: s.duration_min,
       buffer_after_min: s.buffer_after_min ?? 0,
       price: s.price,
@@ -137,6 +169,7 @@ export default function ServicesAdminPage() {
     const intervalDays = form.repeat_interval_days !== '' ? parseInt(String(form.repeat_interval_days)) : null
     const payload = {
       ...form,
+      category_id: form.category_id || null,
       price: Number(form.price),
       price_from: form.price_from !== '' ? Number(form.price_from) : null,
       repeat_interval_days: intervalDays && !isNaN(intervalDays) ? intervalDays : null,
@@ -394,6 +427,54 @@ export default function ServicesAdminPage() {
                 onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                 placeholder="Краткое описание услуги"
               />
+            </div>
+            <div>
+              <label className="text-[12px] font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Категория</label>
+              {addingCat ? (
+                <div className="flex gap-1.5">
+                  <Input
+                    value={newCatName}
+                    onChange={e => setNewCatName(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleCreateCat(); if (e.key === 'Escape') setAddingCat(false) }}
+                    placeholder="Название новой категории"
+                    className="flex-1"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleCreateCat}
+                    disabled={creatingCat || !newCatName.trim()}
+                    className="sera-btn sera-btn--sera sera-btn--sm shrink-0"
+                  >
+                    {creatingCat ? '...' : 'Создать'}
+                  </button>
+                  <button
+                    onClick={() => setAddingCat(false)}
+                    className="sera-btn sera-btn--secondary sera-btn--sm shrink-0"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <select
+                  value={form.category_id}
+                  onChange={e => {
+                    if (e.target.value === '__new__') {
+                      setAddingCat(true)
+                      setNewCatName('')
+                    } else {
+                      setForm(f => ({ ...f, category_id: e.target.value }))
+                    }
+                  }}
+                  className="h-10 w-full px-3 rounded-xl border text-[13px]"
+                  style={{ background: 'var(--card-sunken)', borderColor: 'var(--line)', color: 'var(--ink)' }}
+                >
+                  <option value="">Без категории</option>
+                  {formCategories.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                  <option value="__new__">+ Создать новую...</option>
+                </select>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
