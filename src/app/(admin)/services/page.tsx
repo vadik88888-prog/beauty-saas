@@ -349,6 +349,7 @@ export default function ServicesAdminPage() {
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Открыть в витрине</span>
+                <span className="sm:hidden">Витрина</span>
               </a>
             )}
             <button
@@ -357,6 +358,7 @@ export default function ServicesAdminPage() {
             >
               <Tag className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Категории</span>
+              <span className="sm:hidden">Катег.</span>
             </button>
             <button onClick={openCreate} className="sera-btn sera-btn--sera sera-btn--sm inline-flex items-center gap-1.5">
               <Plus className="w-3.5 h-3.5" />
