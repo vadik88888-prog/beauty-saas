@@ -369,7 +369,7 @@ export default function ServicesAdminPage() {
         }
       />
 
-      <div className="flex flex-col md:flex-row gap-4 md:gap-6 items-start">
+      <div className="flex flex-col md:flex-row gap-4 md:gap-6 md:items-start">
         {/* Main content */}
         <div className="flex-1 min-w-0 flex flex-col gap-4 order-last md:order-none">
           {/* Search + filters */}
