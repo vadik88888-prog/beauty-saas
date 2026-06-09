@@ -369,9 +369,9 @@ export default function ServicesAdminPage() {
         }
       />
 
-      <div className="flex gap-6 items-start">
+      <div className="flex flex-col md:flex-row gap-4 md:gap-6 items-start">
         {/* Main content */}
-        <div className="flex-1 min-w-0 flex flex-col gap-4">
+        <div className="flex-1 min-w-0 flex flex-col gap-4 order-last md:order-none">
           {/* Search + filters */}
           {services.length > 0 && (
             <div className="flex flex-col gap-2">
@@ -459,7 +459,7 @@ export default function ServicesAdminPage() {
         </div>
 
         {/* Sidebar */}
-        <div className="w-72 shrink-0 hidden md:flex flex-col gap-3">
+        <div className="flex flex-col gap-3 order-first md:order-none w-full md:w-72 md:shrink-0">
           {/* Period selector */}
           <div className="flex items-center justify-between">
             <span className="sera-label">Статистика услуг</span>
