@@ -358,7 +358,7 @@ export default function ServicesAdminPage() {
             >
               <Tag className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Категории</span>
-              <span className="sm:hidden">Катег.</span>
+              <span className="sm:hidden">Категории</span>
             </button>
             <button onClick={openCreate} className="sera-btn sera-btn--sera sera-btn--sm inline-flex items-center gap-1.5">
               <Plus className="w-3.5 h-3.5" />
