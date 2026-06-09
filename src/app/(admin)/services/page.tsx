@@ -805,12 +805,17 @@ function ServiceCard({
 }) {
   return (
     <div className={cn('sera-card px-4 py-3 flex items-center gap-3', !service.is_active && 'opacity-60')}>
-      {/* Photo placeholder — squircle 56px */}
+      {/* Photo or placeholder — squircle 56px */}
       <div
-        className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0"
+        className="w-14 h-14 rounded-xl overflow-hidden flex items-center justify-center shrink-0"
         style={{ background: 'var(--sage-tint)' }}
       >
-        <Scissors className="w-5 h-5" style={{ color: 'var(--sage-deep)' }} strokeWidth={1.5} />
+        {service.image_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={service.image_url} alt={service.name} className="w-full h-full object-cover" />
+        ) : (
+          <Scissors className="w-5 h-5" style={{ color: 'var(--sage-deep)' }} strokeWidth={1.5} />
+        )}
       </div>
 
       {/* Name + meta */}
