@@ -448,11 +448,15 @@ export default function ServicesAdminPage() {
 
       {/* Create / Edit dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
+        <DialogContent className="max-w-md flex flex-col gap-0 p-0 max-h-[90vh] overflow-hidden">
+          {/* Sticky header */}
+          <DialogHeader className="shrink-0 px-4 pt-4 pb-3 border-b" style={{ borderColor: 'var(--line)' }}>
             <DialogTitle>{editingId ? 'Редактировать услугу' : 'Новая услуга'}</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col gap-4 py-2">
+
+          {/* Scrollable body */}
+          <div className="flex-1 overflow-y-auto min-h-0 px-4 py-3 flex flex-col gap-3">
+            {/* Название */}
             <div>
               <label className="text-[12px] font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Название *</label>
               <Input
@@ -461,6 +465,8 @@ export default function ServicesAdminPage() {
                 placeholder="Маникюр классический"
               />
             </div>
+
+            {/* Описание */}
             <div>
               <label className="text-[12px] font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Описание</label>
               <Input
@@ -469,6 +475,8 @@ export default function ServicesAdminPage() {
                 placeholder="Краткое описание услуги"
               />
             </div>
+
+            {/* Категория */}
             <div>
               <label className="text-[12px] font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Категория</label>
               {addingCat ? (
@@ -517,6 +525,8 @@ export default function ServicesAdminPage() {
                 </select>
               )}
             </div>
+
+            {/* Длительность + Пауза — две колонки */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-[12px] font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Длительность (мин) *</label>
@@ -539,6 +549,8 @@ export default function ServicesAdminPage() {
                 />
               </div>
             </div>
+
+            {/* Цена + Валюта — две колонки */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-[12px] font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Цена *</label>
@@ -558,32 +570,33 @@ export default function ServicesAdminPage() {
                 />
               </div>
             </div>
-            <div>
-              <label className="text-[12px] font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Цена «от» (необязательно)</label>
-              <Input
-                type="number"
-                value={form.price_from}
-                onChange={e => setForm(f => ({ ...f, price_from: e.target.value }))}
-                min={0}
-              />
+
+            {/* Цена «от» + Интервал повтора — две колонки */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[12px] font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Цена «от»</label>
+                <Input
+                  type="number"
+                  value={form.price_from}
+                  onChange={e => setForm(f => ({ ...f, price_from: e.target.value }))}
+                  min={0}
+                  placeholder="необязательно"
+                />
+              </div>
+              <div>
+                <label className="text-[12px] font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Повтор (дней)</label>
+                <Input
+                  type="number"
+                  value={form.repeat_interval_days}
+                  onChange={e => setForm(f => ({ ...f, repeat_interval_days: e.target.value }))}
+                  placeholder="напр. 28"
+                  min={1}
+                  max={365}
+                />
+              </div>
             </div>
-            {/* New fields */}
-            <div>
-              <label className="text-[12px] font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>
-                Интервал повтора (дней, необязательно)
-              </label>
-              <Input
-                type="number"
-                value={form.repeat_interval_days}
-                onChange={e => setForm(f => ({ ...f, repeat_interval_days: e.target.value }))}
-                placeholder="Например: 28"
-                min={1}
-                max={365}
-              />
-              <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
-                Через сколько дней клиенту стоит повторить услугу
-              </p>
-            </div>
+
+            {/* Тумблеры */}
             <label className="flex items-center gap-2.5 cursor-pointer">
               <Switch
                 checked={form.is_active}
@@ -598,7 +611,7 @@ export default function ServicesAdminPage() {
               />
               <span className="text-[13px]" style={{ color: 'var(--ink)' }}>Показывать в клиентской витрине</span>
             </label>
-            <label className="flex items-center gap-2.5 cursor-pointer">
+            <label className="flex items-center gap-2.5 cursor-pointer pb-1">
               <Switch
                 checked={form.is_promoted}
                 onCheckedChange={v => setForm(f => ({ ...f, is_promoted: v }))}
@@ -609,7 +622,12 @@ export default function ServicesAdminPage() {
               </div>
             </label>
           </div>
-          <DialogFooter>
+
+          {/* Sticky footer */}
+          <div
+            className="shrink-0 flex flex-row justify-end gap-2 rounded-b-xl border-t px-4 pb-4 pt-3"
+            style={{ background: 'var(--card-sunken)', borderColor: 'var(--line)' }}
+          >
             <button
               onClick={() => setDialogOpen(false)}
               className="sera-btn sera-btn--secondary"
@@ -623,7 +641,7 @@ export default function ServicesAdminPage() {
             >
               {saving ? 'Сохраняем...' : 'Сохранить'}
             </button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 
