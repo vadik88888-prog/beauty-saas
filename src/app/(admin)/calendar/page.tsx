@@ -833,8 +833,8 @@ export default function CalendarPage() {
         <div style={{ flex: 1 }} />
 
         {isMobile && (
-          <button onClick={() => setRailOpen(true)} className="sera-btn-icon" aria-label="Информация" style={{ color: 'var(--ink-2)', borderColor: 'var(--line)' }}>
-            <PanelRight size={15} />
+          <button onClick={() => setRailOpen(true)} className="sera-btn sera-btn--secondary sera-btn--sm" style={{ gap: 6 }}>
+            <PanelRight size={14} /> Свободные окна
           </button>
         )}
 
