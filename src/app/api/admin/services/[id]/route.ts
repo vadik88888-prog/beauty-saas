@@ -19,6 +19,25 @@ async function getStaffContext(): Promise<{ tenantId: string; role: string } | n
   return { tenantId: d.tenant_id, role: d.role }
 }
 
+/** Returns whether the service can be physically deleted (no appointments in history). */
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const ctx = await getStaffContext()
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const supabase = createAdminClient()
+  const { count } = await supabase
+    .from('appointments')
+    .select('id', { count: 'exact', head: true })
+    .eq('service_id', id)
+    .eq('tenant_id', ctx.tenantId)
+
+  return NextResponse.json({ canDelete: !count || count === 0, appointmentCount: count ?? 0 })
+}
+
 const PatchSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   description: z.string().max(1000).nullable().optional(),
@@ -69,7 +88,9 @@ export async function DELETE(
   const { id } = await params
   const ctx = await getStaffContext()
   if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (ctx.role !== 'owner') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!['owner', 'admin'].includes(ctx.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const supabase = createAdminClient()
   const { error } = await supabase
@@ -78,6 +99,17 @@ export async function DELETE(
     .eq('id', id)
     .eq('tenant_id', ctx.tenantId)
 
-  if (error) return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  if (error) {
+    const isFK = error.code === '23503'
+    return NextResponse.json(
+      {
+        error: isFK ? 'has_appointments' : 'Server error',
+        message: isFK
+          ? 'У услуги есть история записей — удалить нельзя'
+          : 'Ошибка сервера',
+      },
+      { status: isFK ? 409 : 500 }
+    )
+  }
   return NextResponse.json({ data: { success: true } })
 }

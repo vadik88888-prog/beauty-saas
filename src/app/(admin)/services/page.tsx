@@ -83,6 +83,9 @@ export default function ServicesAdminPage() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [deleteHasHistory, setDeleteHasHistory] = useState<boolean | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deleteWorking, setDeleteWorking] = useState(false)
   const [categoriesOpen, setCategoriesOpen] = useState(false)
   const [formCategories, setFormCategories] = useState<{ id: string; name: string }[]>([])
   const [addingCat, setAddingCat] = useState(false)
@@ -191,10 +194,48 @@ export default function ServicesAdminPage() {
     setSaving(false)
   }
 
+  async function initiateDelete(serviceId: string) {
+    setDeleteId(serviceId)
+    setDeleteHasHistory(null)
+    setDeleteError(null)
+    const res = await fetch(`/api/admin/services/${serviceId}`)
+    if (res.ok) {
+      const { canDelete } = await res.json()
+      setDeleteHasHistory(!canDelete)
+    } else {
+      setDeleteHasHistory(false)
+    }
+  }
+
   async function handleDelete(id: string) {
-    await fetch(`/api/admin/services/${id}`, { method: 'DELETE' })
-    setDeleteId(null)
-    await loadAll(period)
+    setDeleteWorking(true)
+    setDeleteError(null)
+    const res = await fetch(`/api/admin/services/${id}`, { method: 'DELETE' })
+    if (res.ok) {
+      setDeleteId(null)
+      await loadAll(period)
+    } else {
+      const json = await res.json().catch(() => ({}))
+      setDeleteError(json.message ?? 'Не удалось удалить услугу')
+    }
+    setDeleteWorking(false)
+  }
+
+  async function handleDeactivate(id: string) {
+    setDeleteWorking(true)
+    setDeleteError(null)
+    const res = await fetch(`/api/admin/services/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_active: false }),
+    })
+    if (res.ok) {
+      setDeleteId(null)
+      await loadAll(period)
+    } else {
+      setDeleteError('Не удалось скрыть услугу')
+    }
+    setDeleteWorking(false)
   }
 
   async function toggleActive(s: ServiceItem) {
@@ -352,7 +393,7 @@ export default function ServicesAdminPage() {
                         period={period}
                         onToggle={() => toggleActive(service)}
                         onEdit={() => openEdit(service)}
-                        onDelete={() => setDeleteId(service.id)}
+                        onDelete={() => initiateDelete(service.id)}
                       />
                     ))}
                   </div>
@@ -586,25 +627,70 @@ export default function ServicesAdminPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete confirm */}
-      <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+      {/* Smart delete dialog */}
+      <Dialog open={!!deleteId} onOpenChange={v => { if (!v && !deleteWorking) setDeleteId(null) }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Удалить услугу?</DialogTitle>
+            <DialogTitle>
+              {deleteHasHistory === null
+                ? 'Проверяем...'
+                : deleteHasHistory
+                  ? 'Удаление недоступно'
+                  : 'Удалить услугу?'}
+            </DialogTitle>
           </DialogHeader>
-          <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>
-            Это действие нельзя отменить. Все записи на эту услугу останутся в истории.
-          </p>
+
+          {deleteHasHistory === null && (
+            <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>
+              Проверяем наличие записей...
+            </p>
+          )}
+
+          {deleteHasHistory === true && (
+            <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>
+              У услуги есть история записей — физически удалить нельзя.
+              Можно скрыть её: клиенты и SERA перестанут видеть услугу, история записей сохранится.
+            </p>
+          )}
+
+          {deleteHasHistory === false && (
+            <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>
+              Записей на эту услугу нет. Удаление необратимо.
+            </p>
+          )}
+
+          {deleteError && (
+            <p className="text-[12px] mt-1" style={{ color: 'var(--error)' }}>
+              {deleteError}
+            </p>
+          )}
+
           <DialogFooter>
-            <button onClick={() => setDeleteId(null)} className="sera-btn sera-btn--secondary">
+            <button
+              onClick={() => setDeleteId(null)}
+              disabled={deleteWorking}
+              className="sera-btn sera-btn--secondary"
+            >
               Отмена
             </button>
-            <button
-              onClick={() => deleteId && handleDelete(deleteId)}
-              className="sera-btn sera-btn--danger"
-            >
-              Удалить
-            </button>
+            {deleteHasHistory === true && (
+              <button
+                onClick={() => deleteId && handleDeactivate(deleteId)}
+                disabled={deleteWorking}
+                className="sera-btn sera-btn--primary"
+              >
+                {deleteWorking ? 'Скрываем...' : 'Скрыть'}
+              </button>
+            )}
+            {deleteHasHistory === false && (
+              <button
+                onClick={() => deleteId && handleDelete(deleteId)}
+                disabled={deleteWorking}
+                className="sera-btn sera-btn--danger"
+              >
+                {deleteWorking ? 'Удаляем...' : 'Удалить'}
+              </button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
