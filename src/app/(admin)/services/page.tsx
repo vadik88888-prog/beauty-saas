@@ -54,7 +54,7 @@ type SidebarStats = {
   repeatRate: number
 }
 
-type SortKey = 'name' | 'price' | 'duration_min'
+type SortKey = 'name' | 'price' | 'duration_min' | 'revenue' | 'count'
 
 const EMPTY_FORM = {
   name: '',
@@ -288,6 +288,8 @@ export default function ServicesAdminPage() {
       if (sortKey === 'name') return a.name.localeCompare(b.name, 'ru')
       if (sortKey === 'price') return a.price - b.price
       if (sortKey === 'duration_min') return a.duration_min - b.duration_min
+      if (sortKey === 'revenue') return (statsMap[b.id]?.revenue ?? 0) - (statsMap[a.id]?.revenue ?? 0)
+      if (sortKey === 'count') return (statsMap[b.id]?.count ?? 0) - (statsMap[a.id]?.count ?? 0)
       return 0
     })
 
@@ -365,6 +367,8 @@ export default function ServicesAdminPage() {
                   <option value="name">По названию</option>
                   <option value="price">По цене</option>
                   <option value="duration_min">По длительности</option>
+                  <option value="revenue">По выручке ↓</option>
+                  <option value="count">По числу записей ↓</option>
                 </select>
               </div>
               {categories.length > 0 && (
@@ -616,6 +620,8 @@ export default function ServicesAdminPage() {
                 <label className="text-[12px] font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Цена *</label>
                 <Input
                   type="number"
+                  inputMode="decimal"
+                  className="no-spinner"
                   value={form.price}
                   onChange={e => setForm(f => ({ ...f, price: parseFloat(e.target.value) || 0 }))}
                   min={0}
@@ -637,6 +643,8 @@ export default function ServicesAdminPage() {
                 <label className="text-[12px] font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Цена «от»</label>
                 <Input
                   type="number"
+                  inputMode="decimal"
+                  className="no-spinner"
                   value={form.price_from}
                   onChange={e => setForm(f => ({ ...f, price_from: e.target.value }))}
                   min={0}
@@ -825,8 +833,8 @@ function ServiceCard({
             {service.name}
           </span>
           {service.category && (
-            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0"
-              style={{ background: 'var(--sage-tint)', color: 'var(--sage-deep)' }}>
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-lg shrink-0 border"
+              style={{ background: 'var(--card-sunken)', color: 'var(--text-muted)', borderColor: 'var(--line)' }}>
               {service.category.name}
             </span>
           )}
