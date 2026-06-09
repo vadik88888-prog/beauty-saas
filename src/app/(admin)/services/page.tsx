@@ -61,9 +61,9 @@ const EMPTY_FORM = {
   description: '',
   category_id: '',
   image_url: '',
-  duration_min: 60,
-  buffer_after_min: 0,
-  price: 0,
+  duration_min: '',
+  buffer_after_min: '',
+  price: '',
   price_from: '',
   currency: 'BYN',
   is_active: true,
@@ -89,6 +89,7 @@ export default function ServicesAdminPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deleteWorking, setDeleteWorking] = useState(false)
   const [categoriesOpen, setCategoriesOpen] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [formCategories, setFormCategories] = useState<{ id: string; name: string }[]>([])
   const [addingCat, setAddingCat] = useState(false)
@@ -166,19 +167,21 @@ export default function ServicesAdminPage() {
   function openCreate() {
     setEditingId(null)
     setForm(EMPTY_FORM)
+    setFormError(null)
     setDialogOpen(true)
   }
 
   function openEdit(s: ServiceItem) {
     setEditingId(s.id)
+    setFormError(null)
     setForm({
       name: s.name,
       description: s.description ?? '',
       category_id: s.category?.id ?? '',
       image_url: s.image_url ?? '',
-      duration_min: s.duration_min,
-      buffer_after_min: s.buffer_after_min ?? 0,
-      price: s.price,
+      duration_min: String(s.duration_min),
+      buffer_after_min: s.buffer_after_min != null ? String(s.buffer_after_min) : '',
+      price: String(s.price),
       price_from: s.price_from != null ? String(s.price_from) : '',
       currency: s.currency,
       is_active: s.is_active,
@@ -191,13 +194,33 @@ export default function ServicesAdminPage() {
   }
 
   async function handleSave() {
+    setFormError(null)
+    const priceNum = parseFloat(String(form.price))
+    const durationNum = parseInt(String(form.duration_min))
+    const bufferNum = form.buffer_after_min !== '' ? parseInt(String(form.buffer_after_min)) : 0
+
+    if (!form.name.trim()) {
+      setFormError('Введите название услуги')
+      return
+    }
+    if (form.price === '' || isNaN(priceNum) || priceNum < 0) {
+      setFormError('Введите корректную цену')
+      return
+    }
+    if (form.duration_min === '' || isNaN(durationNum) || durationNum < 5) {
+      setFormError('Введите длительность (минимум 5 мин)')
+      return
+    }
+
     setSaving(true)
     const intervalDays = form.repeat_interval_days !== '' ? parseInt(String(form.repeat_interval_days)) : null
     const payload = {
       ...form,
       category_id: form.category_id || null,
       image_url: form.image_url || null,
-      price: Number(form.price),
+      price: priceNum,
+      duration_min: durationNum,
+      buffer_after_min: bufferNum,
       price_from: form.price_from !== '' ? Number(form.price_from) : null,
       repeat_interval_days: intervalDays && !isNaN(intervalDays) ? intervalDays : null,
     }
@@ -596,20 +619,28 @@ export default function ServicesAdminPage() {
                 <label className="text-[12px] font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Длительность (мин) *</label>
                 <Input
                   type="number"
+                  inputMode="numeric"
+                  className="no-spinner"
                   value={form.duration_min}
-                  onChange={e => setForm(f => ({ ...f, duration_min: parseInt(e.target.value) || 60 }))}
+                  onFocus={e => e.target.select()}
+                  onChange={e => setForm(f => ({ ...f, duration_min: e.target.value }))}
                   min={5}
                   max={480}
+                  placeholder="60"
                 />
               </div>
               <div>
                 <label className="text-[12px] font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>Пауза после (мин)</label>
                 <Input
                   type="number"
+                  inputMode="numeric"
+                  className="no-spinner"
                   value={form.buffer_after_min}
-                  onChange={e => setForm(f => ({ ...f, buffer_after_min: parseInt(e.target.value) || 0 }))}
+                  onFocus={e => e.target.select()}
+                  onChange={e => setForm(f => ({ ...f, buffer_after_min: e.target.value }))}
                   min={0}
                   max={120}
+                  placeholder="0"
                 />
               </div>
             </div>
@@ -623,9 +654,11 @@ export default function ServicesAdminPage() {
                   inputMode="decimal"
                   className="no-spinner"
                   value={form.price}
-                  onChange={e => setForm(f => ({ ...f, price: parseFloat(e.target.value) || 0 }))}
+                  onFocus={e => e.target.select()}
+                  onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
                   min={0}
                   step={0.01}
+                  placeholder="0"
                 />
               </div>
               <div>
@@ -693,22 +726,27 @@ export default function ServicesAdminPage() {
 
           {/* Sticky footer */}
           <div
-            className="shrink-0 flex flex-row justify-end gap-2 rounded-b-xl border-t px-4 pb-4 pt-3"
+            className="shrink-0 rounded-b-xl border-t px-4 pb-4 pt-3"
             style={{ background: 'var(--card-sunken)', borderColor: 'var(--line)' }}
           >
-            <button
-              onClick={() => setDialogOpen(false)}
-              className="sera-btn sera-btn--secondary"
-            >
-              Отмена
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving || !form.name}
-              className="sera-btn sera-btn--sera"
-            >
-              {saving ? 'Сохраняем...' : 'Сохранить'}
-            </button>
+            {formError && (
+              <p className="text-[12px] mb-2" style={{ color: 'var(--error)' }}>{formError}</p>
+            )}
+            <div className="flex flex-row justify-end gap-2">
+              <button
+                onClick={() => setDialogOpen(false)}
+                className="sera-btn sera-btn--secondary"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving || !form.name}
+                className="sera-btn sera-btn--sera"
+              >
+                {saving ? 'Сохраняем...' : 'Сохранить'}
+              </button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -790,10 +828,10 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
   return (
     <button
       onClick={onClick}
-      className="h-8 px-3.5 rounded-xl text-[12px] font-medium whitespace-nowrap transition-colors shrink-0"
+      className="h-8 px-3.5 rounded-xl text-[12px] font-medium whitespace-nowrap transition-colors shrink-0 border"
       style={active
-        ? { background: 'var(--ink)', color: 'var(--card)' }
-        : { background: 'var(--card-sunken)', color: 'var(--text-muted)' }
+        ? { background: 'var(--ink)', color: 'var(--card)', borderColor: 'var(--ink)' }
+        : { background: 'var(--card)', color: 'var(--ink-2)', borderColor: 'var(--line)' }
       }
     >
       {children}
