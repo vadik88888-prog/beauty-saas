@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   Plus, Pencil, Trash2, Clock, Search, Scissors, RefreshCw,
-  ExternalLink, EyeOff, Zap,
+  ExternalLink, EyeOff, Zap, Tag,
 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
@@ -17,6 +17,7 @@ import {
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { OverdueBlock } from './_components/OverdueBlock'
+import { CategoriesModal } from './_components/CategoriesModal'
 import { formatPrice } from '@/lib/utils/format'
 import { formatDuration } from '@/lib/utils/date'
 import { cn } from '@/lib/utils'
@@ -81,6 +82,7 @@ export default function ServicesAdminPage() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [categoriesOpen, setCategoriesOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
@@ -224,6 +226,13 @@ export default function ServicesAdminPage() {
                 <span className="hidden sm:inline">Открыть в витрине</span>
               </a>
             )}
+            <button
+              onClick={() => setCategoriesOpen(true)}
+              className="sera-btn sera-btn--secondary sera-btn--sm inline-flex items-center gap-1.5"
+            >
+              <Tag className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Категории</span>
+            </button>
             <button onClick={openCreate} className="sera-btn sera-btn--sera sera-btn--sm inline-flex items-center gap-1.5">
               <Plus className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Добавить услугу</span>
@@ -360,6 +369,8 @@ export default function ServicesAdminPage() {
           <OverdueBlock />
         </div>
       </div>
+
+      <CategoriesModal open={categoriesOpen} onClose={() => { setCategoriesOpen(false); loadAll(period) }} />
 
       {/* Create / Edit dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

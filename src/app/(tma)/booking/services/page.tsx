@@ -82,18 +82,21 @@ export default function ServicesPage() {
     load()
   }, [])
 
-  // Unique categories from services
+  // Unique categories from services, sorted by category sort_order
   const categories = useMemo(() => {
-    const seen = new Map<string, string>()
+    const seen = new Map<string, { label: string; sort_order: number }>()
     for (const s of services) {
-      const id = s.category?.id ?? null
-      const name = s.category?.name ?? null
-      if (id && name && !seen.has(id)) seen.set(id, name)
+      const cat = s.category as (typeof s.category & { sort_order?: number }) | null
+      const id = cat?.id ?? null
+      const name = cat?.name ?? null
+      if (id && name && !seen.has(id)) {
+        seen.set(id, { label: name, sort_order: cat?.sort_order ?? 0 })
+      }
     }
-    return [
-      { id: ALL_ID, label: 'Все' },
-      ...Array.from(seen.entries()).map(([id, label]) => ({ id, label })),
-    ]
+    const sorted = Array.from(seen.entries())
+      .sort((a, b) => a[1].sort_order - b[1].sort_order)
+      .map(([id, { label }]) => ({ id, label }))
+    return [{ id: ALL_ID, label: 'Все' }, ...sorted]
   }, [services])
 
   // Services in active promotions (used for badges + SERA pick)

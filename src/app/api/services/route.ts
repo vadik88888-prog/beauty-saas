@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabase
     .from('services')
-    .select('*, category:service_categories(id, name, icon)')
+    .select('*, category:service_categories(id, name, icon, sort_order)')
     .eq('tenant_id', tenantId)
     .eq('is_active', true)
     .order('sort_order')
