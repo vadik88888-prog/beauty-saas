@@ -14,6 +14,7 @@ type ShadowRoute = typeof ROUTES[number]
 const CLASSIFIER_MODEL = 'gpt-4o-mini'
 const HISTORY_MESSAGES = 6
 const HISTORY_SNIPPET_LEN = 200
+const ASSISTANT_MSG_LOG_LEN = 300
 
 const CLASSIFIER_SYSTEM_PROMPT = `Ты — роутер сообщений клиентов салона красоты. Твоя единственная задача —
 отнести ВХОДЯЩЕЕ СООБЩЕНИЕ клиента к одному из 7 маршрутов. Ты НЕ отвечаешь
@@ -140,6 +141,17 @@ export async function classifyShadow(opts: {
     }
     const confidence = Math.min(1, Math.max(0, Number(parsed.confidence) || 0))
 
+    // Последняя реплика ассистента перед сообщением клиента — контекст для разметки
+    const lastAssistant = [...history]
+      .reverse()
+      .find(m => m.role === 'assistant' && typeof m.content === 'string' && (m.content as string).trim().length > 0)
+    const lastAssistantMessage = lastAssistant
+      ? (() => {
+          const text = (lastAssistant.content as string).replace(/\s+/g, ' ').trim()
+          return text.length > ASSISTANT_MSG_LOG_LEN ? text.slice(0, ASSISTANT_MSG_LOG_LEN) + '…' : text
+        })()
+      : null
+
     const supabase = createAdminClient()
     const { error } = await supabase.from('router_shadow_log').insert({
       tenant_id: tenantId,
@@ -149,6 +161,7 @@ export async function classifyShadow(opts: {
       predicted_route: route,
       confidence,
       had_active_scenario: hadActiveScenario,
+      last_assistant_message: lastAssistantMessage,
     })
     if (error) {
       console.error('[router-shadow] insert failed:', error.message)
