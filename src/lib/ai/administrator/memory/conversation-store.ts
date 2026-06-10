@@ -129,10 +129,15 @@ export class ConversationStore {
         .eq('conversation_id', conversationId),
     ])
 
-    const desc = ((recentRes.data ?? []) as MsgRow[]).map(m => ({
-      role: m.role as 'user' | 'assistant',
-      content: m.content,
-    }))
+    // OpenAI accepts only 'user' and 'assistant' roles. Admin messages (human staff replies
+    // stored with role='admin') must be remapped to 'assistant' — they filled the same slot.
+    // Any other unexpected roles are dropped to prevent 400 Invalid messages errors.
+    const desc = ((recentRes.data ?? []) as MsgRow[])
+      .filter(m => m.role === 'user' || m.role === 'assistant' || m.role === 'admin')
+      .map(m => ({
+        role: (m.role === 'admin' ? 'assistant' : m.role) as 'user' | 'assistant',
+        content: m.content,
+      }))
     // Reverse to chronological order
     return { history: desc.reverse(), totalCount: countRes.count ?? desc.length }
   }

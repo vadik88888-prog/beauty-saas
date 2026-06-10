@@ -68,6 +68,9 @@ export async function POST(req: NextRequest): Promise<NextResponse<ApiResponse<A
     })
   } catch (err) {
     console.error('AI chat error:', err)
+    if (err && typeof err === 'object' && 'status' in err) {
+      console.error('AI chat OpenAI error body:', JSON.stringify({ status: (err as Record<string, unknown>).status, body: (err as Record<string, unknown>).error }))
+    }
     return NextResponse.json({ error: 'AI service unavailable' }, { status: 500 })
   }
 }

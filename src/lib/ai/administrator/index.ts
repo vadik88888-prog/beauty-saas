@@ -330,8 +330,11 @@ export async function runAdministrator(
   }
 
   // Retry only when no destructive action was confirmed — AI must rewrite the response
-  if (isHallucination && !hadDestructiveSuccess && rounds < MAX_TOOL_ROUNDS) {
-    messages.push({ role: 'assistant', content: llmResponse.content })
+  // Guard: only retry if no pending tool_calls — otherwise llmResponse.content may be empty
+  // (models often return null content when tool_calls are present), which would violate OpenAI
+  // message format (assistant with empty content and no tool_calls → 400 error).
+  if (isHallucination && !hadDestructiveSuccess && rounds < MAX_TOOL_ROUNDS && !llmResponse.tool_calls?.length) {
+    messages.push(llmResponse.assistantMessage as ChatCompletionMessageParam)
     messages.push({
       role: 'user',
       content: '[SYSTEM CORRECTION] Your previous response mentioned a master, service, or time slot that was not returned by any tool call. NEVER fabricate data. Call get_services / get_masters / get_available_slots first to fetch real data, then answer using ONLY the data returned. If client has not chosen a service yet, ASK them — do not invent one. If no slots are available, say so honestly. Rewrite your response now.',

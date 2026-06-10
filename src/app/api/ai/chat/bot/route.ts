@@ -109,8 +109,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ reply: result.reply, conversationId: result.conversationId })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    console.error('Bot AI bridge error:', msg)
+    console.error('Bot AI bridge error:', err instanceof Error ? err.message : String(err))
+    if (err && typeof err === 'object' && 'status' in err) {
+      console.error('Bot AI bridge OpenAI error body:', JSON.stringify({ status: (err as Record<string, unknown>).status, body: (err as Record<string, unknown>).error }))
+    }
     return NextResponse.json({ reply: 'Извините, произошла ошибка. Попробуйте позже.' })
   }
 }
