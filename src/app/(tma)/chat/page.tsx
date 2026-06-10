@@ -30,7 +30,7 @@ import { useTmaContext } from '@/components/tma/TmaContext'
 import { TypingWave } from '@/components/shared/microinteractions/TypingWave'
 import { MessageReveal } from '@/components/shared/microinteractions/MessageReveal'
 import type { AttachmentInput } from '@/lib/ai/administrator/types'
-import { waitForTmaToken } from '@/lib/tma-token'
+import { waitForTmaToken, getTenantSlug } from '@/lib/tma-token'
 
 interface KnowledgeSource {
   title: string
@@ -109,7 +109,7 @@ export default function ChatPage() {
 
 
   useEffect(() => {
-    const savedId = sessionStorage.getItem('chat_conversation_id')
+    const savedId = localStorage.getItem(`chat_conversation_id:${getTenantSlug()}`)
     if (!savedId) return
     let cancelled = false
 
@@ -170,7 +170,7 @@ export default function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const messageQueueRef = useRef<string[]>([])
   const conversationIdRef = useRef<string | undefined>(
-    typeof window !== 'undefined' ? sessionStorage.getItem('chat_conversation_id') ?? undefined : undefined
+    typeof window !== 'undefined' ? localStorage.getItem(`chat_conversation_id:${getTenantSlug()}`) ?? undefined : undefined
   )
 
   useEffect(() => {
@@ -411,7 +411,7 @@ export default function ChatPage() {
 
       if (data.conversationId) {
         conversationIdRef.current = data.conversationId
-        sessionStorage.setItem('chat_conversation_id', data.conversationId)
+        localStorage.setItem(`chat_conversation_id:${getTenantSlug()}`, data.conversationId)
       }
 
       setMessages(prev => prev.concat({

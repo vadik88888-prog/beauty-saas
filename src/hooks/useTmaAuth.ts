@@ -84,7 +84,7 @@ export function useTmaAuth(): TmaAuthState {
     if (urlSlug && storedSlug && urlSlug !== storedSlug) {
       sessionStorage.removeItem('tma_token')
       sessionStorage.removeItem('tma_client')
-      sessionStorage.removeItem('chat_conversation_id')
+      localStorage.removeItem(`chat_conversation_id:${storedSlug}`)
       sessionStorage.setItem('tenant_slug', urlSlug)
     }
 
