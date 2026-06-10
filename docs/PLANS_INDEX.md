@@ -8,6 +8,7 @@
 
 | Файл | Размер | Дата | Что внутри |
 |------|--------|------|------------|
+| [ROUTER_SHADOW_PLAN.md](ROUTER_SHADOW_PLAN.md) | — | 2026-06-11 | **Shadow-роутер (ЧАСТЬ А)**: план встройки классификатора 7 маршрутов (BOOK/RESCHEDULE/CANCEL/FAQ/CLARIFY/HANDOFF/SOCIAL) в runAdministrator fire-and-forget, миграция 034 router_shadow_log, полный черновик промпта классификатора. Код shadow-вызова — ЧАСТЬ Б. |
 | [elegant-brewing-alpaca.md](../../../.claude/plans/elegant-brewing-alpaca.md) | 42 KB | 2026-05-28 | **Полный план редизайна TMA + Admin (6 фаз)**: детальные спеки каждой страницы A–P, 4 субагента (foundation / components / page-migrator / reviewer), safety-контракт. Основа для Phase 1–3.3c; Phase 3.4–4.x ещё впереди. ⚠️ Везде «Алина» — при реализации заменять на SERA. |
 | [3-abundant-forest.md](../../../.claude/plans/3-abundant-forest.md) | 48 KB | 2026-05-27 | **AI-качество (Phase 2-D)**: salon snapshot в системном промпте, reschedule/cancel dual flow (UI + AI tools), medical handoff pipeline с уведомлениями в Telegram-канал, LLM-driven suggested actions, hallucination guard timezone fix, promo discount в booking. |
 | [streamed-wobbling-squirrel.md](../../../.claude/plans/streamed-wobbling-squirrel.md) | 11 KB | 2026-05-30 | **AlinaCareOrb v2 (SERA Orb)**: точное соответствие референсу — 12 состояний (добавлены `celebrating` и `resting`), точные цветовые семьи по референсу, resting-state с SVG-полумесяцем на тёмном фоне, пропорции лепестков. |
