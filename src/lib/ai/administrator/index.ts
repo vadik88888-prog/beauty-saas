@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { callLLM, estimateCost } from '@/lib/ai/openai-client'
+import type { LLMCallOptions } from '@/lib/ai/openai-client'
 import { buildSystemPrompt, loadTenantConfig, loadClientContext } from './system-prompt'
 import { ConversationStore } from './memory/conversation-store'
 import { maybeRecomputeSummary } from './memory/summarizer'
@@ -29,17 +30,47 @@ export const maxDuration = 60
 
 const MAX_TOOL_ROUNDS = 5
 
+// Лимит выходных токенов для основного цикла. У gpt-5.x в этот бюджет входят невидимые
+// reasoning-токены — при 500 видимый ответ обрывался/пустел. Запас на рассуждение +
+// полный список ~30 услуг.
+const MAX_RESPONSE_TOKENS = 4000
+// Усилие рассуждения для клиентского чата — низкое ради скорости (gpt-5.x / o-series).
+// Старые модели параметр игнорируют.
+const REASONING_EFFORT = 'low' as const
+
+// Обёртка: все вызовы модели в основном цикле администратора идут с единым лимитом
+// токенов и уровнем reasoning. Суммаризатор и suggested-actions зовут callLLM напрямую.
+function adminLLM(opts: Omit<LLMCallOptions, 'maxTokens' | 'reasoningEffort'>) {
+  return callLLM({ ...opts, maxTokens: MAX_RESPONSE_TOKENS, reasoningEffort: REASONING_EFFORT })
+}
+
 export async function runAdministrator(
   input: AdministratorInput
 ): Promise<AdministratorResult> {
   const { tenantId, clientId, message, telegramId, attachments } = input
   let { conversationId } = input
   const supabase = createAdminClient()
+  const today = new Date().toISOString().slice(0, 10)
+  const burstWindowIso = new Date(Date.now() - BURST_WINDOW_MIN * 60 * 1000).toISOString()
 
-  // 1. Load tenant config and client context
-  const [tenantConfig, clientContext] = await Promise.all([
+  // 1. Параллельный предстарт: tenant config (+ модель/температура/лимит), client context,
+  // дневной счётчик usage и список диалогов клиента (для burst). Всё независимо — одна волна
+  // вместо череды последовательных запросов. Повторный запрос tenant_ai_settings убран —
+  // model/temperature/max_messages_day теперь приходят из tenantConfig.
+  const [tenantConfig, clientContext, usageCountRes, clientConvsRes] = await Promise.all([
     loadTenantConfig(tenantId, supabase),
     loadClientContext(clientId, tenantId, supabase),
+    supabase
+      .from('ai_usage')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .eq('client_id', clientId)
+      .eq('date', today),
+    supabase
+      .from('conversations')
+      .select('id')
+      .eq('client_id', clientId)
+      .eq('tenant_id', tenantId),
   ])
 
   if (!tenantConfig) {
@@ -50,27 +81,12 @@ export async function runAdministrator(
     }
   }
 
-  // 2. Rate limit check
-  const today = new Date().toISOString().slice(0, 10)
-  const { count } = await supabase
-    .from('ai_usage')
-    .select('id', { count: 'exact', head: true })
-    .eq('tenant_id', tenantId)
-    .eq('client_id', clientId)
-    .eq('date', today)
+  const maxMessages = tenantConfig.maxMessagesDay
+  const model = tenantConfig.model
+  const temperature = tenantConfig.temperature
 
-  const aiSettings = await supabase
-    .from('tenant_ai_settings')
-    .select('max_messages_day, model, temperature')
-    .eq('tenant_id', tenantId)
-    .single()
-
-  const settingsData = aiSettings.data as { max_messages_day?: number; model?: string; temperature?: number } | null
-  const maxMessages = settingsData?.max_messages_day ?? 100
-  const model = settingsData?.model ?? 'gpt-4o-mini'
-  const temperature = settingsData?.temperature ?? 0.7
-
-  if ((count ?? 0) >= maxMessages) {
+  // 2. Daily rate limit
+  if ((usageCountRes.count ?? 0) >= maxMessages) {
     return {
       reply: 'Вы достигли дневного лимита сообщений. Попробуйте завтра.',
       conversationId: conversationId ?? '',
@@ -78,16 +94,9 @@ export async function runAdministrator(
     }
   }
 
-  // 2b. Burst rate limit — защита от spam за короткое окно. Двухшаговый запрос:
-  // сначала получаем conversation_ids клиента, потом count user messages в окне.
-  // (PostgREST nested filter через !inner работает неоднозначно для count head:true)
-  const burstWindowIso = new Date(Date.now() - BURST_WINDOW_MIN * 60 * 1000).toISOString()
-  const { data: clientConvs } = await supabase
-    .from('conversations')
-    .select('id')
-    .eq('client_id', clientId)
-    .eq('tenant_id', tenantId)
-  const convIds = ((clientConvs ?? []) as { id: string }[]).map(c => c.id)
+  // 2b. Burst rate limit — защита от spam за короткое окно. messages count зависит от
+  // convIds (из параллельного запроса выше), поэтому идёт второй волной.
+  const convIds = ((clientConvsRes.data ?? []) as { id: string }[]).map(c => c.id)
 
   if (convIds.length > 0) {
     const { count: recentUserCount } = await supabase
@@ -167,7 +176,7 @@ export async function runAdministrator(
     console.log('[AI] medical query detected — forcing request_human_handoff')
   }
 
-  let llmResponse = await callLLM({
+  let llmResponse = await adminLLM({
     system: systemPrompt,
     messages,
     tools: TOOL_REGISTRY,
@@ -208,7 +217,7 @@ export async function runAdministrator(
         role: 'user',
         content: '[SYSTEM CORRECTION] You tried to check availability before the client chose a specific service. Present the services list from the earlier get_services call. Ask: "Какую услугу вы хотите записать?" Do NOT include any time slot info. Wait for the client to reply.',
       } as ChatCompletionMessageParam)
-      llmResponse = await callLLM({ system: systemPrompt, messages, tools: TOOL_REGISTRY, model, temperature })
+      llmResponse = await adminLLM({ system: systemPrompt, messages, tools: TOOL_REGISTRY, model, temperature })
       totalTokens += llmResponse.total_tokens
       break
     }
@@ -264,12 +273,12 @@ export async function runAdministrator(
         role: 'user',
         content: '[SYSTEM CORRECTION] You called get_services and get_available_slots in the same response. Show ONLY the services list. Ask the client which service they want. Do NOT mention any time slots, dates, or availability in this message.',
       } as ChatCompletionMessageParam)
-      llmResponse = await callLLM({ system: systemPrompt, messages, tools: TOOL_REGISTRY, model, temperature })
+      llmResponse = await adminLLM({ system: systemPrompt, messages, tools: TOOL_REGISTRY, model, temperature })
       totalTokens += llmResponse.total_tokens
       break
     }
 
-    llmResponse = await callLLM({
+    llmResponse = await adminLLM({
       system: systemPrompt,
       messages,
       tools: TOOL_REGISTRY,
@@ -328,7 +337,7 @@ export async function runAdministrator(
       content: '[SYSTEM CORRECTION] Your previous response mentioned a master, service, or time slot that was not returned by any tool call. NEVER fabricate data. Call get_services / get_masters / get_available_slots first to fetch real data, then answer using ONLY the data returned. If client has not chosen a service yet, ASK them — do not invent one. If no slots are available, say so honestly. Rewrite your response now.',
     })
 
-    llmResponse = await callLLM({
+    llmResponse = await adminLLM({
       system: systemPrompt,
       messages,
       tools: TOOL_REGISTRY,
@@ -358,7 +367,7 @@ export async function runAdministrator(
           content: JSON.stringify(result),
         })
       }
-      llmResponse = await callLLM({ system: systemPrompt, messages, tools: TOOL_REGISTRY, model, temperature })
+      llmResponse = await adminLLM({ system: systemPrompt, messages, tools: TOOL_REGISTRY, model, temperature })
       totalTokens += llmResponse.total_tokens
     }
 

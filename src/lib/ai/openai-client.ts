@@ -14,6 +14,9 @@ export interface LLMCallOptions {
   temperature?: number
   // Force a specific tool call. Pass { type: 'function', function: { name: 'tool_name' } } to override auto.
   toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
+  // Reasoning effort for GPT-5.x / o-series. Lower = faster, fewer hidden reasoning tokens.
+  // Ignored by older (non-reasoning) models. Pass 'low'/'minimal' for latency-sensitive chat.
+  reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
 }
 
 export interface LLMResponse {
@@ -50,9 +53,13 @@ export async function callLLM(opts: LLMCallOptions): Promise<LLMResponse> {
   }
 
   // GPT-5.x / o1 / o3 use max_completion_tokens; they also don't accept custom temperature
-  // (always 1). Older models use max_tokens + adjustable temperature.
+  // (always 1) but support reasoning_effort. Older models use max_tokens + adjustable temperature.
   const params = isModernModel(model)
-    ? { ...baseParams, max_completion_tokens: tokenLimit }
+    ? {
+        ...baseParams,
+        max_completion_tokens: tokenLimit,
+        ...(opts.reasoningEffort ? { reasoning_effort: opts.reasoningEffort } : {}),
+      }
     : { ...baseParams, max_tokens: tokenLimit, temperature: opts.temperature ?? 0.3 }
 
   const response = (await openai.chat.completions.create(params as unknown as Parameters<typeof openai.chat.completions.create>[0])) as OpenAI.Chat.ChatCompletion

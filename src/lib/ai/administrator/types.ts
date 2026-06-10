@@ -56,6 +56,10 @@ export interface TenantAiConfig {
   aiGoals?: AiGoalKey[]
   minCancelHours: number  // настройка для self-service cancel/reschedule
   snapshot: SalonSnapshot  // live данные салона
+  // Runtime LLM settings — читаются здесь же, чтобы не делать повторный запрос к tenant_ai_settings
+  model: string
+  temperature: number
+  maxMessagesDay: number
 }
 
 // ─────────────────────────────────────────────
