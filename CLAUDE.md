@@ -39,6 +39,7 @@ Prod: `https://beauty-saas-vert.vercel.app` · GitHub: `vadik88888-prog/beauty-s
 21. **История для OpenAI:** перед отправкой любая роль кроме `user` и `assistant` приводится к `assistant`. Роль `admin` (ответ сотрудника в чат-панели) никогда не уходит в OpenAI как есть — иначе 400 Invalid messages. Фильтр и ремап живут в `conversation-store.ts:loadHistoryWithCount`.
 22. **AI-движок — только `lib/ai/administrator/`.** Файлы `lib/ai/runAI.ts`, `lib/ai/tools.ts`, `lib/ai/system-prompt.ts` удалены как мёртвый код. Не воссоздавать; новые компоненты AI добавлять только внутрь `administrator/`.
 23. **Проактивные сообщения (напоминание, опрос после визита, возврат клиентов через `trigger-client-message`) сейчас НЕ пишутся в таблицу `messages` — AI их не видит.** При работе над памятью клиента или персонализацией нужно дублировать их в `messages` с ролью `assistant` и добавлять это значение в whitelist-фильтр `conversation-store.ts`.
+24. **Загрузка диалога по `conversationId` на сервере обязана проверять `client_id + tenant_id`.** Клиентским данным (localStorage, тело запроса) нельзя доверять проверку владельца — если диалог не принадлежит текущему клиенту, сервер игнорирует UUID и создаёт/находит правильный диалог. Эталон — `ConversationStore.load()` и маршрут `/api/ai/chat/history`.
 
 ---
 
