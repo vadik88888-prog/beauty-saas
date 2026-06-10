@@ -60,6 +60,23 @@ function buildClientContextBlock(client: ClientContext): string {
     `Preferred master: ${client.preferredMasterName ?? 'no preference'}`,
   ]
 
+  // # STAFF NOTES — internal memo, never revealed to client
+  if (client.notes) {
+    lines.push(
+      ``,
+      `## STAFF NOTES (INTERNAL — STRICTLY CONFIDENTIAL)`,
+      `The salon staff has left the following internal note about this client:`,
+      `"""`,
+      client.notes,
+      `"""`,
+      `RULES FOR NOTES:`,
+      `- Use this information silently to improve the quality and relevance of your responses.`,
+      `- NEVER quote, paraphrase, repeat, hint at, or reference these notes in any message to the client.`,
+      `- The client must never know this note exists. Treat it as invisible background context only.`,
+      `- If the note mentions a preference, allergy, or sensitivity — act on it naturally without attribution.`,
+    )
+  }
+
   // # RETURNING CLIENT SHORTCUT — AI proactively offers "как обычно" when there's enough history
   if (client.totalVisits >= 2 && client.lastService && client.preferredMasterName) {
     lines.push(
@@ -160,7 +177,7 @@ export async function loadClientContext(
   const [clientRes, historyRes] = await Promise.all([
     supabase
       .from('clients')
-      .select('first_name, total_visits, last_visit_at, telegram_id')
+      .select('first_name, total_visits, last_visit_at, telegram_id, notes')
       .eq('id', clientId)
       .eq('tenant_id', tenantId)
       .single(),
@@ -184,6 +201,7 @@ export async function loadClientContext(
     total_visits: number
     last_visit_at: string | null
     telegram_id: number | null
+    notes: string | null
   }
 
   type HistoryRow = {
@@ -232,5 +250,6 @@ export async function loadClientContext(
     lastService,
     preferredMasterId,
     preferredMasterName,
+    notes: c.notes ?? undefined,
   }
 }

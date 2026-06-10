@@ -141,6 +141,7 @@ export interface ClientContext {
   lastService?: string
   totalVisits: number
   isReturning: boolean
+  notes?: string
 }
 
 // ─────────────────────────────────────────────
