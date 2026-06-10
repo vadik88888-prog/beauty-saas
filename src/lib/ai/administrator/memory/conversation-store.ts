@@ -94,12 +94,20 @@ export class ConversationStore {
       }
     }
 
-    // Load existing conversation by ID
+    // Load existing conversation by ID — verify it belongs to this client.
+    // Mirrors the ownership check in /api/ai/chat/history. If mismatch (e.g.
+    // stale localStorage key from another user), fall back to find-or-create.
     const { data: conv } = await this.supabase
       .from('conversations')
       .select('booking_flow_state, conversation_state, summary, summary_up_to_count')
       .eq('id', convId)
+      .eq('client_id', clientId)
+      .eq('tenant_id', tenantId)
       .single()
+
+    if (!conv) {
+      return this.load(tenantId, clientId, telegramId, undefined)
+    }
 
     const row = conv as {
       booking_flow_state: BookingFlowState | null

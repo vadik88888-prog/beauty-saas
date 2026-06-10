@@ -32,6 +32,14 @@ import { MessageReveal } from '@/components/shared/microinteractions/MessageReve
 import type { AttachmentInput } from '@/lib/ai/administrator/types'
 import { waitForTmaToken, getTenantSlug } from '@/lib/tma-token'
 
+function getClientId(): string {
+  try {
+    const raw = sessionStorage.getItem('tma_client')
+    if (raw) return (JSON.parse(raw) as { id: string }).id ?? ''
+  } catch { /* ignore */ }
+  return ''
+}
+
 interface KnowledgeSource {
   title: string
   relevance_pct: number
@@ -109,12 +117,14 @@ export default function ChatPage() {
 
 
   useEffect(() => {
-    const savedId = localStorage.getItem(`chat_conversation_id:${getTenantSlug()}`)
-    if (!savedId) return
     let cancelled = false
 
     waitForTmaToken().then(token => {
       if (cancelled || !token) return
+      // Read savedId only after auth completes — clientId is guaranteed in sessionStorage by then.
+      const clientId = getClientId()
+      const savedId = localStorage.getItem(`chat_conversation_id:${getTenantSlug()}:${clientId}`)
+      if (!savedId) return
       fetch(`/api/ai/chat/history?id=${savedId}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -170,7 +180,13 @@ export default function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const messageQueueRef = useRef<string[]>([])
   const conversationIdRef = useRef<string | undefined>(
-    typeof window !== 'undefined' ? localStorage.getItem(`chat_conversation_id:${getTenantSlug()}`) ?? undefined : undefined
+    // At render time sessionStorage may be empty (browser reopened).
+    // If clientId is unknown, leave ref undefined — history effect and server
+    // will resolve the right conversation after auth completes.
+    typeof window !== 'undefined' ? (() => {
+      const cid = getClientId()
+      return cid ? (localStorage.getItem(`chat_conversation_id:${getTenantSlug()}:${cid}`) ?? undefined) : undefined
+    })() : undefined
   )
 
   useEffect(() => {
@@ -411,7 +427,7 @@ export default function ChatPage() {
 
       if (data.conversationId) {
         conversationIdRef.current = data.conversationId
-        localStorage.setItem(`chat_conversation_id:${getTenantSlug()}`, data.conversationId)
+        localStorage.setItem(`chat_conversation_id:${getTenantSlug()}:${getClientId()}`, data.conversationId)
       }
 
       setMessages(prev => prev.concat({

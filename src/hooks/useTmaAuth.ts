@@ -82,9 +82,15 @@ export function useTmaAuth(): TmaAuthState {
     const urlSlug = getUrlSlug()
     const storedSlug = sessionStorage.getItem('tenant_slug')
     if (urlSlug && storedSlug && urlSlug !== storedSlug) {
+      // Read old clientId before wiping sessionStorage — needed for the scoped localStorage key.
+      let oldClientId = ''
+      try {
+        const raw = sessionStorage.getItem('tma_client')
+        if (raw) oldClientId = (JSON.parse(raw) as { id: string }).id ?? ''
+      } catch { /* ignore */ }
       sessionStorage.removeItem('tma_token')
       sessionStorage.removeItem('tma_client')
-      localStorage.removeItem(`chat_conversation_id:${storedSlug}`)
+      localStorage.removeItem(`chat_conversation_id:${storedSlug}:${oldClientId}`)
       sessionStorage.setItem('tenant_slug', urlSlug)
     }
 
