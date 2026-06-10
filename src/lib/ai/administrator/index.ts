@@ -10,6 +10,7 @@ import { HallucinationGuard } from './validators/hallucination-guard'
 import { TOOL_REGISTRY, executeTool } from './tools'
 import { buildLlmSuggestedActions } from './llm-suggested-actions'
 import { describeToolForUser, updateLiveStatus } from './live-status'
+import { classifyShadow } from './router-shadow'
 
 // Burst rate limit: max сообщений от одного клиента за окно (защита от spam, который
 // съест OpenAI бюджет). Per-day лимит остаётся отдельно через max_messages_day.
@@ -121,6 +122,17 @@ export async function runAdministrator(
   conversationId = convData.conversationId
 
   const { history, bookingState, conversationState: currentState, summary, summaryUpToCount, totalMessageCount } = convData
+
+  // 3b. SHADOW ROUTER — фоновая классификация маршрута (docs/ROUTER_SHADOW_PLAN.md).
+  // Fire-and-forget: ответ клиенту не ждёт, результат пишется только в router_shadow_log.
+  void classifyShadow({
+    tenantId,
+    conversationId,
+    clientId,
+    message,
+    history,
+    hadActiveScenario: !['IDLE', 'BOOKING_CREATED', 'HUMAN_HANDOFF'].includes(bookingState.state),
+  }).catch(err => console.error('[router-shadow] error:', err))
 
   // 4. Build user message (with vision support if attachments provided)
   const userMessageParam = buildUserMessage(message, attachments)
