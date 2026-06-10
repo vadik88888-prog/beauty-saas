@@ -60,6 +60,14 @@ export async function POST(req: NextRequest) {
   if (existingId) {
     convId = existingId
   } else {
+    // Resolve any lingering active conversations before inserting (defensive: one-active rule).
+    await db
+      .from('conversations')
+      .update({ status: 'resolved' })
+      .eq('client_id', clientId)
+      .eq('tenant_id', ctx.tenantId)
+      .eq('status', 'active')
+
     // Lazily create conversation with telegram_chat_id from client.telegram_id
     const { data: created, error } = await db
       .from('conversations')

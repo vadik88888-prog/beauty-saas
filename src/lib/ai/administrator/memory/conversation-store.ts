@@ -60,6 +60,15 @@ export class ConversationStore {
         }
       }
 
+      // Resolve any lingering active conversations before creating a new one.
+      // Enforces the one-active-per-client rule so the unique index never fires.
+      await this.supabase
+        .from('conversations')
+        .update({ status: 'resolved' })
+        .eq('tenant_id', tenantId)
+        .eq('client_id', clientId)
+        .eq('status', 'active')
+
       // Create new conversation
       const { data: newConv } = await this.supabase
         .from('conversations')
