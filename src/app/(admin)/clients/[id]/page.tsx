@@ -10,6 +10,7 @@ import { formatDate, formatDateLong } from '@/lib/utils/date'
 import { formatPrice } from '@/lib/utils/format'
 import { ContactButton } from './_components/ContactButton'
 import { ClientOffersBlock } from './_components/ClientOffersBlock'
+import { ClientNotesBlock } from './_components/ClientNotesBlock'
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
@@ -44,6 +45,7 @@ type ClientData = {
   created_at: string
   is_blocked: boolean
   tags: string[] | null
+  notes: string | null
   birth_date?: string | null
 }
 
@@ -137,7 +139,7 @@ export default async function ClientProfilePage({
 
   const [clientRes, visitsRes, convRes] = await Promise.all([
     db.from('clients')
-      .select('id, first_name, last_name, phone, telegram_username, telegram_id, total_visits, total_spent, last_visit_at, created_at, is_blocked, tags, birth_date')
+      .select('id, first_name, last_name, phone, telegram_username, telegram_id, total_visits, total_spent, last_visit_at, created_at, is_blocked, tags, notes, birth_date')
       .eq('id', id)
       .eq('tenant_id', tenantId)
       .single(),
@@ -366,6 +368,10 @@ export default async function ClientProfilePage({
                   ))}
                 </div>
               )}
+
+              <div style={{ marginTop: 10 }}>
+                <ClientNotesBlock clientId={client.id} initialNotes={client.notes} />
+              </div>
             </div>
 
             {/* SERA rhythm block — single SeraOrb on this page (economy rule) */}
