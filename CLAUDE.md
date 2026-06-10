@@ -36,6 +36,9 @@ Prod: `https://beauty-saas-vert.vercel.app` · GitHub: `vadik88888-prog/beauty-s
 18. **Удаление услуги с историей запрещено:** `appointments.service_id` — FK без `ON DELETE`, удаление физически блокируется базой. Если у услуги есть записи → только `is_active = false` (деактивация). Проверка через `GET /api/admin/services/[id]` → `canDelete`.
 19. **Числовые поля форм:** без стрелок-спиннеров (CSS `.no-spinner`), без мешающего нуля — новая запись открывается с пустым полем и placeholder. `inputMode="decimal"` / `"numeric"` для цифровой клавиатуры на телефоне. Обязательные поля (цена, длительность) валидируются до отправки в API — при пустом/некорректном значении показывать `formError`, не пускать запрос.
 20. **Тумблеры услуги различны:** `is_active` — услуга существует и учитывается в метриках; `show_in_storefront` — видна клиентам в публичной витрине. Услуга может быть `is_active=true` и `show_in_storefront=false` одновременно. При деактивации через «удаление с историей» — только `is_active=false`, `show_in_storefront` не трогать.
+21. **История для OpenAI:** перед отправкой любая роль кроме `user` и `assistant` приводится к `assistant`. Роль `admin` (ответ сотрудника в чат-панели) никогда не уходит в OpenAI как есть — иначе 400 Invalid messages. Фильтр и ремап живут в `conversation-store.ts:loadHistoryWithCount`.
+22. **AI-движок — только `lib/ai/administrator/`.** Файлы `lib/ai/runAI.ts`, `lib/ai/tools.ts`, `lib/ai/system-prompt.ts` удалены как мёртвый код. Не воссоздавать; новые компоненты AI добавлять только внутрь `administrator/`.
+23. **Проактивные сообщения (напоминание, опрос после визита, возврат клиентов через `trigger-client-message`) сейчас НЕ пишутся в таблицу `messages` — AI их не видит.** При работе над памятью клиента или персонализацией нужно дублировать их в `messages` с ролью `assistant` и добавлять это значение в whitelist-фильтр `conversation-store.ts`.
 
 ---
 
