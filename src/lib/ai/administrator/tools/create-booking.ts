@@ -24,11 +24,13 @@ export const createBookingTool: AiTool = {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-function normalizeName(s: string): string {
+// Экспортированы для переиспользования теневой анкетой (booking-form-shadow.ts).
+// Логика резолва не менялась: первое совпадение остаётся первым.
+export function normalizeName(s: string): string {
   return s.toLowerCase().replace(/[^a-zа-яё0-9]/gi, '').trim()
 }
 
-async function resolveServiceId(supabase: ReturnType<typeof createAdminClient>, raw: string, tenantId: string): Promise<string | null> {
+export async function resolveServiceId(supabase: ReturnType<typeof createAdminClient>, raw: string, tenantId: string): Promise<string | null> {
   if (UUID_RE.test(raw)) {
     const { data } = await supabase.from('services').select('id').eq('id', raw).eq('tenant_id', tenantId).maybeSingle()
     if (data) return (data as { id: string }).id
@@ -41,7 +43,7 @@ async function resolveServiceId(supabase: ReturnType<typeof createAdminClient>, 
   return partial?.id ?? null
 }
 
-async function resolveMasterId(supabase: ReturnType<typeof createAdminClient>, raw: string, tenantId: string): Promise<string | null> {
+export async function resolveMasterId(supabase: ReturnType<typeof createAdminClient>, raw: string, tenantId: string): Promise<string | null> {
   if (UUID_RE.test(raw)) {
     const { data } = await supabase.from('masters').select('id').eq('id', raw).eq('tenant_id', tenantId).maybeSingle()
     if (data) return (data as { id: string }).id

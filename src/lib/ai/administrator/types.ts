@@ -101,6 +101,29 @@ export type StateEvent =
 // Booking flow state (persisted to DB)
 // ─────────────────────────────────────────────
 
+// Slice 3a: теневая анкета записи. Заполняется booking-form-shadow.ts параллельно
+// основному циклу, на живой диалог/запись не влияет — чистая наблюдаемость.
+// FACT — сущность названа клиентом в тексте текущего сообщения;
+// ASSUMPTION — в тексте нет (подтянута из истории/профиля клиента).
+export type ShadowFieldSource = 'FACT' | 'ASSUMPTION'
+export type ShadowResolverStatus = 'SINGLE_MATCH' | 'MULTIPLE_MATCH' | 'NO_MATCH'
+
+export interface ShadowFormEntry {
+  id?: string                    // resolved UUID (service/master) — храним ID, не текст
+  value?: string                 // date YYYY-MM-DD / slot HH:MM
+  source: ShadowFieldSource
+  resolverStatus?: ShadowResolverStatus
+  candidateCount?: number
+}
+
+export interface ShadowBookingForm {
+  service?: ShadowFormEntry
+  master?: ShadowFormEntry
+  date?: ShadowFormEntry
+  slot?: ShadowFormEntry
+  updatedAt: string
+}
+
 export interface BookingFlowState {
   state: ConversationState
   serviceId?: string
@@ -116,6 +139,8 @@ export interface BookingFlowState {
   toolFailureCount: number
   frustrationCount: number
   lastBookingId?: string
+  // Slice 3a: отдельный ключ теневой анкеты — существующие поля не задеты
+  shadowForm?: ShadowBookingForm
 }
 
 export const DEFAULT_BOOKING_STATE: BookingFlowState = {

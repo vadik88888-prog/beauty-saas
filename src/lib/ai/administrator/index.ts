@@ -11,6 +11,7 @@ import { TOOL_REGISTRY, executeTool } from './tools'
 import { buildLlmSuggestedActions } from './llm-suggested-actions'
 import { describeToolForUser, updateLiveStatus } from './live-status'
 import { classifyShadow } from './router-shadow'
+import { buildShadowForm } from './booking-form-shadow'
 
 // Burst rate limit: max сообщений от одного клиента за окно (защита от spam, который
 // съест OpenAI бюджет). Per-day лимит остаётся отдельно через max_messages_day.
@@ -133,6 +134,22 @@ export async function runAdministrator(
     history,
     hadActiveScenario: !['IDLE', 'BOOKING_CREATED', 'HUMAN_HANDOFF'].includes(bookingState.state),
   }).catch(err => console.error('[router-shadow] error:', err))
+
+  // 3c. SHADOW BOOKING FORM (slice 3a) — параллельный сбор структурной анкеты записи.
+  // Стартует здесь и крутится одновременно с основным циклом; результат подмешивается
+  // в booking_flow_state на шаге 12b перед save (прямая запись в БД отсюда невозможна —
+  // основной save пишет JSONB целиком и затёр бы её). На ответ клиенту не влияет.
+  const shadowFormPromise = buildShadowForm({
+    tenantId,
+    message,
+    history,
+    client: clientContext,
+    timezone: tenantConfig.timezone,
+    prevForm: bookingState.shadowForm,
+  }).catch(err => {
+    console.error('[booking-form-shadow] error:', err)
+    return null
+  })
 
   // 4. Build user message (with vision support if attachments provided)
   const userMessageParam = buildUserMessage(message, attachments)
@@ -439,6 +456,22 @@ export async function runAdministrator(
     isHandedOff: actionType === 'handoff' || nextState === 'HUMAN_HANDOFF',
     bookingJustCreated: actionType === 'booking_created',
   })
+
+  // 12b. Теневая анкета: забираем результат экстрактора, запущенного на шаге 3c.
+  // К этому моменту он давно готов (основной цикл многократно дольше), но на случай
+  // зависшего вызова — таймаут 5с, чтобы не задерживать ответ клиенту. null (ошибка/
+  // таймаут/ничего нового) → остаётся прежняя форма из spread bookingState.
+  // В ветке booking_created форма сбрасывается вместе с остальным состоянием (техдолг 3b).
+  if (actionType !== 'booking_created') {
+    const shadowForm = await Promise.race([
+      shadowFormPromise,
+      new Promise<null>(resolve => {
+        const t = setTimeout(() => resolve(null), 5000)
+        t.unref?.()
+      }),
+    ])
+    if (shadowForm) nextBookingState.shadowForm = shadowForm
+  }
 
   const nextStatus = actionType === 'handoff' ? 'handed_off' : 'active'
   const messageMetadata: { knowledgeSources?: typeof knowledgeSources; suggestedActions?: typeof suggestedActions } = {}
