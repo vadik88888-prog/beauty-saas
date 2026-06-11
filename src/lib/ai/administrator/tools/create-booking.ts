@@ -52,7 +52,7 @@ export async function resolveMasterId(supabase: ReturnType<typeof createAdminCli
   return data ? (data as { id: string }).id : null
 }
 
-type PromoRow = {
+export type PromoRow = {
   id: string
   title: string | null
   discount_type: 'percent' | 'fixed' | null
@@ -62,7 +62,8 @@ type PromoRow = {
 }
 
 // Returns active promo if raw is UUID OR matches title fuzzy. Active = is_active AND within date range.
-async function resolveActivePromo(
+// Экспортирована для shadow comparison (booking-form-shadow.ts) — логика не менялась.
+export async function resolveActivePromo(
   supabase: ReturnType<typeof createAdminClient>,
   raw: string,
   tenantId: string

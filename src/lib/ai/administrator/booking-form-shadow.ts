@@ -1,6 +1,7 @@
 import OpenAI from 'openai'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { resolveServiceId, resolveMasterId, normalizeName } from './tools/create-booking'
+import { resolveServiceId, resolveMasterId, normalizeName, resolveActivePromo } from './tools/create-booking'
+import { resolveOfferPrice } from '@/lib/booking/price-calculator'
 import type {
   LLMMessage,
   ClientContext,
@@ -10,13 +11,11 @@ import type {
   ShadowResolverStatus,
 } from './types'
 
-// ТЕНЕВАЯ АНКЕТА ЗАПИСИ (slice 3a).
+// ТЕНЕВАЯ АНКЕТА ЗАПИСИ (slice 3a) + SHADOW COMPARISON (slice 3b-1).
 // Параллельно основному циклу извлекает из ТЕКУЩЕГО сообщения клиента сущности
 // записи (услуга / мастер / дата / слот), резолвит услугу и мастера через
-// СУЩЕСТВУЮЩИЕ резолверы из create-booking.ts (первое совпадение остаётся
-// первым) и копит структурный бланк в booking_flow_state.shadowForm.
-// На ответ клиенту НЕ влияет: стартует одновременно с classifyShadow,
-// результат подмешивается в сохраняемое состояние перед store.save.
+// СУЩЕСТВУЮЩИЕ резолверы из create-booking.ts и копит структурный бланк в
+// booking_flow_state.shadowForm. На ответ клиенту НЕ влияет.
 // Любая ошибка — console.error, наружу возвращается null (ход пропускается).
 
 const EXTRACTOR_MODEL = 'gpt-4o-mini'
@@ -138,6 +137,19 @@ function statusFromCount(resolvedId: string | null, candidateCount: number): Sha
   return candidateCount > 1 ? 'MULTIPLE_MATCH' : 'SINGLE_MATCH'
 }
 
+// Merge двух записей анкеты: FACT не понижается до ASSUMPTION.
+// FACT + ASSUMPTION → оставляем старый FACT.
+// ASSUMPTION + FACT / FACT + FACT / ASSUMPTION + ASSUMPTION → берём новый (свежее).
+function mergeEntry(
+  prev: ShadowFormEntry | undefined,
+  next: ShadowFormEntry | undefined
+): ShadowFormEntry | undefined {
+  if (!next) return prev
+  if (!prev) return next
+  if (prev.source === 'FACT' && next.source === 'ASSUMPTION') return prev
+  return next
+}
+
 async function extractEntities(
   message: string,
   history: LLMMessage[],
@@ -228,15 +240,155 @@ export async function buildShadowForm(opts: {
       patch.slot = { value: slotRaw, source: computeSource(extracted.slot!, message) }
     }
 
-    if (Object.keys(patch).length === 0) return null
+    // Если экстрактор ничего нового не нашёл в этом сообщении — вернём prevForm (бланк не сбрасываем)
+    if (Object.keys(patch).length === 0) return prevForm ?? null
 
+    // Merge: FACT-поле не понижается до ASSUMPTION при слиянии ходов
     return {
-      ...prevForm,
-      ...patch,
+      service: mergeEntry(prevForm?.service, patch.service),
+      master: mergeEntry(prevForm?.master, patch.master),
+      date: mergeEntry(prevForm?.date, patch.date),
+      slot: mergeEntry(prevForm?.slot, patch.slot),
       updatedAt: new Date().toISOString(),
     }
   } catch (err) {
     console.error('[booking-form-shadow] extraction failed:', err)
     return null
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SHADOW COMPARISON (slice 3b-1)
+// Вычисляет, готов ли теневой движок к записи и какую цену он бы дал.
+// Сравнивает с тем, что реально записал старый путь. Только логирование.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Конвертирует дату + слот в таймзоне салона в ISO UTC.
+// Алгоритм: берём "наивный UTC", форматируем его в целевой tz, вычисляем смещение.
+function localToUtc(dateStr: string, slot: string, tz: string): string {
+  const assumedUtc = new Date(`${dateStr}T${slot}:00Z`)
+  const localInTz = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: tz,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).format(assumedUtc)
+  const reinterpreted = new Date(localInTz.replace(' ', 'T') + 'Z')
+  const offsetMs = reinterpreted.getTime() - assumedUtc.getTime()
+  return new Date(assumedUtc.getTime() - offsetMs).toISOString()
+}
+
+type OldBookingInfo = {
+  appointmentId: string
+  serviceName: string
+  startsAt: string
+}
+
+// Публичный вход. Fire-and-forget безопасен — все ошибки ловятся внутри.
+export async function runBookingComparison(opts: {
+  shadowForm: ShadowBookingForm | null
+  oldBooking: OldBookingInfo | null  // null = booking_created не случился в этом ходе
+  tenantId: string
+  clientId: string
+  timezone: string
+}): Promise<void> {
+  const { shadowForm, oldBooking, tenantId, clientId, timezone } = opts
+
+  try {
+    const sf = shadowForm
+    const serviceId = sf?.service?.id
+    const masterId  = sf?.master?.id
+    const dateVal   = sf?.date?.value
+    const slotVal   = sf?.slot?.value
+    const ready     = !!(serviceId && masterId && dateVal && slotVal)
+
+    if (!ready) {
+      // Анкета неполная — логируем что именно отсутствует
+      const missing = [
+        !serviceId && 'service',
+        !masterId  && 'master',
+        !dateVal   && 'date',
+        !slotVal   && 'slot',
+      ].filter(Boolean).join(',')
+      console.log(`[booking-compare] NEW not_ready missing=${missing}`)
+      if (oldBooking) {
+        console.log(`[booking-compare] OLD booked: service="${oldBooking.serviceName}" starts_at=${oldBooking.startsAt}`)
+        console.log(`[booking-compare] DIVERGENCE: OLD booked but NEW was not ready (missing=${missing})`)
+      }
+      return
+    }
+
+    // Вычисляем starts_at нового движка
+    const newStartsAt = localToUtc(dateVal!, slotVal!, timezone)
+
+    // Запрашиваем базовую цену услуги и имя из shadow-анкеты
+    const supabase = createAdminClient()
+    const [svcRes, apptRes] = await Promise.all([
+      supabase.from('services').select('name, price').eq('id', serviceId).eq('tenant_id', tenantId).maybeSingle(),
+      oldBooking
+        ? supabase.from('appointments').select('price').eq('id', oldBooking.appointmentId).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ])
+
+    const svc = svcRes.data as { name: string; price: number | null } | null
+    const basePrice = svc?.price ?? null
+    const shadowSvcName = svc?.name ?? serviceId
+    const oldPrice = (apptRes.data as { price: number | null } | null)?.price ?? null
+
+    // Цена нового движка: персональный оффер (промо не трекается в анкете — пропуск)
+    const offerResult = await resolveOfferPrice({ tenantId, clientId, serviceId: serviceId!, basePrice })
+
+    // Ищем единственную активную акцию (без привязки к конкретному promo_id из анкеты)
+    const promo = await resolveActivePromo(supabase, '', tenantId)
+    let promoDiscount = 0
+    if (promo && promo.discount_value && promo.discount_value > 0 && basePrice && basePrice > 0) {
+      promoDiscount = promo.discount_type === 'percent'
+        ? Math.round(basePrice * promo.discount_value / 100 * 100) / 100
+        : Math.min(promo.discount_value, basePrice)
+    }
+
+    const offerDiscount = offerResult.discountAmount ?? 0
+    const bestDiscount  = Math.max(promoDiscount, offerDiscount)
+    const newPrice      = basePrice !== null ? Math.max(0, basePrice - bestDiscount) : null
+
+    // ── Строим лог-строки
+    const newLine = [
+      `NEW ready=true`,
+      `service="${shadowSvcName}"`,
+      `starts_at=${newStartsAt}`,
+      `price=${newPrice ?? 'null'}`,
+      bestDiscount > 0 ? `discount=-${bestDiscount}` : null,
+      `(service_src=${sf?.service?.source} date_src=${sf?.date?.source} slot_src=${sf?.slot?.source})`,
+    ].filter(Boolean).join(' ')
+
+    if (oldBooking) {
+      const oldLine = [
+        `OLD booked:`,
+        `service="${oldBooking.serviceName}"`,
+        `starts_at=${oldBooking.startsAt}`,
+        `price=${oldPrice ?? 'unknown'}`,
+      ].join(' ')
+
+      const svcMatch    = oldBooking.serviceName === shadowSvcName
+      const slotMatch   = oldBooking.startsAt    === newStartsAt
+      const priceMatch  = oldPrice !== null && newPrice !== null && Math.abs(oldPrice - newPrice) < 0.01
+
+      const divergences: string[] = []
+      if (!svcMatch)   divergences.push(`service old="${oldBooking.serviceName}" new="${shadowSvcName}"`)
+      if (!slotMatch)  divergences.push(`slot old=${oldBooking.startsAt} new=${newStartsAt}`)
+      if (!priceMatch && oldPrice !== null && newPrice !== null)
+        divergences.push(`price old=${oldPrice} new=${newPrice} delta=${Math.abs(oldPrice - newPrice).toFixed(2)}`)
+
+      console.log(`[booking-compare] ${oldLine} | ${newLine}`)
+      if (divergences.length > 0) {
+        console.log(`[booking-compare] DIVERGENCE: ${divergences.join(' | ')}`)
+      } else {
+        console.log(`[booking-compare] MATCH: service/slot/price agree`)
+      }
+    } else {
+      // Ход без записи — просто фиксируем состояние теневого движка
+      console.log(`[booking-compare] no_booking_this_turn | ${newLine}`)
+    }
+  } catch (err) {
+    console.error('[booking-compare] computation failed:', err)
   }
 }

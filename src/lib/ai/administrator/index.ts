@@ -11,7 +11,7 @@ import { TOOL_REGISTRY, executeTool } from './tools'
 import { buildLlmSuggestedActions } from './llm-suggested-actions'
 import { describeToolForUser, updateLiveStatus } from './live-status'
 import { classifyShadow } from './router-shadow'
-import { buildShadowForm } from './booking-form-shadow'
+import { buildShadowForm, runBookingComparison } from './booking-form-shadow'
 
 // Burst rate limit: max сообщений от одного клиента за окно (защита от spam, который
 // съест OpenAI бюджет). Per-day лимит остаётся отдельно через max_messages_day.
@@ -459,19 +459,32 @@ export async function runAdministrator(
 
   // 12b. Теневая анкета: забираем результат экстрактора, запущенного на шаге 3c.
   // К этому моменту он давно готов (основной цикл многократно дольше), но на случай
-  // зависшего вызова — таймаут 5с, чтобы не задерживать ответ клиенту. null (ошибка/
-  // таймаут/ничего нового) → остаётся прежняя форма из spread bookingState.
-  // В ветке booking_created форма сбрасывается вместе с остальным состоянием (техдолг 3b).
-  if (actionType !== 'booking_created') {
-    const shadowForm = await Promise.race([
-      shadowFormPromise,
-      new Promise<null>(resolve => {
-        const t = setTimeout(() => resolve(null), 5000)
-        t.unref?.()
-      }),
-    ])
-    if (shadowForm) nextBookingState.shadowForm = shadowForm
+  // зависшего вызова — таймаут 5с. Ждём ВСЕГДА (нужен для сравнения 12c).
+  // В ветке booking_created в state не пишем — форма сбрасывается с остальным.
+  const shadowForm = await Promise.race([
+    shadowFormPromise,
+    new Promise<null>(resolve => {
+      const t = setTimeout(() => resolve(null), 5000)
+      t.unref?.()
+    }),
+  ])
+  if (actionType !== 'booking_created' && shadowForm) {
+    nextBookingState.shadowForm = shadowForm
   }
+
+  // 12c. Shadow comparison — pure observability, fire-and-forget (не блокирует ответ).
+  // Логирует [booking-compare]: что решил бы новый движок vs что реально записал старый.
+  void runBookingComparison({
+    shadowForm: shadowForm ?? bookingState.shadowForm ?? null,
+    oldBooking: actionType === 'booking_created' ? {
+      appointmentId: actionData?.appointment_id as string,
+      serviceName:   actionData?.service_name   as string,
+      startsAt:      actionData?.starts_at       as string,
+    } : null,
+    tenantId,
+    clientId,
+    timezone: tenantConfig.timezone,
+  }).catch(err => console.error('[booking-compare] unhandled:', err))
 
   const nextStatus = actionType === 'handoff' ? 'handed_off' : 'active'
   const messageMetadata: { knowledgeSources?: typeof knowledgeSources; suggestedActions?: typeof suggestedActions } = {}
