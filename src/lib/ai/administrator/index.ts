@@ -237,7 +237,7 @@ export async function runAdministrator(
       for (const tc of llmResponse.tool_calls) {
         const tcFn = tc as { id: string; function: { name: string; arguments: string } }
         const args = JSON.parse(tcFn.function.arguments) as Record<string, unknown>
-        const result = await executeTool(tcFn.function.name, args, { tenantId, clientId, conversationId })
+        const result = await executeTool(tcFn.function.name, args, { tenantId, clientId, conversationId, bookingEngine: tenantConfig.bookingEngine })
         toolResults.push(result)
         hallucinationGuard.ingest([result])
         messages.push({ role: 'tool', tool_call_id: tcFn.id, content: JSON.stringify(result) })
@@ -259,7 +259,7 @@ export async function runAdministrator(
       const args = JSON.parse(tcFn.function.arguments) as Record<string, unknown>
       // Multi-step thinking visible: пишем live_status ДО запуска tool (клиент видит фразу при polling)
       updateLiveStatus(supabase, conversationId, describeToolForUser(tcFn.function.name, args))
-      const result = await executeTool(tcFn.function.name, args, { tenantId, clientId, conversationId })
+      const result = await executeTool(tcFn.function.name, args, { tenantId, clientId, conversationId, bookingEngine: tenantConfig.bookingEngine })
       toolResults.push(result)
       hallucinationGuard.ingest([result])
 
@@ -386,7 +386,7 @@ export async function runAdministrator(
         const tcFn = tc as { id: string; function: { name: string; arguments: string } }
         const args = JSON.parse(tcFn.function.arguments) as Record<string, unknown>
         updateLiveStatus(supabase, conversationId, describeToolForUser(tcFn.function.name, args))
-        const result = await executeTool(tcFn.function.name, args, { tenantId, clientId, conversationId })
+        const result = await executeTool(tcFn.function.name, args, { tenantId, clientId, conversationId, bookingEngine: tenantConfig.bookingEngine })
         toolResults.push(result)
         hallucinationGuard.ingest([result])
         if (tcFn.function.name === 'book_appointment' && result.success) {

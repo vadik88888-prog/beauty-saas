@@ -60,6 +60,7 @@ export interface TenantAiConfig {
   model: string
   temperature: number
   maxMessagesDay: number
+  bookingEngine: string  // 'legacy' | 'new' — рубильник нового движка записи (migration 036)
 }
 
 // ─────────────────────────────────────────────

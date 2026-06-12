@@ -118,7 +118,7 @@ export async function loadTenantConfig(
       .single(),
     supabase
       .from('tenant_ai_settings')
-      .select('admin_name, tone_of_voice, custom_instructions, cancellation_policy, ai_goals, min_cancel_hours, model, temperature, max_messages_day')
+      .select('admin_name, tone_of_voice, custom_instructions, cancellation_policy, ai_goals, min_cancel_hours, model, temperature, max_messages_day, booking_engine')
       .eq('tenant_id', tenantId)
       .single(),
     loadSalonSnapshot(tenantId, supabase),
@@ -143,6 +143,7 @@ export async function loadTenantConfig(
     model: string | null
     temperature: number | null
     max_messages_day: number | null
+    booking_engine: string | null
   } | null
 
   return {
@@ -162,6 +163,7 @@ export async function loadTenantConfig(
     model: settings?.model ?? 'gpt-4o-mini',
     temperature: settings?.temperature ?? 0.7,
     maxMessagesDay: settings?.max_messages_day ?? 100,
+    bookingEngine: settings?.booking_engine ?? 'legacy',
   }
 }
 

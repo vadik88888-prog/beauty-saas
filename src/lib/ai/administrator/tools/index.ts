@@ -4,6 +4,7 @@ import { getServicesTool, executeGetServices } from './get-services'
 import { getMastersTool, executeGetMasters } from './get-masters'
 import { getAvailabilityTool, executeGetAvailability } from './get-availability'
 import { createBookingTool, executeCreateBooking } from './create-booking'
+import { executeBookingWorkflow } from './booking-workflow'
 import { rescheduleBookingTool, executeRescheduleBooking } from './reschedule-booking'
 import { cancelBookingTool, executeCancelBooking } from './cancel-booking'
 import { getClientHistoryTool, executeGetClientHistory } from './get-client-history'
@@ -29,9 +30,9 @@ export const TOOL_REGISTRY: AiTool[] = [
 export async function executeTool(
   name: string,
   args: Record<string, unknown>,
-  context: { tenantId: string; clientId: string; conversationId?: string }
+  context: { tenantId: string; clientId: string; conversationId?: string; bookingEngine?: string }
 ): Promise<ToolResult> {
-  const { tenantId, clientId, conversationId } = context
+  const { tenantId, clientId, conversationId, bookingEngine } = context
 
   switch (name) {
     case 'get_services':
@@ -46,12 +47,13 @@ export async function executeTool(
         tenantId
       )
 
-    case 'book_appointment':
-      return executeCreateBooking(
-        args as { service_id: string; master_id: string; starts_at: string; notes?: string; applied_promo_id?: string },
-        tenantId,
-        clientId
-      )
+    case 'book_appointment': {
+      const bookingArgs = args as { service_id: string; master_id: string; starts_at: string; notes?: string; applied_promo_id?: string }
+      if (bookingEngine === 'new') {
+        return executeBookingWorkflow(bookingArgs, tenantId, clientId)
+      }
+      return executeCreateBooking(bookingArgs, tenantId, clientId)
+    }
 
     case 'reschedule_appointment':
       return executeRescheduleBooking(
