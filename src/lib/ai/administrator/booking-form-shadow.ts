@@ -369,7 +369,7 @@ export async function runBookingComparison(opts: {
       ].join(' ')
 
       const svcMatch    = oldBooking.serviceName === shadowSvcName
-      const slotMatch   = oldBooking.startsAt    === newStartsAt
+      const slotMatch   = new Date(oldBooking.startsAt).getTime() === new Date(newStartsAt).getTime()
       const priceMatch  = oldPrice !== null && newPrice !== null && Math.abs(oldPrice - newPrice) < 0.01
 
       const divergences: string[] = []
