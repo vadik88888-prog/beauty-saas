@@ -474,7 +474,8 @@ export async function runAdministrator(
 
   // 12c. Shadow comparison — pure observability, fire-and-forget (не блокирует ответ).
   // Логирует [booking-compare]: что решил бы новый движок vs что реально записал старый.
-  void runBookingComparison({
+  // waitUntil (если передан из route handler) держит Lambda живой до завершения сравнения.
+  const comparePromise = runBookingComparison({
     shadowForm: shadowForm ?? bookingState.shadowForm ?? null,
     oldBooking: actionType === 'booking_created' ? {
       appointmentId: actionData?.appointment_id as string,
@@ -485,6 +486,11 @@ export async function runAdministrator(
     clientId,
     timezone: tenantConfig.timezone,
   }).catch(err => console.error('[booking-compare] unhandled:', err))
+  if (input.waitUntil) {
+    input.waitUntil(comparePromise)
+  } else {
+    void comparePromise
+  }
 
   const nextStatus = actionType === 'handoff' ? 'handed_off' : 'active'
   const messageMetadata: { knowledgeSources?: typeof knowledgeSources; suggestedActions?: typeof suggestedActions } = {}

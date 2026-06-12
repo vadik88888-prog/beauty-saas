@@ -252,6 +252,8 @@ export interface AdministratorInput {
   conversationId?: string
   telegramId?: number
   attachments?: AttachmentInput[]
+  /** Передай `after` из `next/server`, чтобы Vercel держал Lambda живой до конца фоновой задачи. */
+  waitUntil?: (p: Promise<unknown>) => void
 }
 
 export interface KnowledgeSource {

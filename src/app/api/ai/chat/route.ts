@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { z } from 'zod'
 import { jwtVerify } from 'jose'
 import { runAdministrator } from '@/lib/ai/administrator'
@@ -54,6 +54,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<ApiResponse<A
       conversationId,
       telegramId,
       attachments,
+      waitUntil: after,
     })
 
     return NextResponse.json({
