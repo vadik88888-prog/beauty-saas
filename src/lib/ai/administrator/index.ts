@@ -334,10 +334,10 @@ export async function runAdministrator(
     const effectiveSf = sf ?? bookingState.shadowForm ?? null
     console.log('[booking-workflow] 8.5 check', {
       sf: effectiveSf ? {
-        svc_src: effectiveSf.service?.source, svc_id: !!effectiveSf.service?.id,
-        mst_src: effectiveSf.master?.source,  mst_id: !!effectiveSf.master?.id,
-        dat_src: effectiveSf.date?.source,    dat_val: effectiveSf.date?.value,
-        slt_src: effectiveSf.slot?.source,    slt_val: effectiveSf.slot?.value,
+        svc_src: effectiveSf.service?.source, svc_org: effectiveSf.service?.origin, svc_id: !!effectiveSf.service?.id,
+        mst_src: effectiveSf.master?.source,  mst_org: effectiveSf.master?.origin,  mst_id: !!effectiveSf.master?.id,
+        dat_src: effectiveSf.date?.source,    dat_org: effectiveSf.date?.origin,    dat_val: effectiveSf.date?.value,
+        slt_src: effectiveSf.slot?.source,    slt_org: effectiveSf.slot?.origin,    slt_val: effectiveSf.slot?.value,
       } : null,
       source: sf ? 'current-turn' : (bookingState.shadowForm ? 'prev-form-fallback' : 'null'),
     })

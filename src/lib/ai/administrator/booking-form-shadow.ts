@@ -8,6 +8,7 @@ import type {
   ShadowBookingForm,
   ShadowFormEntry,
   ShadowFieldSource,
+  ShadowFieldOrigin,
   ShadowResolverStatus,
 } from './types'
 
@@ -99,23 +100,24 @@ function buildExtractorInput(
   ].join('\n')
 }
 
-// FACT — поле сущности явно названо клиентом в ТЕКУЩЕМ сообщении.
-// Первичный сигнал: экстрактор вернул непустой quote (точные слова из сообщения).
-// Доверяем экстрактору напрямую: русские падежи (Анна/Анне/Анну) не совпадают
-// с нормализованным value, поэтому старая проверка substring давала ASSUMPTION
-// даже когда мастер был явно назван. quote=null означает «сущность взята из
-// истории/профиля, не из текущего сообщения» — это ASSUMPTION.
-function computeSource(extracted: ExtractedEntity, message: string): ShadowFieldSource {
+// Вычисляет source и origin синхронно:
+//   quote!=null  → source=FACT,       origin=EXPLICIT  (клиент назвал явно)
+//   value в тексте → source=FACT,     origin=EXPLICIT  (запасной сигнал)
+//   иначе        → source=ASSUMPTION, origin=HISTORY   (догадка из истории/профиля)
+// CONFIRMED не выставляется здесь — проставляется отдельным шагом (задача 2c).
+function computeSourceAndOrigin(
+  extracted: ExtractedEntity,
+  message: string
+): { source: ShadowFieldSource; origin: ShadowFieldOrigin } {
   if (extracted.quote !== null && extracted.quote !== undefined && String(extracted.quote).trim() !== '') {
-    return 'FACT'
+    return { source: 'FACT', origin: 'EXPLICIT' }
   }
-  // Запасная проверка: value буквально содержится в нормализованном тексте
   const normMsg = normalizeName(message)
   if (extracted.value && typeof extracted.value === 'string') {
     const norm = normalizeName(extracted.value)
-    if (norm.length > 0 && normMsg.includes(norm)) return 'FACT'
+    if (norm.length > 0 && normMsg.includes(norm)) return { source: 'FACT', origin: 'EXPLICIT' }
   }
-  return 'ASSUMPTION'
+  return { source: 'ASSUMPTION', origin: 'HISTORY' }
 }
 
 // Подсчёт кандидатов теми же правилами матчинга, что у существующих резолверов
@@ -204,11 +206,13 @@ export async function buildShadowForm(opts: {
       ])
       const candidateCount = countServiceCandidates(((listRes.data ?? []) as { name: string }[]), serviceRaw)
       const status = statusFromCount(resolvedId, candidateCount)
-      console.log(`[booking-form-shadow] service resolve: ${status} candidate_count=${candidateCount} selected=first id=${resolvedId ?? 'null'} raw="${serviceRaw}"`)
+      const { source: svcSource, origin: svcOrigin } = computeSourceAndOrigin(extracted.service!, message)
+      console.log(`[booking-form-shadow] service resolve: ${status} source=${svcSource} origin=${svcOrigin} candidate_count=${candidateCount} selected=first id=${resolvedId ?? 'null'} raw="${serviceRaw}"`)
       if (resolvedId) {
         patch.service = {
           id: resolvedId,
-          source: computeSource(extracted.service!, message),
+          source: svcSource,
+          origin: svcOrigin,
           resolverStatus: status,
           candidateCount,
         } satisfies ShadowFormEntry
@@ -224,11 +228,13 @@ export async function buildShadowForm(opts: {
       ])
       const candidateCount = countMasterCandidates(((listRes.data ?? []) as { name: string }[]), masterRaw)
       const status = statusFromCount(resolvedId, candidateCount)
-      console.log(`[booking-form-shadow] master resolve: ${status} candidate_count=${candidateCount} selected=first id=${resolvedId ?? 'null'} raw="${masterRaw}"`)
+      const { source: mstSource, origin: mstOrigin } = computeSourceAndOrigin(extracted.master!, message)
+      console.log(`[booking-form-shadow] master resolve: ${status} source=${mstSource} origin=${mstOrigin} candidate_count=${candidateCount} selected=first id=${resolvedId ?? 'null'} raw="${masterRaw}"`)
       if (resolvedId) {
         patch.master = {
           id: resolvedId,
-          source: computeSource(extracted.master!, message),
+          source: mstSource,
+          origin: mstOrigin,
           resolverStatus: status,
           candidateCount,
         } satisfies ShadowFormEntry
@@ -238,11 +244,13 @@ export async function buildShadowForm(opts: {
     // ── Дата и слот: резолвера нет — храним нормализованное значение
     const dateRaw = extracted.date?.value
     if (dateRaw && typeof dateRaw === 'string' && DATE_RE.test(dateRaw)) {
-      patch.date = { value: dateRaw, source: computeSource(extracted.date!, message) }
+      const { source: datSrc, origin: datOrg } = computeSourceAndOrigin(extracted.date!, message)
+      patch.date = { value: dateRaw, source: datSrc, origin: datOrg }
     }
     const slotRaw = extracted.slot?.value
     if (slotRaw && typeof slotRaw === 'string' && SLOT_RE.test(slotRaw)) {
-      patch.slot = { value: slotRaw, source: computeSource(extracted.slot!, message) }
+      const { source: sltSrc, origin: sltOrg } = computeSourceAndOrigin(extracted.slot!, message)
+      patch.slot = { value: slotRaw, source: sltSrc, origin: sltOrg }
     }
 
     // Если экстрактор ничего нового не нашёл в этом сообщении — вернём prevForm (бланк не сбрасываем)
@@ -376,7 +384,7 @@ export async function runBookingComparison(opts: {
       `starts_at=${newStartsAt}`,
       `price=${newPrice ?? 'null'}`,
       bestDiscount > 0 ? `discount=-${bestDiscount}` : null,
-      `(service_src=${sf?.service?.source} date_src=${sf?.date?.source} slot_src=${sf?.slot?.source})`,
+      `(svc=${sf?.service?.source}/${sf?.service?.origin} dat=${sf?.date?.source}/${sf?.date?.origin} slt=${sf?.slot?.source}/${sf?.slot?.origin})`,
     ].filter(Boolean).join(' ')
 
     if (oldBooking) {

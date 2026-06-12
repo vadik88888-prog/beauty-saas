@@ -107,12 +107,15 @@ export type StateEvent =
 // FACT — сущность названа клиентом в тексте текущего сообщения;
 // ASSUMPTION — в тексте нет (подтянута из истории/профиля клиента).
 export type ShadowFieldSource = 'FACT' | 'ASSUMPTION'
+// EXPLICIT — клиент назвал сам; CONFIRMED — подтвердил предложение системы (проставляется позже); HISTORY — догадка из истории/профиля.
+export type ShadowFieldOrigin = 'EXPLICIT' | 'CONFIRMED' | 'HISTORY'
 export type ShadowResolverStatus = 'SINGLE_MATCH' | 'MULTIPLE_MATCH' | 'NO_MATCH'
 
 export interface ShadowFormEntry {
   id?: string                    // resolved UUID (service/master) — храним ID, не текст
   value?: string                 // date YYYY-MM-DD / slot HH:MM
   source: ShadowFieldSource
+  origin?: ShadowFieldOrigin     // как получен факт: EXPLICIT/CONFIRMED/HISTORY
   resolverStatus?: ShadowResolverStatus
   candidateCount?: number
 }
