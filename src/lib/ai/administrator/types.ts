@@ -145,6 +145,7 @@ export interface BookingFlowState {
   lastBookingId?: string
   // Slice 3a: отдельный ключ теневой анкеты — существующие поля не задеты
   shadowForm?: ShadowBookingForm
+  pendingSlot?: string   // HH:MM — ровно один час, предложенный SERA последним ходом
 }
 
 export const DEFAULT_BOOKING_STATE: BookingFlowState = {

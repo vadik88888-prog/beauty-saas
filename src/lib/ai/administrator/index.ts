@@ -22,6 +22,7 @@ import type {
   AdministratorInput,
   AdministratorResult,
   BookingFlowState,
+  ShadowBookingForm,
   LLMMessage,
   ToolResult,
   AttachmentInput,
@@ -321,28 +322,51 @@ export async function runAdministrator(
     totalTokens += llmResponse.total_tokens
   }
 
-  // 8.5 BOOKING PREVIEW (engine=new, STATE D only).
-  // Если анкета полностью собрана (все 4 поля = FACT) и модель не вызывала tool —
-  // подменяем свободный текст модели на code-generated preview с именами, датой,
-  // временем и ценой из расчёта. Legacy path не затрагивается.
-  // effectiveSf: сначала берём результат текущего хода (с mergeEntry по prevForm),
-  // если он null (ошибка экстрактора) — fallback на накопленное состояние prevForm.
-  // Это гарантирует, что isReadyToBook читает НАКОПЛЕННОЕ состояние, а не только
-  // то, что computeSource вычислил по последнему сообщению.
+  // 8.5 BOOKING PREVIEW + SLOT CONFIRMATION (engine=new, STATE D only).
+  // Расширено: (a) единственный мастер в салоне → FACT без явного называния;
+  // (b) если у SERA был pendingSlot и клиент подтвердил — слот → FACT/CONFIRMED.
+  // resolvedSf / masterAutoFacted / slotConfirmed читаются ниже в step 12b.
+  let resolvedSf: ShadowBookingForm | null = null
+  let masterAutoFacted = false
+  let slotConfirmed = false
+
   if (tenantConfig.bookingEngine === 'new' && !llmResponse.tool_calls?.length) {
     const sf = await shadowFormPromise
     const effectiveSf = sf ?? bookingState.shadowForm ?? null
+    resolvedSf = effectiveSf
+
+    // (a) Единственный мастер салона → всегда FACT (выбора нет, ошибиться некуда)
+    if (resolvedSf && (!resolvedSf.master?.id || resolvedSf.master.source === 'ASSUMPTION')) {
+      const salonMasters = tenantConfig.snapshot.masters
+      if (salonMasters.length === 1) {
+        resolvedSf = { ...resolvedSf, master: { id: salonMasters[0].id, source: 'FACT', origin: 'HISTORY' } }
+        masterAutoFacted = true
+      }
+    }
+
+    // (b) Подтверждение предложенного часа (pendingSlot → FACT/CONFIRMED)
+    const pendingSlot = bookingState.pendingSlot
+    const confirmResult = pendingSlot ? detectConfirmation(message) : 'skip'
+    if (pendingSlot && confirmResult === 'yes' && resolvedSf) {
+      resolvedSf = { ...resolvedSf, slot: { value: pendingSlot, source: 'FACT', origin: 'CONFIRMED' } }
+      slotConfirmed = true
+    }
+
     console.log('[booking-workflow] 8.5 check', {
-      sf: effectiveSf ? {
-        svc_src: effectiveSf.service?.source, svc_org: effectiveSf.service?.origin, svc_id: !!effectiveSf.service?.id,
-        mst_src: effectiveSf.master?.source,  mst_org: effectiveSf.master?.origin,  mst_id: !!effectiveSf.master?.id,
-        dat_src: effectiveSf.date?.source,    dat_org: effectiveSf.date?.origin,    dat_val: effectiveSf.date?.value,
-        slt_src: effectiveSf.slot?.source,    slt_org: effectiveSf.slot?.origin,    slt_val: effectiveSf.slot?.value,
+      sf: resolvedSf ? {
+        svc_src: resolvedSf.service?.source, svc_org: resolvedSf.service?.origin, svc_id: !!resolvedSf.service?.id,
+        mst_src: resolvedSf.master?.source,  mst_org: resolvedSf.master?.origin,  mst_id: !!resolvedSf.master?.id,
+        dat_src: resolvedSf.date?.source,    dat_org: resolvedSf.date?.origin,    dat_val: resolvedSf.date?.value,
+        slt_src: resolvedSf.slot?.source,    slt_org: resolvedSf.slot?.origin,    slt_val: resolvedSf.slot?.value,
       } : null,
       source: sf ? 'current-turn' : (bookingState.shadowForm ? 'prev-form-fallback' : 'null'),
+      masterAutoFacted,
+      slotConfirmed,
+      confirmResult: pendingSlot ? confirmResult : 'no-pending',
     })
-    if (isReadyToBook(effectiveSf)) {
-      previewReply = await buildBookingPreview(effectiveSf, tenantConfig, clientId)
+
+    if (isReadyToBook(resolvedSf)) {
+      previewReply = await buildBookingPreview(resolvedSf, tenantConfig, clientId)
     }
   }
 
@@ -478,6 +502,12 @@ export async function runAdministrator(
       }
     : { ...bookingState, state: nextState }
 
+  // Pending slot: сохраняем ровно один час из ответа SERA; сбрасываем если previewReply
+  // (STATE D уже показан — pending больше не нужен) или не engine=new.
+  if (tenantConfig.bookingEngine === 'new' && actionType !== 'booking_created') {
+    nextBookingState.pendingSlot = previewReply ? undefined : extractSingleTimeSlot(finalReply)
+  }
+
   // 12a. Suggested actions ДО save — чтобы попали в messages.metadata и пережили reload TMA.
   // Раньше считались после save и терялись при перезагрузке чата.
   const suggestedActions = await buildLlmSuggestedActions({
@@ -499,8 +529,21 @@ export async function runAdministrator(
       t.unref?.()
     }),
   ])
-  if (actionType !== 'booking_created' && shadowForm) {
-    nextBookingState.shadowForm = shadowForm
+  // Сливаем апгрейды шага 8.5 (мастер-автофакт, подтверждённый слот) в сохраняемую форму.
+  // Если экстрактор вернул null, за базу берём prevForm из bookingState.
+  const shadowFormToSave = (() => {
+    if (!masterAutoFacted && !slotConfirmed) return shadowForm
+    const base = shadowForm ?? bookingState.shadowForm
+    if (!base) return null
+    return {
+      ...base,
+      ...(masterAutoFacted && resolvedSf?.master ? { master: resolvedSf.master } : {}),
+      ...(slotConfirmed    && resolvedSf?.slot   ? { slot:   resolvedSf.slot   } : {}),
+    }
+  })()
+
+  if (actionType !== 'booking_created' && shadowFormToSave) {
+    nextBookingState.shadowForm = shadowFormToSave
   }
 
   // 12c. Shadow comparison — pure observability, fire-and-forget (не блокирует ответ).
@@ -598,6 +641,56 @@ function detectMedicalQuery(text: string): boolean {
     'можно ли мне при', 'можно ли беремен', 'можно ли кормящ',
   ]
   return triggers.some(t => lower.includes(t))
+}
+
+// Дешёвое определение ответа клиента на предложенный час.
+// Не использует LLM — только ключевые слова.
+//
+// Ожидаемые результаты (проверены трассировкой):
+//   «да»                 → 'yes'
+//   «да, записывай»      → 'yes'
+//   «да вряд ли»         → 'no'    (сомнение = отказ)
+//   «да нет, не сегодня» → 'no'    (отказ побеждает согласие)
+//   «давай попозже»      → 'unclear'
+function detectConfirmation(text: string): 'yes' | 'no' | 'unclear' {
+  const lower = text.toLowerCase().trim().replace(/[!.?,]+$/, '').trim()
+
+  // ── ОТКАЗ проверяется ПЕРВЫМ — если найден, немедленно 'no' ─────────────
+  // «нет» как отдельное слово (\b не работает с кириллицей в JS —
+  // используем пробел/запятую как границы слова).
+  const hasNyet = lower === 'нет'
+    || lower.startsWith('нет ') || lower.startsWith('нет,')
+    || lower.includes(' нет')   || lower.includes(',нет')
+  if (hasNyet) return 'no'
+  // «вряд» / «вряд ли» = сомнение → отказ
+  if (lower.includes('вряд')) return 'no'
+  // Прочие слова отказа с начала строки
+  const NO_START = [
+    'не подходит', 'не хочу', 'передумал', 'передумала',
+    'другой', 'другое', 'другую', 'другая', 'другие',
+    'не тот', 'не та', 'отмена', 'cancel', 'no',
+  ]
+  if (NO_START.some(w => lower === w || lower.startsWith(w + ' ') || lower.startsWith(w + ','))) return 'no'
+
+  // ── СОГЛАСИЕ — только если отрицаний не обнаружено ──────────────────────
+  const YES_EXACT = new Set([
+    'да', 'ок', 'окей', 'хорошо', 'подходит', 'согласна', 'согласен',
+    'записывай', 'верно', 'всё верно', 'все верно', 'всё правильно', 'все правильно',
+    'подойдёт', 'подойдет', 'годится', 'пойдёт', 'пойдет',
+    'супер', 'отлично', 'давай', 'ладно', 'конечно',
+    'yes', 'ok', 'okay',
+  ])
+  if (YES_EXACT.has(lower)) return 'yes'
+  if (['да,', 'да ', 'записывай', 'хорошо,', 'отлично,', 'супер,', 'конечно,', 'ладно,'].some(p => lower.startsWith(p))) return 'yes'
+
+  return 'unclear'
+}
+
+// Извлекает ровно один временной слот HH:MM из текста ответа SERA.
+// Если слотов 0 или 2+ — возвращает undefined (не сохраняем неопределённость).
+function extractSingleTimeSlot(text: string): string | undefined {
+  const matches = text.match(/\b([01]?\d|2[0-3]):[0-5]\d\b/g)
+  return matches?.length === 1 ? matches[0] : undefined
 }
 
 function buildUserMessage(
