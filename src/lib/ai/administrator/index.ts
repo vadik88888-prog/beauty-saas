@@ -325,18 +325,24 @@ export async function runAdministrator(
   // Если анкета полностью собрана (все 4 поля = FACT) и модель не вызывала tool —
   // подменяем свободный текст модели на code-generated preview с именами, датой,
   // временем и ценой из расчёта. Legacy path не затрагивается.
+  // effectiveSf: сначала берём результат текущего хода (с mergeEntry по prevForm),
+  // если он null (ошибка экстрактора) — fallback на накопленное состояние prevForm.
+  // Это гарантирует, что isReadyToBook читает НАКОПЛЕННОЕ состояние, а не только
+  // то, что computeSource вычислил по последнему сообщению.
   if (tenantConfig.bookingEngine === 'new' && !llmResponse.tool_calls?.length) {
     const sf = await shadowFormPromise
+    const effectiveSf = sf ?? bookingState.shadowForm ?? null
     console.log('[booking-workflow] 8.5 check', {
-      sf: sf ? {
-        svc_src: sf.service?.source, svc_id: !!sf.service?.id,
-        mst_src: sf.master?.source,  mst_id: !!sf.master?.id,
-        dat_src: sf.date?.source,    dat_val: sf.date?.value,
-        slt_src: sf.slot?.source,    slt_val: sf.slot?.value,
-      } : null
+      sf: effectiveSf ? {
+        svc_src: effectiveSf.service?.source, svc_id: !!effectiveSf.service?.id,
+        mst_src: effectiveSf.master?.source,  mst_id: !!effectiveSf.master?.id,
+        dat_src: effectiveSf.date?.source,    dat_val: effectiveSf.date?.value,
+        slt_src: effectiveSf.slot?.source,    slt_val: effectiveSf.slot?.value,
+      } : null,
+      source: sf ? 'current-turn' : (bookingState.shadowForm ? 'prev-form-fallback' : 'null'),
     })
-    if (isReadyToBook(sf)) {
-      previewReply = await buildBookingPreview(sf, tenantConfig, clientId)
+    if (isReadyToBook(effectiveSf)) {
+      previewReply = await buildBookingPreview(effectiveSf, tenantConfig, clientId)
     }
   }
 

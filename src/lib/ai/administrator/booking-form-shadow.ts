@@ -99,16 +99,21 @@ function buildExtractorInput(
   ].join('\n')
 }
 
-// FACT — слова сущности реально есть в тексте текущего сообщения (проверяем
-// сами, не доверяя quote модели). Всё остальное — ASSUMPTION (включая «как
-// обычно» из профиля и подтверждение предложения ассистента).
+// FACT — поле сущности явно названо клиентом в ТЕКУЩЕМ сообщении.
+// Первичный сигнал: экстрактор вернул непустой quote (точные слова из сообщения).
+// Доверяем экстрактору напрямую: русские падежи (Анна/Анне/Анну) не совпадают
+// с нормализованным value, поэтому старая проверка substring давала ASSUMPTION
+// даже когда мастер был явно назван. quote=null означает «сущность взята из
+// истории/профиля, не из текущего сообщения» — это ASSUMPTION.
 function computeSource(extracted: ExtractedEntity, message: string): ShadowFieldSource {
+  if (extracted.quote !== null && extracted.quote !== undefined && String(extracted.quote).trim() !== '') {
+    return 'FACT'
+  }
+  // Запасная проверка: value буквально содержится в нормализованном тексте
   const normMsg = normalizeName(message)
-  for (const candidate of [extracted.quote, extracted.value]) {
-    if (candidate && typeof candidate === 'string') {
-      const norm = normalizeName(candidate)
-      if (norm.length > 0 && normMsg.includes(norm)) return 'FACT'
-    }
+  if (extracted.value && typeof extracted.value === 'string') {
+    const norm = normalizeName(extracted.value)
+    if (norm.length > 0 && normMsg.includes(norm)) return 'FACT'
   }
   return 'ASSUMPTION'
 }
@@ -244,13 +249,27 @@ export async function buildShadowForm(opts: {
     if (Object.keys(patch).length === 0) return prevForm ?? null
 
     // Merge: FACT-поле не понижается до ASSUMPTION при слиянии ходов
-    return {
+    const merged: ShadowBookingForm = {
       service: mergeEntry(prevForm?.service, patch.service),
       master: mergeEntry(prevForm?.master, patch.master),
       date: mergeEntry(prevForm?.date, patch.date),
       slot: mergeEntry(prevForm?.slot, patch.slot),
       updatedAt: new Date().toISOString(),
     }
+
+    // Backstop: FACT не понижается (правило 28 CLAUDE.md).
+    // mergeEntry это уже гарантирует, но явный проход страхует от любых
+    // граничных случаев — поле prevForm с source=FACT ВСЕГДА побеждает.
+    if (prevForm) {
+      for (const key of ['service', 'master', 'date', 'slot'] as const) {
+        const p = prevForm[key]
+        if (p?.source === 'FACT' && (!merged[key] || merged[key]!.source !== 'FACT')) {
+          merged[key] = p
+        }
+      }
+    }
+
+    return merged
   } catch (err) {
     console.error('[booking-form-shadow] extraction failed:', err)
     return null
