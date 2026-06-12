@@ -8,6 +8,7 @@ import { ConversationStateMachine } from './orchestrator/state-machine'
 import { ResponseValidator } from './validators/response-validator'
 import { HallucinationGuard } from './validators/hallucination-guard'
 import { TOOL_REGISTRY, executeTool } from './tools'
+import { isReadyToBook, buildBookingPreview } from './tools/booking-workflow'
 import { buildLlmSuggestedActions } from './llm-suggested-actions'
 import { describeToolForUser, updateLiveStatus } from './live-status'
 import { classifyShadow } from './router-shadow'
@@ -194,6 +195,9 @@ export async function runAdministrator(
   // Track which tools have been called across ALL rounds this turn
   // Used to enforce service-selection flow: user must pick before availability is checked
   let getServicesCalledThisTurn = false
+  // Под engine=new: code-generated preview (STATE D) вместо свободного текста модели.
+  // Если заполнен — идёт в finalReply вместо llmResponse.content.
+  let previewReply: string | null = null
 
   // NOTE: forceGetServices removed — AI now has full salon snapshot (services/masters/promos)
   // in system prompt, so it knows everything from the start without forced tool call.
@@ -317,6 +321,17 @@ export async function runAdministrator(
     totalTokens += llmResponse.total_tokens
   }
 
+  // 8.5 BOOKING PREVIEW (engine=new, STATE D only).
+  // Если анкета полностью собрана (все 4 поля = FACT) и модель не вызывала tool —
+  // подменяем свободный текст модели на code-generated preview с именами, датой,
+  // временем и ценой из расчёта. Legacy path не затрагивается.
+  if (tenantConfig.bookingEngine === 'new' && !llmResponse.tool_calls?.length) {
+    const sf = await shadowFormPromise
+    if (isReadyToBook(sf)) {
+      previewReply = await buildBookingPreview(sf, tenantConfig, clientId)
+    }
+  }
+
   // 9. Validate response (hard fact-check against tool results)
   const validator = new ResponseValidator()
 
@@ -412,9 +427,11 @@ export async function runAdministrator(
   }
 
   // If a destructive action succeeded, always trust AI's reply (it's confirming real DB change)
-  const finalReply = (validation.isValid || hadDestructiveSuccess)
-    ? llmResponse.content
-    : (validation.sanitizedContent ?? llmResponse.content)
+  // previewReply (engine=new, STATE D): code-generated text overrides model content entirely.
+  const finalReply = previewReply
+    ?? ((validation.isValid || hadDestructiveSuccess)
+      ? llmResponse.content
+      : (validation.sanitizedContent ?? llmResponse.content))
 
   // 10. Detect intent and update conversation state
   const intent = sm.detectIntent(message)
