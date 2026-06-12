@@ -327,6 +327,14 @@ export async function runAdministrator(
   // временем и ценой из расчёта. Legacy path не затрагивается.
   if (tenantConfig.bookingEngine === 'new' && !llmResponse.tool_calls?.length) {
     const sf = await shadowFormPromise
+    console.log('[booking-workflow] 8.5 check', {
+      sf: sf ? {
+        svc_src: sf.service?.source, svc_id: !!sf.service?.id,
+        mst_src: sf.master?.source,  mst_id: !!sf.master?.id,
+        dat_src: sf.date?.source,    dat_val: sf.date?.value,
+        slt_src: sf.slot?.source,    slt_val: sf.slot?.value,
+      } : null
+    })
     if (isReadyToBook(sf)) {
       previewReply = await buildBookingPreview(sf, tenantConfig, clientId)
     }
