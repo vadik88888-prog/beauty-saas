@@ -3,15 +3,20 @@ import { executeCreateBooking, resolveActivePromo } from './create-booking'
 import { resolveOfferPrice } from '@/lib/booking/price-calculator'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-// Новый движок записи — пустая труба (под-шаг 2a).
-// Под-шаг 2b добавил preview до INSERT; сам INSERT — следующие под-шаги.
+// Новый движок записи — блокирует прямое создание через tool call.
+// Под engine=new запись создаётся только через code path (после preview + подтверждения).
+// Возврат ошибки гарантирует что галлюцинация book_appointment не создаёт реальную запись.
 export async function executeBookingWorkflow(
   args: { service_id: string; master_id: string; starts_at: string; notes?: string; applied_promo_id?: string },
   tenantId: string,
-  clientId: string
+  _clientId: string
 ): Promise<ToolResult> {
-  console.log('[booking-workflow] engine=new', { tenantId, service_id: args.service_id })
-  return executeCreateBooking(args, tenantId, clientId)
+  console.warn('[booking-workflow] engine=new — direct booking via tool blocked', { tenantId, service_id: args.service_id })
+  return {
+    success: false,
+    error: 'Direct booking via AI tool is disabled. Booking is handled by the code path after client confirms the preview.',
+    fallbackMessage: 'Оформляю запись...',
+  }
 }
 
 // Все 4 поля заполнены, все — FACT (нет ни одного ASSUMPTION), у каждого есть id/value.
