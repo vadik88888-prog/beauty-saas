@@ -33,7 +33,7 @@ export function isReadyToBook(shadowForm: ShadowBookingForm | null | undefined):
 const MONTHS_RU = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'] as const
 const DAYS_RU   = ['воскресенье','понедельник','вторник','среду','четверг','пятницу','субботу'] as const
 
-function formatRussianDate(dateStr: string): string {
+export function formatRussianDate(dateStr: string): string {
   const [yS, mS, dS] = dateStr.split('-')
   const y = parseInt(yS), m = parseInt(mS) - 1, d = parseInt(dS)
   const dayOfWeek = new Date(y, m, d).getDay()

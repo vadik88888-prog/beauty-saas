@@ -146,6 +146,7 @@ export interface BookingFlowState {
   // Slice 3a: отдельный ключ теневой анкеты — существующие поля не задеты
   shadowForm?: ShadowBookingForm
   pendingSlot?: string   // HH:MM — ровно один час, предложенный SERA последним ходом
+  awaitingFinalConfirmation?: boolean  // engine=new: карточка STATE D показана, ждём «да»
 }
 
 export const DEFAULT_BOOKING_STATE: BookingFlowState = {

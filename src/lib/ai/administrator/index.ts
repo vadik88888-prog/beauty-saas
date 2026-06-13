@@ -8,7 +8,9 @@ import { ConversationStateMachine } from './orchestrator/state-machine'
 import { ResponseValidator } from './validators/response-validator'
 import { HallucinationGuard } from './validators/hallucination-guard'
 import { TOOL_REGISTRY, executeTool } from './tools'
-import { isReadyToBook, buildBookingPreview } from './tools/booking-workflow'
+import { isReadyToBook, buildBookingPreview, formatRussianDate } from './tools/booking-workflow'
+import { executeCreateBooking } from './tools/create-booking'
+import { localToUtc } from './booking-form-shadow'
 import { buildLlmSuggestedActions } from './llm-suggested-actions'
 import { describeToolForUser, updateLiveStatus } from './live-status'
 import { classifyShadow } from './router-shadow'
@@ -204,6 +206,8 @@ export async function runAdministrator(
   // Под engine=new: code-generated preview (STATE D) вместо свободного текста модели.
   // Если заполнен — идёт в finalReply вместо llmResponse.content.
   let previewReply: string | null = null
+  let previewCardShown = false       // STATE D показал карточку «Записываю…»
+  let clearAwaitingConfirmation = false  // STATE E: явно сброс флага ожидания «Да»
 
   // NOTE: forceGetServices removed — AI now has full salon snapshot (services/masters/promos)
   // in system prompt, so it knows everything from the start without forced tool call.
@@ -353,7 +357,42 @@ export async function runAdministrator(
     actionType,
   })
 
-  if (tenantConfig.bookingEngine === 'new' && !blockingToolCalls.length) {
+  // 8.5a STATE E (engine=new): финальное подтверждение уже показанной карточки.
+  // Запускается независимо от blockingToolCalls — «Да» должно обрабатываться кодом, не моделью.
+  if (tenantConfig.bookingEngine === 'new' && bookingState.awaitingFinalConfirmation) {
+    const confirmE = detectConfirmation(message)
+    const frozenForm = bookingState.shadowForm
+
+    if (confirmE === 'yes' && frozenForm?.service?.id && frozenForm.master?.id && frozenForm.date?.value && frozenForm.slot?.value) {
+      const startsAt = localToUtc(frozenForm.date.value, frozenForm.slot.value, tenantConfig.timezone)
+      const bookResult = await executeCreateBooking(
+        { service_id: frozenForm.service.id, master_id: frozenForm.master.id, starts_at: startsAt },
+        tenantId,
+        clientId
+      )
+      if (bookResult.success) {
+        actionType = 'booking_created'
+        actionData = bookResult.data as Record<string, unknown>
+        const bd = bookResult.data as { service_name: string; starts_at: string }
+        const svc    = tenantConfig.snapshot.services.find(s => s.id === frozenForm.service!.id)
+        const master = tenantConfig.snapshot.masters.find(m => m.id === frozenForm.master!.id)
+        previewReply = `Записала: ${svc?.name ?? bd.service_name} у ${master?.name ?? '—'}, ${formatRussianDate(frozenForm.date.value)} в ${frozenForm.slot.value} ✓`
+        clearAwaitingConfirmation = true
+        console.log('[booking-engine=new] STATE E — booking created', { service: svc?.name, startsAt })
+      } else {
+        previewReply = bookResult.fallbackMessage ?? 'К сожалению, это время уже занято. Давайте выберем другое?'
+        clearAwaitingConfirmation = true
+        console.log('[booking-engine=new] STATE E — booking failed', { error: bookResult.error })
+      }
+    } else if (confirmE === 'no') {
+      clearAwaitingConfirmation = true
+      console.log('[booking-engine=new] STATE E — client declined')
+    }
+    // 'unclear': оставляем awaitingFinalConfirmation, модель переспросит
+  }
+
+  // 8.5b STATE D (engine=new): показываем карточку, если форма полная FACT.
+  if (tenantConfig.bookingEngine === 'new' && !blockingToolCalls.length && !previewReply) {
     const sf = await shadowFormPromise
     const effectiveSf = sf ?? bookingState.shadowForm ?? null
     resolvedSf = effectiveSf
@@ -403,6 +442,7 @@ export async function runAdministrator(
     if (isReadyToBook(resolvedSf)) {
       console.warn('[AUTOFACT-DEBUG] isReadyToBook true — building preview')
       previewReply = await buildBookingPreview(resolvedSf, tenantConfig, clientId)
+      previewCardShown = true
     } else {
       console.warn('[AUTOFACT-DEBUG] isReadyToBook false — see 8.5 check above for field sources')
     }
@@ -542,8 +582,12 @@ export async function runAdministrator(
 
   // Pending slot: сохраняем ровно один час из ответа SERA; сбрасываем если previewReply
   // (STATE D уже показан — pending больше не нужен) или не engine=new.
+  // awaitingFinalConfirmation: true когда STATE D показал карточку, false при явном сбросе.
   if (tenantConfig.bookingEngine === 'new' && actionType !== 'booking_created') {
     nextBookingState.pendingSlot = previewReply ? undefined : extractSingleTimeSlot(finalReply)
+    nextBookingState.awaitingFinalConfirmation = clearAwaitingConfirmation
+      ? false
+      : (previewCardShown ? true : (bookingState.awaitingFinalConfirmation ?? false))
   }
 
   // 12a. Suggested actions ДО save — чтобы попали в messages.metadata и пережили reload TMA.

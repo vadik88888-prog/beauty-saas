@@ -292,7 +292,7 @@ export async function buildShadowForm(opts: {
 
 // Конвертирует дату + слот в таймзоне салона в ISO UTC.
 // Алгоритм: берём "наивный UTC", форматируем его в целевой tz, вычисляем смещение.
-function localToUtc(dateStr: string, slot: string, tz: string): string {
+export function localToUtc(dateStr: string, slot: string, tz: string): string {
   const assumedUtc = new Date(`${dateStr}T${slot}:00Z`)
   const localInTz = new Intl.DateTimeFormat('sv-SE', {
     timeZone: tz,
