@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 import { AiBadge } from '@/components/shared/AiBadge'
 import { SeraOrb } from '@/components/sera'
 import { formatPrice } from '@/lib/utils/format'
-import { formatTime, localIsoDate, getToday } from '@/lib/utils/date'
+import { localIsoDate, getToday } from '@/lib/utils/date'
 import { NewAppointmentModal, type NewApptDefaults } from '@/components/admin/NewAppointmentModal'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -60,7 +60,25 @@ function getMonday(d: Date): Date {
   return r
 }
 function addDays(d: Date, n: number): Date { const r = new Date(d); r.setDate(r.getDate() + n); return r }
-function localDateOf(iso: string): string { return localIsoDate(new Date(iso)) }
+function localDateOf(iso: string, tz: string): string {
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: tz }).format(new Date(iso))
+}
+
+/** ISO → decimal hours in salon timezone, e.g. 9.5 = 09:30 */
+function salonHourOf(iso: string, tz: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric', minute: '2-digit', hour12: false, timeZone: tz,
+  }).formatToParts(new Date(iso))
+  const h = Number(parts.find(p => p.type === 'hour')?.value ?? 0) % 24
+  const m = Number(parts.find(p => p.type === 'minute')?.value ?? 0)
+  return h + m / 60
+}
+
+/** ISO → "HH:MM" string in salon timezone */
+function salonTime(iso: string, tz: string): string {
+  return new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: tz })
+}
+
 function localDayStart(d: Date): string {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0).toISOString()
 }
@@ -95,16 +113,15 @@ function getWorkMin(wh: WorkingHour[], masterId: string | null, d: Date): number
 // Algorithm: clamp each appt to [HOUR_START, HOUR_END], merge overlaps, then
 // return the gaps. This prevents phantom full-day slots when appts fall outside
 // working hours or overlap each other.
-function getFreeSlots(appts: Appointment[]): Array<{startH: number; endH: number}> {
+function getFreeSlots(appts: Appointment[], tz: string): Array<{startH: number; endH: number}> {
   if (appts.length === 0) return [{ startH: HOUR_START, endH: HOUR_END }]
 
-  // Convert to local-hour floats, clamp to working window, discard if outside
+  // Convert to salon-hour floats, clamp to working window, discard if outside
   const intervals = appts
     .map(a => {
-      const s = new Date(a.starts_at), e = new Date(a.ends_at)
       return {
-        start: Math.max(s.getHours() + s.getMinutes() / 60, HOUR_START),
-        end:   Math.min(e.getHours() + e.getMinutes() / 60, HOUR_END),
+        start: Math.max(salonHourOf(a.starts_at, tz), HOUR_START),
+        end:   Math.min(salonHourOf(a.ends_at,   tz), HOUR_END),
       }
     })
     .filter(iv => iv.end - iv.start > 0)
@@ -132,10 +149,9 @@ function getFreeSlots(appts: Appointment[]): Array<{startH: number; endH: number
   return free
 }
 
-function apptPos(a: Appointment): { top: number; height: number } {
-  const s = new Date(a.starts_at), e = new Date(a.ends_at)
-  const sh = s.getHours() + s.getMinutes() / 60
-  const eh = e.getHours() + e.getMinutes() / 60
+function apptPos(a: Appointment, tz: string): { top: number; height: number } {
+  const sh = salonHourOf(a.starts_at, tz)
+  const eh = salonHourOf(a.ends_at,   tz)
   return { top: (sh - HOUR_START) * SLOT_H, height: Math.max((eh - sh) * SLOT_H, 32) }
 }
 
@@ -267,9 +283,8 @@ function HourLines() {
 
 // Current time indicator — always shown in today's column, position clamped to grid.
 // No outside-hours guard: if salon opens at 9 and it's 8:45, line shows at top edge.
-function NowLine() {
-  const now = new Date()
-  const h   = now.getHours() + now.getMinutes() / 60
+function NowLine({ salonTz }: { salonTz: string }) {
+  const h   = salonHourOf(new Date().toISOString(), salonTz)
   // Clamp to grid bounds so the line is always visible when isToday = true
   const top = Math.max(0, Math.min((h - HOUR_START) * SLOT_H, GRID_H - 2))
   return (
@@ -300,6 +315,7 @@ export default function CalendarPage() {
   const [newApptDef, setNewApptDef]   = useState<NewApptDefaults>({ date: new Date() })
   const [isMobile, setIsMobile]       = useState(false)
   const [railOpen, setRailOpen]       = useState(false)
+  const [salonTz, setSalonTz]         = useState<string>('Europe/Minsk')
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
   const todayStr = getToday()
@@ -316,6 +332,7 @@ export default function CalendarPage() {
     setMasters(json.masters ?? [])
     setCategories(json.categories ?? [])
     setWorkingHours(json.working_hours ?? [])
+    setSalonTz(json.timezone ?? 'Europe/Minsk')
     setIsLoading(false)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [from, to])
@@ -347,22 +364,21 @@ export default function CalendarPage() {
 
   const byDay: Record<string, Appointment[]> = {}
   for (const a of filtered) {
-    const k = localDateOf(a.starts_at)   // group by LOCAL date, not UTC
+    const k = localDateOf(a.starts_at, salonTz)   // group by salon timezone date
     if (!byDay[k]) byDay[k] = []
     byDay[k].push(a)
   }
 
   // Right-rail: load for selectedDay
   const displayStr  = localIsoDate(selectedDay)
-  // Use localDateOf (not startsWith) — starts_at is UTC ISO, displayStr is local date.
-  // startsWith would miss appointments whose UTC date differs from local date (UTC+ timezones).
-  const dayAppts    = appointments.filter(a => localDateOf(a.starts_at) === displayStr)
+  // Use salon timezone for date matching — startsWith would miss cross-midnight UTC dates
+  const dayAppts    = appointments.filter(a => localDateOf(a.starts_at, salonTz) === displayStr)
   const busyMin     = dayAppts.reduce((s,a) => s + (new Date(a.ends_at).getTime() - new Date(a.starts_at).getTime()) / 60000, 0)
   const workMin     = getWorkMin(workingHours, selectedMasterId, selectedDay)
   const loadPct     = Math.min(100, Math.round(busyMin / workMin * 100))
   const freeH       = Math.max(0, Math.floor((workMin - busyMin) / 60))
   const freeMin2    = Math.max(0, Math.round((workMin - busyMin) % 60))
-  const freeWinDay  = getFreeSlots(dayAppts).length
+  const freeWinDay  = getFreeSlots(dayAppts, salonTz).length
 
   // PATCH status
   async function handleAction(id: string, status: 'confirmed' | 'cancelled' | 'completed') {
@@ -405,7 +421,7 @@ export default function CalendarPage() {
   // ── Appointment card ──
   function ApptCard({ appt, compact = false, col = 0, total = 1 }: { appt: Appointment; compact?: boolean; col?: number; total?: number }) {
     const name = [appt.client?.first_name, appt.client?.last_name].filter(Boolean).join(' ') || 'Клиент'
-    const { top, height } = apptPos(appt)
+    const { top, height } = apptPos(appt, salonTz)
     const isAi = appt.source === 'ai'
 
     const mc = masterColor(appt.master?.id ?? appt.master?.name ?? 'default')
@@ -454,7 +470,7 @@ export default function CalendarPage() {
       >
         {/* Time */}
         <p style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)', lineHeight: 1, fontWeight: 600, margin: '0 0 1px' }}>
-          {formatTime(appt.starts_at)}–{formatTime(appt.ends_at)}
+          {salonTime(appt.starts_at, salonTz)}–{salonTime(appt.ends_at, salonTz)}
         </p>
         {/* Client name */}
         <p style={{ fontSize: compact ? 10 : 11, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0, display: 'flex', alignItems: 'center', gap: 3 }}>
@@ -560,7 +576,7 @@ export default function CalendarPage() {
   // ── Day column content (lines + appointments + free slots + now line) ──
   function DayContent({ day, appts, compact = false }: { day: Date; appts: Appointment[]; compact?: boolean }) {
     const isToday = localIsoDate(day) === todayStr
-    const freeSlots = getFreeSlots(appts)
+    const freeSlots = getFreeSlots(appts, salonTz)
 
     function handleGridClick(e: React.MouseEvent<HTMLDivElement>) {
       const rect  = e.currentTarget.getBoundingClientRect()
@@ -588,7 +604,7 @@ export default function CalendarPage() {
             return <ApptCard key={a.id} appt={a} compact={compact} col={cc?.col} total={cc?.total} />
           })
         })()}
-        {isToday && <NowLine />}
+        {isToday && <NowLine salonTz={salonTz} />}
       </div>
     )
   }
@@ -710,7 +726,7 @@ export default function CalendarPage() {
               const ds  = localIsoDate(d)
               const isT = ds === todayStr
               const isSel = ds === localIsoDate(selectedDay)
-              const hasDots = appointments.some(a => localDateOf(a.starts_at) === ds)
+              const hasDots = appointments.some(a => localDateOf(a.starts_at, salonTz) === ds)
               return (
                 <button key={di} onClick={() => goToDay(miniYear, miniMonth, day)} style={{
                   width: '100%', aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -762,7 +778,7 @@ export default function CalendarPage() {
                   </div>
                   <div style={{ display:'flex',alignItems:'center',gap:4,flexShrink:0 }}>
                     <span style={{ width:6,height:6,borderRadius:'50%',background:st.dot }} />
-                    <span style={{ fontSize:11,fontFamily:'var(--font-mono)',color:'var(--muted)',fontWeight:600 }}>{formatTime(a.starts_at)}</span>
+                    <span style={{ fontSize:11,fontFamily:'var(--font-mono)',color:'var(--muted)',fontWeight:600 }}>{salonTime(a.starts_at, salonTz)}</span>
                   </div>
                 </button>
               )
@@ -975,8 +991,8 @@ export default function CalendarPage() {
                 { label:'Клиент',    value:[selectedAppt.client?.first_name,selectedAppt.client?.last_name].filter(Boolean).join(' ')||'Клиент' },
                 { label:'Услуга',    value:selectedAppt.service?.name??'—' },
                 { label:'Мастер',    value:selectedAppt.master?.name??'—' },
-                { label:'Начало',    value:new Date(selectedAppt.starts_at).toLocaleString('ru-RU',{dateStyle:'short',timeStyle:'short'}) },
-                { label:'Конец',     value:formatTime(selectedAppt.ends_at) },
+                { label:'Начало',    value:new Date(selectedAppt.starts_at).toLocaleString('ru-RU',{dateStyle:'short',timeStyle:'short',timeZone:salonTz}) },
+                { label:'Конец',     value:salonTime(selectedAppt.ends_at, salonTz) },
                 ...(selectedAppt.price!=null?[{label:'Стоимость',value:formatPrice(selectedAppt.price,'BYN')}]:[]),
                 ...(selectedAppt.notes?[{label:'Заметки',value:selectedAppt.notes}]:[]),
               ].map(({label,value})=>(

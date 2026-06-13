@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
   const supabase = createAdminClient()
 
-  const [apptRes, mastersRes, categoriesRes, workingHoursRes] = await Promise.all([
+  const [apptRes, mastersRes, categoriesRes, workingHoursRes, tenantRes] = await Promise.all([
     // Appointments — service includes category_id for category filtering
     supabase
       .from('appointments')
@@ -65,12 +65,22 @@ export async function GET(req: NextRequest) {
       .from('working_hours')
       .select('master_id, day_of_week, start_time, end_time, is_working')
       .eq('tenant_id', tenantId),
+
+    // Tenant timezone — used by frontend to display times in salon-local time
+    supabase
+      .from('tenants')
+      .select('timezone')
+      .eq('id', tenantId)
+      .single(),
   ])
+
+  const tz = (tenantRes.data as { timezone: string } | null)?.timezone ?? 'Europe/Minsk'
 
   return NextResponse.json({
     appointments:  apptRes.data    ?? [],
     masters:       mastersRes.data ?? [],
     categories:    categoriesRes.data ?? [],
     working_hours: workingHoursRes.data ?? [],
+    timezone:      tz,
   })
 }
