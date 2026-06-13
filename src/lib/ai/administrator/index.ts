@@ -89,6 +89,11 @@ export async function runAdministrator(
   const model = tenantConfig.model
   const temperature = tenantConfig.temperature
 
+  // engine=new: модель не получает инструмент создания брони — запись только через код
+  const activeTools = tenantConfig.bookingEngine === 'new'
+    ? TOOL_REGISTRY.filter(t => (t as { function?: { name: string } }).function?.name !== 'book_appointment')
+    : TOOL_REGISTRY
+
   // 2. Daily rate limit
   if ((usageCountRes.count ?? 0) >= maxMessages) {
     return {
@@ -213,7 +218,7 @@ export async function runAdministrator(
   let llmResponse = await adminLLM({
     system: systemPrompt,
     messages,
-    tools: TOOL_REGISTRY,
+    tools: activeTools,
     model,
     temperature,
     toolChoice: isMedicalQuery
@@ -251,7 +256,7 @@ export async function runAdministrator(
         role: 'user',
         content: '[SYSTEM CORRECTION] You tried to check availability before the client chose a specific service. Present the services list from the earlier get_services call. Ask: "Какую услугу вы хотите записать?" Do NOT include any time slot info. Wait for the client to reply.',
       } as ChatCompletionMessageParam)
-      llmResponse = await adminLLM({ system: systemPrompt, messages, tools: TOOL_REGISTRY, model, temperature })
+      llmResponse = await adminLLM({ system: systemPrompt, messages, tools: activeTools, model, temperature })
       totalTokens += llmResponse.total_tokens
       break
     }
@@ -307,7 +312,7 @@ export async function runAdministrator(
         role: 'user',
         content: '[SYSTEM CORRECTION] You called get_services and get_available_slots in the same response. Show ONLY the services list. Ask the client which service they want. Do NOT mention any time slots, dates, or availability in this message.',
       } as ChatCompletionMessageParam)
-      llmResponse = await adminLLM({ system: systemPrompt, messages, tools: TOOL_REGISTRY, model, temperature })
+      llmResponse = await adminLLM({ system: systemPrompt, messages, tools: activeTools, model, temperature })
       totalTokens += llmResponse.total_tokens
       break
     }
@@ -315,7 +320,7 @@ export async function runAdministrator(
     llmResponse = await adminLLM({
       system: systemPrompt,
       messages,
-      tools: TOOL_REGISTRY,
+      tools: activeTools,
       model,
       temperature,
     })
@@ -425,7 +430,7 @@ export async function runAdministrator(
     llmResponse = await adminLLM({
       system: systemPrompt,
       messages,
-      tools: TOOL_REGISTRY,
+      tools: activeTools,
       model,
       temperature,
     })
@@ -452,7 +457,7 @@ export async function runAdministrator(
           content: JSON.stringify(result),
         })
       }
-      llmResponse = await adminLLM({ system: systemPrompt, messages, tools: TOOL_REGISTRY, model, temperature })
+      llmResponse = await adminLLM({ system: systemPrompt, messages, tools: activeTools, model, temperature })
       totalTokens += llmResponse.total_tokens
     }
 
