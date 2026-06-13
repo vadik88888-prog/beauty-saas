@@ -335,6 +335,14 @@ export async function runAdministrator(
   let masterAutoFacted = false
   let slotConfirmed = false
 
+  console.warn('[AUTOFACT-DEBUG] PRE-8.5', {
+    bookingEngine: tenantConfig.bookingEngine,
+    hasToolCalls: !!(llmResponse.tool_calls?.length),
+    toolCallsLen: llmResponse.tool_calls?.length ?? 0,
+    rounds,
+    actionType,
+  })
+
   if (tenantConfig.bookingEngine === 'new' && !llmResponse.tool_calls?.length) {
     const sf = await shadowFormPromise
     const effectiveSf = sf ?? bookingState.shadowForm ?? null
