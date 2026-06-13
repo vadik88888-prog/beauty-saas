@@ -13,7 +13,7 @@ import { DateNav } from './_components/DateNav'
 import { AtRiskSection } from './_components/AtRiskSection'
 import { TodayDate } from '@/components/admin/TodayDate'
 import { formatPrice } from '@/lib/utils/format'
-import { formatTime, formatApptLabel, localIsoDate } from '@/lib/utils/date'
+import { salonTime, formatApptLabel, localIsoDate } from '@/lib/utils/date'
 import { Avatar } from '@/components/shared/Avatar'
 
 // ── Design tokens (TMA-aligned: cream + sage) ────────────────────────────────
@@ -44,11 +44,12 @@ async function getTenantContext() {
   const { data } = await admin.from('tenant_users').select('tenant_id')
     .eq('user_id', user.id).eq('is_active', true).single()
   if (!data) redirect('/login')
-  const { data: tenant } = await admin.from('tenants').select('name')
+  const { data: tenant } = await admin.from('tenants').select('name, timezone')
     .eq('id', (data as { tenant_id: string }).tenant_id).single()
   return {
     tenantId: (data as { tenant_id: string }).tenant_id,
-    salonName: (tenant as { name: string } | null)?.name ?? 'Ваш салон',
+    salonName: (tenant as { name: string; timezone: string } | null)?.name ?? 'Ваш салон',
+    salonTz:  (tenant as { name: string; timezone: string } | null)?.timezone ?? 'Europe/Minsk',
   }
 }
 
@@ -139,8 +140,8 @@ export default async function DashboardPage({
   const dateStr = dateParam ?? today
   const isToday = dateStr === today
 
-  const { tenantId, salonName } = await getTenantContext()
-  const stats = await getAiStats(tenantId, dateStr)
+  const { tenantId, salonName, salonTz } = await getTenantContext()
+  const stats = await getAiStats(tenantId, dateStr, salonTz)
   const { ai, business } = stats
 
   const nextAppt = stats.upcoming[0] ?? null
@@ -367,7 +368,7 @@ export default async function DashboardPage({
                   }}
                 >
                   <span style={{ fontSize: 11, color: C.muted, fontVariantNumeric: 'tabular-nums', width: 36, flexShrink: 0, paddingTop: 1 }}>
-                    {formatTime(act.time)}
+                    {salonTime(act.time, salonTz)}
                   </span>
                   <span style={{
                     width: 24, height: 24, borderRadius: 8, flexShrink: 0,
@@ -448,7 +449,7 @@ export default async function DashboardPage({
                     fontFamily: 'var(--font-inter, sans-serif)',
                     marginBottom: 6,
                   }}>
-                    {formatTime(nextAppt.starts_at)}
+                    {salonTime(nextAppt.starts_at, salonTz)}
                   </p>
                   <p style={{ fontSize: 14, fontWeight: 600, color: C.ink, marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {nextAppt.service}
@@ -541,7 +542,7 @@ export default async function DashboardPage({
                     >
                       <div style={{ flexShrink: 0, width: 40, textAlign: 'center' }}>
                         <p style={{ fontSize: 14, fontWeight: 700, color: C.ink, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
-                          {formatTime(appt.starts_at)}
+                          {salonTime(appt.starts_at, salonTz)}
                         </p>
                         <p style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{formatApptLabel(appt.starts_at)}</p>
                       </div>

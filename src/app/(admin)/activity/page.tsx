@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { ArrowLeft, Calendar, Repeat, BookOpen, User } from 'lucide-react'
 import { DateNav } from '@/app/(admin)/dashboard/_components/DateNav'
 
-async function getTenantId(): Promise<string> {
+async function getTenantId(): Promise<{ tenantId: string; salonTz: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -14,7 +14,12 @@ async function getTenantId(): Promise<string> {
     .from('tenant_users').select('tenant_id')
     .eq('user_id', user.id).eq('is_active', true).single()
   if (!data) redirect('/login')
-  return (data as { tenant_id: string }).tenant_id
+  const tenantId = (data as { tenant_id: string }).tenant_id
+  const { data: tenant } = await adminClient
+    .from('tenants').select('timezone')
+    .eq('id', tenantId).single()
+  const salonTz = (tenant as { timezone: string } | null)?.timezone ?? 'Europe/Minsk'
+  return { tenantId, salonTz }
 }
 
 
@@ -45,7 +50,7 @@ type ClientCard = {
   actions: Array<{ time: string; type: 'booking' | 'handoff' | 'message'; text: string; detail?: string }>
 }
 
-async function getActivityForDate(tenantId: string, dateStr: string): Promise<ClientCard[]> {
+async function getActivityForDate(tenantId: string, dateStr: string, tz: string): Promise<ClientCard[]> {
   const supabase = createAdminClient()
   const dayStart = `${dateStr}T00:00:00Z`
   const dayEnd   = `${dateStr}T23:59:59Z`
@@ -84,9 +89,9 @@ async function getActivityForDate(tenantId: string, dateStr: string): Promise<Cl
     const cid  = b.client?.id ?? 'unknown'
     const name = [b.client?.first_name, b.client?.last_name].filter(Boolean).join(' ') || 'Клиент'
     const card = ensureClient(cid, name, b.client?.phone)
-    const apptTime = fmtTime(b.starts_at)
+    const apptTime = fmtTime(b.starts_at, tz)
     card.actions.push({
-      time: fmtHHMM(b.created_at),
+      time: fmtHHMM(b.created_at, tz),
       type: 'booking',
       text: `Записала на «${b.service?.name ?? 'услугу'}»`,
       detail: `${apptTime} · мастер: ${b.master?.name ?? '—'}`,
@@ -98,7 +103,7 @@ async function getActivityForDate(tenantId: string, dateStr: string): Promise<Cl
     const name = h.client?.first_name ?? (h.client?.telegram_username ? `@${h.client.telegram_username}` : 'Клиент')
     const card = ensureClient(cid, name)
     card.actions.push({
-      time: fmtHHMM(h.updated_at),
+      time: fmtHHMM(h.updated_at, tz),
       type: 'handoff',
       text: 'Передала диалог администратору',
       detail: 'Сложный вопрос — требует вашего ответа',
@@ -114,7 +119,7 @@ async function getActivityForDate(tenantId: string, dateStr: string): Promise<Cl
     if (count > 0) {
       const last = msgs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
       card.actions.push({
-        time: fmtHHMM(conv.created_at),
+        time: fmtHHMM(conv.created_at, tz),
         type: 'message',
         text: `Ответила на ${count} ${plMsg(count)}`,
         detail: truncate(last?.content ?? '', 80),
@@ -130,15 +135,13 @@ async function getActivityForDate(tenantId: string, dateStr: string): Promise<Cl
   return [...clientMap.values()].sort((a, b) => b.actions[0]?.time.localeCompare(a.actions[0]?.time ?? '') ?? 0)
 }
 
-function fmtHHMM(iso: string): string {
-  const d = new Date(iso)
-  return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`
+function fmtHHMM(iso: string, tz: string): string {
+  return new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: tz })
 }
 
-function fmtTime(iso: string): string {
-  const d = new Date(iso)
-  const months = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек']
-  return `${d.getDate()} ${months[d.getMonth()]}, ${fmtHHMM(iso)}`
+function fmtTime(iso: string, tz: string): string {
+  const date = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short', timeZone: tz }).format(new Date(iso))
+  return `${date}, ${fmtHHMM(iso, tz)}`
 }
 
 function plMsg(n: number): string {
@@ -171,8 +174,8 @@ export default async function ActivityPage({
   const today   = new Date().toISOString().slice(0, 10)
   const dateStr = dateParam ?? today
 
-  const tenantId = await getTenantId()
-  const cards = await getActivityForDate(tenantId, dateStr)
+  const { tenantId, salonTz } = await getTenantId()
+  const cards = await getActivityForDate(tenantId, dateStr, salonTz)
 
   const iconMap = {
     booking: <Calendar className="w-3.5 h-3.5" />,

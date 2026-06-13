@@ -58,7 +58,7 @@ export interface AiStats {
   upcoming: UpcomingAppointment[]
 }
 
-export async function getAiStats(tenantId: string, dateStr?: string): Promise<AiStats> {
+export async function getAiStats(tenantId: string, dateStr?: string, tz = 'Europe/Minsk'): Promise<AiStats> {
   const supabase = createAdminClient()
 
   const targetDate = dateStr ?? new Date().toISOString().slice(0, 10)
@@ -200,7 +200,7 @@ export async function getAiStats(tenantId: string, dateStr?: string): Promise<Ai
       time: b.created_at ?? b.starts_at,
       type: 'booking',
       text: `Записала на «${b.service?.name ?? 'услугу'}»`,
-      subtitle: [clientName, fmtActivityDate(b.starts_at), b.master?.name].filter(Boolean).join(' • '),
+      subtitle: [clientName, fmtActivityDate(b.starts_at, tz), b.master?.name].filter(Boolean).join(' • '),
       ts: new Date(b.created_at ?? b.starts_at).getTime(),
     })
   }
@@ -327,10 +327,11 @@ function buildSmartTips(p: {
   return tips
 }
 
-function fmtActivityDate(iso: string): string {
+function fmtActivityDate(iso: string, tz: string): string {
   const d = new Date(iso)
-  const months = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек']
-  return `${d.getDate()} ${months[d.getMonth()]}, ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`
+  const date = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short', timeZone: tz }).format(d)
+  const time = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: tz })
+  return `${date}, ${time}`
 }
 
 function pl(n: number, f: [string, string, string]): string {

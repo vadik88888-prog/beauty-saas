@@ -74,6 +74,14 @@ export function getToday(): string {
   return localIsoDate(new Date())
 }
 
+// Formats ISO UTC string as HH:MM in the salon's IANA timezone.
+// Use everywhere appointment times are displayed in admin server components.
+export function salonTime(isoString: string, tz: string): string {
+  return new Date(isoString).toLocaleTimeString('ru-RU', {
+    hour: '2-digit', minute: '2-digit', timeZone: tz,
+  })
+}
+
 export function formatDuration(minutes: number): string {
   if (minutes < 60) return `${minutes} мин`
   const h = Math.floor(minutes / 60)

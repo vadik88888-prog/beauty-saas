@@ -6,7 +6,7 @@ import { ChevronLeft, Phone, AtSign, Sparkles } from 'lucide-react'
 import { PageHeader, EmptyState, SeraOrb, StatusPill } from '@/components/sera'
 import type { AppointmentStatus } from '@/components/sera'
 import { Avatar } from '@/components/shared/Avatar'
-import { formatDate, formatDateLong } from '@/lib/utils/date'
+import { formatDate, formatDateLong, salonTime } from '@/lib/utils/date'
 import { formatPrice } from '@/lib/utils/format'
 import { ContactButton } from './_components/ContactButton'
 import { ClientOffersBlock } from './_components/ClientOffersBlock'
@@ -27,7 +27,10 @@ async function getStaffContext() {
     .single()
   if (!data) return null
   const d = data as { tenant_id: string; role: string }
-  return { tenantId: d.tenant_id, role: d.role }
+  const { data: tenant } = await admin
+    .from('tenants').select('timezone').eq('id', d.tenant_id).single()
+  const salonTz = (tenant as { timezone: string } | null)?.timezone ?? 'Europe/Minsk'
+  return { tenantId: d.tenant_id, role: d.role, salonTz }
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -133,7 +136,7 @@ export default async function ClientProfilePage({
 
   const ctx = await getStaffContext()
   if (!ctx) redirect('/login')
-  const { tenantId } = ctx
+  const { tenantId, salonTz } = ctx
 
   const db = createAdminClient()
 
@@ -453,7 +456,7 @@ export default async function ClientProfilePage({
                             {formatDate(visit.starts_at)}
                           </p>
                           <p style={{ fontSize: 11, color: 'var(--ink-2)', margin: '1px 0 0', fontFamily: 'var(--font-mono)' }}>
-                            {new Date(visit.starts_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                            {salonTime(visit.starts_at, salonTz)}
                           </p>
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -516,7 +519,7 @@ export default async function ClientProfilePage({
                             {formatDate(visit.starts_at)}
                           </p>
                           <p style={{ fontSize: 11, color: 'var(--ink-2)', margin: '1px 0 0', fontFamily: 'var(--font-mono)' }}>
-                            {new Date(visit.starts_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                            {salonTime(visit.starts_at, salonTz)}
                           </p>
                         </div>
 
