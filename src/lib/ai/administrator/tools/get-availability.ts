@@ -236,10 +236,24 @@ export async function executeGetAvailability(
       }
     }
 
+    // Convert UTC slot times to salon-local time before passing to LLM.
+    // LLM shows date/time to the client; starts_at_utc is used by book_appointment.
+    // Same sv-SE locale pattern as localToUtc() in booking-form-shadow.ts.
+    const localSlots = limited.map(s => {
+      const localStr = new Intl.DateTimeFormat('sv-SE', {
+        timeZone: timezone,
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit',
+      }).format(new Date(s.datetime))
+      // sv-SE → "YYYY-MM-DD HH:MM"
+      const [date, time] = localStr.split(' ')
+      return { date, time, starts_at_utc: s.datetime, master_id: s.master_id, master_name: s.master_name }
+    })
+
     return {
       success: true,
       data: {
-        slots: limited,
+        slots: localSlots,
         service_name: svc.name,
         total_found: slots.length,
       },

@@ -14,7 +14,7 @@ export const createBookingTool: AiTool = {
       properties: {
         service_id: { type: 'string', description: 'Service UUID or name (fuzzy resolved)' },
         master_id: { type: 'string', description: 'Master UUID or name (fuzzy resolved)' },
-        starts_at: { type: 'string', description: 'ISO datetime UTC from get_available_slots' },
+        starts_at: { type: 'string', description: 'ISO datetime UTC — use starts_at_utc field from get_available_slots slot objects' },
         notes: { type: 'string', description: 'Optional client notes' },
         applied_promo_id: { type: 'string', description: 'Promotion UUID from SALON SNAPSHOT if discount applies' },
       },
