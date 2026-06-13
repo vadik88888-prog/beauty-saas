@@ -340,9 +340,21 @@ export async function runAdministrator(
     const effectiveSf = sf ?? bookingState.shadowForm ?? null
     resolvedSf = effectiveSf
 
+    console.warn('[AUTOFACT-DEBUG] step8.5 enter', {
+      resolvedSf: resolvedSf ? 'not-null' : 'NULL',
+      sfSource: sf ? 'current-turn' : (bookingState.shadowForm ? 'prev-fallback' : 'null'),
+      salonMastersLen: tenantConfig.snapshot.masters.length,
+      tenantId,
+    })
+
     // (a) Единственный мастер салона → всегда FACT (выбора нет, ошибиться некуда)
     if (resolvedSf && (!resolvedSf.master?.id || resolvedSf.master.source === 'ASSUMPTION')) {
       const salonMasters = tenantConfig.snapshot.masters
+      console.warn('[AUTOFACT-DEBUG] autoFACT check', {
+        masterInForm: !!resolvedSf.master?.id,
+        masterSource: resolvedSf.master?.source ?? 'none',
+        salonMastersLen: salonMasters.length,
+      })
       if (salonMasters.length === 1) {
         resolvedSf = { ...resolvedSf, master: { id: salonMasters[0].id, source: 'FACT', origin: 'HISTORY' } }
         masterAutoFacted = true
@@ -357,7 +369,7 @@ export async function runAdministrator(
       slotConfirmed = true
     }
 
-    console.log('[booking-workflow] 8.5 check', {
+    console.warn('[AUTOFACT-DEBUG] 8.5 check', {
       sf: resolvedSf ? {
         svc_src: resolvedSf.service?.source, svc_org: resolvedSf.service?.origin, svc_id: !!resolvedSf.service?.id,
         mst_src: resolvedSf.master?.source,  mst_org: resolvedSf.master?.origin,  mst_id: !!resolvedSf.master?.id,
@@ -371,7 +383,10 @@ export async function runAdministrator(
     })
 
     if (isReadyToBook(resolvedSf)) {
+      console.warn('[AUTOFACT-DEBUG] isReadyToBook true — building preview')
       previewReply = await buildBookingPreview(resolvedSf, tenantConfig, clientId)
+    } else {
+      console.warn('[AUTOFACT-DEBUG] isReadyToBook false — see 8.5 check above for field sources')
     }
   }
 
