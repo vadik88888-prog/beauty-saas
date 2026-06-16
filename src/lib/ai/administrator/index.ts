@@ -506,12 +506,19 @@ export async function runAdministrator(
       content: '[SYSTEM CORRECTION] Your previous response mentioned a master, service, or time slot that was not returned by any tool call. NEVER fabricate data. Call get_services / get_masters / get_available_slots first to fetch real data, then answer using ONLY the data returned. If client has not chosen a service yet, ASK them — do not invent one. If no slots are available, say so honestly. Rewrite your response now.',
     })
 
+    // При выдуманных временах — принудительно гоним за реальным расписанием.
+    // Модель не может ответить текстом: tool_choice форсирует get_available_slots.
+    const forceSlotLookup = validation.violations.includes('HALLUCINATED_TIME_SLOTS')
+
     llmResponse = await adminLLM({
       system: systemPrompt,
       messages,
       tools: activeTools,
       model,
       temperature,
+      toolChoice: forceSlotLookup
+        ? { type: 'function', function: { name: 'get_available_slots' } }
+        : 'auto',
     })
     totalTokens += llmResponse.total_tokens
 
