@@ -66,19 +66,24 @@ export class HallucinationGuard {
         }
       }
 
-      // Track available slot datetimes and HH:MM forms
+      // Track available slot datetimes and HH:MM forms.
+      // Supports both old format { datetime } and new format { time, starts_at_utc }.
       if (Array.isArray(data.slots)) {
-        for (const s of data.slots as Array<{ datetime?: string; master_name?: string }>) {
-          if (s.datetime) {
-            this.retrievedSlots.add(s.datetime)
-            // Extract HH:MM in UTC — frontend will display in local tz, but matching by HH:MM
-            // is a soft heuristic: we extract both UTC and what server local would render
+        for (const s of data.slots as Array<{ datetime?: string; starts_at_utc?: string; time?: string; master_name?: string }>) {
+          // New format: time is already local "HH:MM"
+          if (s.time && /^\d{1,2}:\d{2}$/.test(s.time)) {
+            const [h, m] = s.time.split(':')
+            this.knownSlotTimes.add(`${h.padStart(2, '0')}:${m}`)
+          }
+          // UTC datetime (old field or new starts_at_utc) → extract both UTC and local HH:MM
+          const utcStr = s.datetime ?? s.starts_at_utc
+          if (utcStr) {
+            this.retrievedSlots.add(utcStr)
             try {
-              const d = new Date(s.datetime)
+              const d = new Date(utcStr)
               const hh = String(d.getUTCHours()).padStart(2, '0')
               const mm = String(d.getUTCMinutes()).padStart(2, '0')
               this.knownSlotTimes.add(`${hh}:${mm}`)
-              // Add tenant's local view (uses tenant timezone)
               const localD = new Date(d.getTime() + this.tzOffsetHours * 3600_000)
               const lh = String(localD.getUTCHours()).padStart(2, '0')
               const lm = String(localD.getUTCMinutes()).padStart(2, '0')
