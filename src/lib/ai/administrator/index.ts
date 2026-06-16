@@ -483,6 +483,18 @@ export async function runAdministrator(
       '| Response:', llmResponse.content.slice(0, 300))
   }
 
+  // DIAG: захват оригинального ответа и нарушений ДО ретрая — пишется в messages.metadata
+  const _validationDiag = !validation.isValid ? (() => {
+    const tp = /\b(\d{1,2}):(\d{2})\b/g
+    const mentionedTimes = [...(llmResponse.content ?? '').matchAll(tp)].map(m => `${m[1].padStart(2, '0')}:${m[2]}`)
+    return {
+      violations: [...validation.violations],
+      originalContent: (llmResponse.content ?? '').slice(0, 600),
+      knownSlotsCount: hallucinationGuard.getKnownSlotTimes().size,
+      mentionedTimes,
+    }
+  })() : null
+
   // Retry only when no destructive action was confirmed — AI must rewrite the response
   // Guard: only retry if no pending tool_calls — otherwise llmResponse.content may be empty
   // (models often return null content when tool_calls are present), which would violate OpenAI
@@ -643,9 +655,14 @@ export async function runAdministrator(
   }
 
   const nextStatus = actionType === 'handoff' ? 'handed_off' : 'active'
-  const messageMetadata: { knowledgeSources?: typeof knowledgeSources; suggestedActions?: typeof suggestedActions } = {}
+  const messageMetadata: {
+    knowledgeSources?: typeof knowledgeSources
+    suggestedActions?: typeof suggestedActions
+    validationDiag?: { violations: string[]; originalContent: string; knownSlotsCount: number; mentionedTimes: string[] }
+  } = {}
   if (knowledgeSources.length > 0) messageMetadata.knowledgeSources = knowledgeSources
   if (suggestedActions.length > 0) messageMetadata.suggestedActions = suggestedActions
+  if (_validationDiag) messageMetadata.validationDiag = _validationDiag
 
   await store.save(
     conversationId,
