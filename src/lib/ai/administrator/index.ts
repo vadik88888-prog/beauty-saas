@@ -339,26 +339,20 @@ export async function runAdministrator(
   let masterAutoFacted = false
   let slotConfirmed = false
 
-  // Под engine=new: book_appointment — ожидаемая галлюцинация модели, не блокирует preview.
-  // Реальные tool_calls (get_available_slots, get_services и т.д.) блокируют шаг 8.5 —
-  // значит SERA ещё в процессе сбора данных и preview показывать рано.
-  const blockingToolCalls = tenantConfig.bookingEngine === 'new'
-    ? (llmResponse.tool_calls ?? []).filter(
-        tc => (tc as { function?: { name: string } }).function?.name !== 'book_appointment'
-      )
-    : (llmResponse.tool_calls ?? [])
+  // Под engine=new: карточка STATE D показывается только по готовности анкеты (isReadyToBook).
+  // Вызовы инструментов в том же ходу (get_available_slots и т.д.) её больше не блокируют —
+  // если данные уже собраны, паразитный вызов расписания игнорируется.
 
   console.warn('[AUTOFACT-DEBUG] PRE-8.5', {
     bookingEngine: tenantConfig.bookingEngine,
     hasToolCalls: !!(llmResponse.tool_calls?.length),
     toolCallsLen: llmResponse.tool_calls?.length ?? 0,
-    blockingLen: blockingToolCalls.length,
     rounds,
     actionType,
   })
 
   // 8.5a STATE E (engine=new): финальное подтверждение уже показанной карточки.
-  // Запускается независимо от blockingToolCalls — «Да» должно обрабатываться кодом, не моделью.
+  // Запускается независимо от инструментов модели — «Да» обрабатывается кодом, не моделью.
   if (tenantConfig.bookingEngine === 'new' && bookingState.awaitingFinalConfirmation) {
     const confirmE = detectConfirmation(message)
     const frozenForm = bookingState.shadowForm
@@ -392,7 +386,7 @@ export async function runAdministrator(
   }
 
   // 8.5b STATE D (engine=new): показываем карточку, если форма полная FACT.
-  if (tenantConfig.bookingEngine === 'new' && !blockingToolCalls.length && !previewReply) {
+  if (tenantConfig.bookingEngine === 'new' && !previewReply) {
     const sf = await shadowFormPromise
     const effectiveSf = sf ?? bookingState.shadowForm ?? null
     resolvedSf = effectiveSf
