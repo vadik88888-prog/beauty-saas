@@ -774,6 +774,13 @@ function detectConfirmation(text: string): 'yes' | 'no' | 'unclear' {
   ]
   if (NO_START.some(w => lower === w || lower.startsWith(w + ' ') || lower.startsWith(w + ','))) return 'no'
 
+  // ── «да + возражение» — НЕ согласие ──────────────────────────────────────
+  // «да, но цена не такая» / «да, только другое время» → unclear, не 'yes'
+  if (lower.startsWith('да')) {
+    const OBJECTION = ['но ', ', но', 'однако', 'только ', 'не так', 'неверно', 'не такая', 'цена']
+    if (OBJECTION.some(w => lower.includes(w))) return 'unclear'
+  }
+
   // ── СОГЛАСИЕ — только если отрицаний не обнаружено ──────────────────────
   const YES_EXACT = new Set([
     'да', 'ок', 'окей', 'хорошо', 'подходит', 'согласна', 'согласен',
@@ -781,8 +788,11 @@ function detectConfirmation(text: string): 'yes' | 'no' | 'unclear' {
     'подойдёт', 'подойдет', 'годится', 'пойдёт', 'пойдет',
     'супер', 'отлично', 'давай', 'ладно', 'конечно',
     'yes', 'ok', 'okay',
+    'подтверждаю',
   ])
   if (YES_EXACT.has(lower)) return 'yes'
+  // «подтверждаю запись» / «подтверждаю заказ» / «подтверждаю, спасибо» — всё согласие
+  if (lower.startsWith('подтверждаю')) return 'yes'
   if (['да,', 'да ', 'записывай', 'хорошо,', 'отлично,', 'супер,', 'конечно,', 'ладно,'].some(p => lower.startsWith(p))) return 'yes'
 
   return 'unclear'
