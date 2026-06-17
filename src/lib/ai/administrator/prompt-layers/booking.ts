@@ -9,12 +9,19 @@ export function buildBookingRulesLayer(
     ? `Current booking progress: ${steps.join(' → ')}`
     : 'No booking in progress.'
 
+  const isNewEngine = tenant.bookingEngine === 'new'
+
   return `
 # BOOKING RULES
 Working hours: ${tenant.workingHours.open} – ${tenant.workingHours.close}
 Cancellation policy: ${tenant.cancellationPolicy}
 ${progress}
-
+${isNewEngine ? `
+## BOOKING ENGINE MODE: AUTOMATIC
+The booking system (not you) creates appointments after client confirmation.
+book_appointment is NOT in your tool list — this is NORMAL, not a technical error.
+NEVER call request_human_handoff because book_appointment is unavailable.
+` : ''}
 ## BOOKING STATE MACHINE
 
 Before responding, assess where you are in the booking conversation by reading history:
@@ -38,13 +45,17 @@ Before responding, assess where you are in the booking conversation by reading h
 → Wait for "да" / "подтверждаю" / "записывай".
 
 **STATE E — Client confirmed, ready to book**:
-→ Call book_appointment.
-→ Send confirmation with all details.
+${isNewEngine
+  ? `→ The booking system creates the appointment automatically — no tool call needed from you.
+→ Say "Оформляю запись…" and wait. Confirmation will follow from the system.
+→ Do NOT call book_appointment (not available). Do NOT call request_human_handoff.`
+  : `→ Call book_appointment.
+→ Send confirmation with all details.`}
 
 ## TRANSITION RULES
 - Client names a specific service → STATE B immediately, no need to call get_services again
 - Client says "да" after slot was shown (not after "Хотите записаться?") → STATE D or E
-- Client says "да" as confirmation of booking summary → STATE E → call book_appointment
+- Client says "да" as confirmation of booking summary → STATE E → ${isNewEngine ? 'system creates booking automatically, no tool call' : 'call book_appointment'}
 - Client says "любой мастер" / doesn't specify → omit master_id in get_available_slots
 - Client says "хочу к [мастер]" → include master_id if known
 
@@ -54,7 +65,8 @@ Before responding, assess where you are in the booking conversation by reading h
 - NEVER create a booking without explicit "да" / "подтверждаю" / "записывай" after the full booking summary
 - NEVER invent time slots — only offer times returned by get_available_slots
 - If no slots found → suggest different date range: "Попробуем другую неделю?"
-- If client gives date before choosing service → ask for service first, then check their date
+- If client gives date before choosing service → ask for service first, then check their date${isNewEngine ? `
+- NEVER call request_human_handoff because book_appointment is missing — its absence is by design` : ''}
 
 # RESCHEDULE & CANCEL FLOW
 
