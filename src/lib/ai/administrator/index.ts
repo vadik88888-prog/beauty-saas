@@ -9,7 +9,7 @@ import { ResponseValidator } from './validators/response-validator'
 import { HallucinationGuard } from './validators/hallucination-guard'
 import { TOOL_REGISTRY, executeTool } from './tools'
 import { isReadyToBook, buildBookingPreview, formatRussianDate } from './tools/booking-workflow'
-import { executeCreateBooking } from './tools/create-booking'
+import { executeCreateBooking, resolveActivePromo } from './tools/create-booking'
 import { localToUtc } from './booking-form-shadow'
 import { buildLlmSuggestedActions } from './llm-suggested-actions'
 import { describeToolForUser, updateLiveStatus } from './live-status'
@@ -359,8 +359,10 @@ export async function runAdministrator(
 
     if (confirmE === 'yes' && frozenForm?.service?.id && frozenForm.master?.id && frozenForm.date?.value && frozenForm.slot?.value) {
       const startsAt = localToUtc(frozenForm.date.value, frozenForm.slot.value, tenantConfig.timezone)
+      // Та же акция, что карточка предпросмотра — цена в записи обязана совпадать с карточкой
+      const activePromo = await resolveActivePromo(createAdminClient(), '', tenantId)
       const bookResult = await executeCreateBooking(
-        { service_id: frozenForm.service.id, master_id: frozenForm.master.id, starts_at: startsAt },
+        { service_id: frozenForm.service.id, master_id: frozenForm.master.id, starts_at: startsAt, applied_promo_id: activePromo?.id },
         tenantId,
         clientId
       )
