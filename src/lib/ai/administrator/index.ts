@@ -666,10 +666,12 @@ export async function runAdministrator(
     knowledgeSources?: typeof knowledgeSources
     suggestedActions?: typeof suggestedActions
     validationDiag?: { violations: string[]; originalContent: string; knownSlotsCount: number; mentionedTimes: string[] }
+    engineDiag?: { bookingEngine: string }
   } = {}
   if (knowledgeSources.length > 0) messageMetadata.knowledgeSources = knowledgeSources
   if (suggestedActions.length > 0) messageMetadata.suggestedActions = suggestedActions
   if (_validationDiag) messageMetadata.validationDiag = _validationDiag
+  messageMetadata.engineDiag = { bookingEngine: tenantConfig.bookingEngine ?? 'legacy' }
 
   await store.save(
     conversationId,
