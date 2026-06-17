@@ -46,6 +46,13 @@ export class ResponseValidator {
       violations.push('COMPETITOR_MENTION')
     }
 
+    // Ghost booking: model asserts a completed booking that didn't happen this turn.
+    // When a real booking exists (hadDestructiveSuccess=true or previewReply set), the
+    // finalReply logic in index.ts bypasses this sanitizedContent entirely — safe to check always.
+    if (this.detectsCompletedBookingClaim(response)) {
+      violations.push('GHOST_BOOKING_CLAIM')
+    }
+
     if (context.toolResults && this.containsInventedPrice(response, context.toolResults)) {
       violations.push('POTENTIAL_HALLUCINATION')
     }
@@ -155,6 +162,34 @@ export class ResponseValidator {
     return violations
   }
 
+  /**
+   * Detects sentences where the model asserts a completed booking (past tense) without
+   * a real appointment having been created. Skips questions ("?") and conditional clauses
+   * ("чтобы", "если бы") to avoid false positives on offers like "хотите, чтобы я записала вас?".
+   * Does NOT match future/present: "записываю", "записать", "могу записать".
+   */
+  private detectsCompletedBookingClaim(text: string): boolean {
+    const segments = text.split(/(?<=[.!?…])\s+|\n+/)
+    for (const seg of segments) {
+      const s = seg.toLowerCase().trim()
+      if (!s) continue
+      if (s.endsWith('?')) continue
+      if (/\bчтобы\b/.test(s) || /\bесли бы\b/.test(s)) continue
+      if (
+        /записал[аи]?\s+вас/.test(s) ||
+        /вас\s+записал[аи]?/.test(s) ||
+        /\bвы\s+записан[ыа]\b/.test(s) ||
+        /\bты\s+записан[аы]\b/.test(s) ||
+        /\bзаписан[ыа]\b/.test(s) ||
+        /запись\s+(оформлена|создана|подтверждена|зарегистрирована|сделана|готова)/.test(s) ||
+        /забронировал[аи]?\s+(вас|для\s+вас)/.test(s)
+      ) {
+        return true
+      }
+    }
+    return false
+  }
+
   private fallback(violations: string[]): string {
     if (violations.includes('SYSTEM_PROMPT_LEAK')) {
       return 'Дайте секунду, уточню для вас 😊'
@@ -164,6 +199,9 @@ export class ResponseValidator {
     }
     if (violations.includes('EMPTY_RESPONSE')) {
       return 'Дайте секунду, уточню для вас.'
+    }
+    if (violations.includes('GHOST_BOOKING_CLAIM')) {
+      return 'Чтобы оформить запись, подтвердите детали выше.'
     }
     if (
       violations.includes('HALLUCINATED_TIME_SLOTS') ||
