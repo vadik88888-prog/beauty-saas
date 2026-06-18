@@ -231,10 +231,10 @@ export async function buildShadowForm(opts: {
       const status = statusFromCount(resolvedId, candidateCount)
       const { source: svcSource, origin: svcOrigin } = computeSourceAndOrigin(extracted.service!, message)
       const svcMentioned = mentionedInClientText(serviceRaw, message, history, client.lastService)
-      console.log(`[booking-form-shadow] service resolve: ${status} source=${svcSource} origin=${svcOrigin} candidate_count=${candidateCount} mentioned=${svcMentioned} id=${resolvedId ?? 'null'} raw="${serviceRaw}"`)
+      console.warn(`[booking-form-shadow] service resolve: ${status} source=${svcSource} origin=${svcOrigin} candidate_count=${candidateCount} mentioned=${svcMentioned} id=${resolvedId ?? 'null'} raw="${serviceRaw}"`)
       if (!svcMentioned) {
         // Модель достроила имя услуги, которого клиент не называл — не пишем
-        console.log(`[booking-form-shadow] service NOT_MENTIONED — skipping patch raw="${serviceRaw}"`)
+        console.warn(`[booking-form-shadow] service NOT_MENTIONED — skipping patch raw="${serviceRaw}"`)
       } else if (resolvedId && candidateCount === 1) {
         patch.service = {
           id: resolvedId,
@@ -245,7 +245,7 @@ export async function buildShadowForm(opts: {
         } satisfies ShadowFormEntry
       } else if (candidateCount > 1) {
         // Неоднозначный ввод — поле услуги не трогаем: prevForm FACT сохранится через mergeEntry
-        console.log(`[booking-form-shadow] service MULTIPLE_MATCH — skipping patch to preserve previous FACT`)
+        console.warn(`[booking-form-shadow] service MULTIPLE_MATCH — skipping patch to preserve previous FACT`)
       }
     }
 
@@ -260,9 +260,9 @@ export async function buildShadowForm(opts: {
       const status = statusFromCount(resolvedId, candidateCount)
       const { source: mstSource, origin: mstOrigin } = computeSourceAndOrigin(extracted.master!, message)
       const mstMentioned = mentionedInClientText(masterRaw, message, history, client.preferredMasterName)
-      console.log(`[booking-form-shadow] master resolve: ${status} source=${mstSource} origin=${mstOrigin} candidate_count=${candidateCount} mentioned=${mstMentioned} id=${resolvedId ?? 'null'} raw="${masterRaw}"`)
+      console.warn(`[booking-form-shadow] master resolve: ${status} source=${mstSource} origin=${mstOrigin} candidate_count=${candidateCount} mentioned=${mstMentioned} id=${resolvedId ?? 'null'} raw="${masterRaw}"`)
       if (!mstMentioned) {
-        console.log(`[booking-form-shadow] master NOT_MENTIONED — skipping patch raw="${masterRaw}"`)
+        console.warn(`[booking-form-shadow] master NOT_MENTIONED — skipping patch raw="${masterRaw}"`)
       } else if (resolvedId && candidateCount === 1) {
         patch.master = {
           id: resolvedId,
@@ -272,7 +272,7 @@ export async function buildShadowForm(opts: {
           candidateCount,
         } satisfies ShadowFormEntry
       } else if (candidateCount > 1) {
-        console.log(`[booking-form-shadow] master MULTIPLE_MATCH — skipping patch to preserve previous FACT`)
+        console.warn(`[booking-form-shadow] master MULTIPLE_MATCH — skipping patch to preserve previous FACT`)
       }
     }
 
