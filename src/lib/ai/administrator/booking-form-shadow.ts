@@ -144,23 +144,34 @@ function statusFromCount(resolvedId: string | null, candidateCount: number): Sha
   return candidateCount > 1 ? 'MULTIPLE_MATCH' : 'SINGLE_MATCH'
 }
 
-// Проверяет, что извлечённое значение (имя услуги / мастера) реально присутствует
-// в словах клиента — текущем сообщении или его репликах в истории.
-// Исключение: значение совпадает с обычной услугой/мастером из профиля клиента
-// («как обычно») — в этом случае модель подставляет имя законно, не галлюцинирует.
+// Проверяет, что услуга/мастер реально присутствует в словах клиента.
+// Принимает необязательную цитату (quote) — дословные слова клиента из текущего сообщения.
+// Если цитата есть, проверяем её; это важно когда экстрактор раскрыл короткое слово («массаж»)
+// в полное название («Классический массаж спины»), которого нет в сообщении буквально.
 function mentionedInClientText(
   raw: string,
   message: string,
   history: LLMMessage[],
-  profileUsual: string | null | undefined
+  profileUsual: string | null | undefined,
+  quote?: string | null
 ): boolean {
   const normValue = normalizeName(raw)
   if (!normValue) return false
-  // Bypass: значение из профиля клиента
+  // Bypass: значение из профиля клиента (путь «как обычно»)
   if (profileUsual && normalizeName(profileUsual) === normValue) return true
-  // Текущее сообщение клиента
+  // Цитата — точные слова клиента, если экстрактор их указал
+  if (quote && quote.trim()) {
+    const normQuote = normalizeName(quote)
+    if (normQuote) {
+      if (normalizeName(message).includes(normQuote)) return true
+      if (history
+        .filter(m => m.role === 'user' && typeof m.content === 'string')
+        .slice(-HISTORY_MESSAGES)
+        .some(m => normalizeName(m.content as string).includes(normQuote))) return true
+    }
+  }
+  // Полное название в тексте (запасной вариант)
   if (normalizeName(message).includes(normValue)) return true
-  // Реплики клиента в истории (те же HISTORY_MESSAGES окна, что у экстрактора)
   return history
     .filter(m => m.role === 'user' && typeof m.content === 'string')
     .slice(-HISTORY_MESSAGES)
@@ -222,19 +233,28 @@ export async function buildShadowForm(opts: {
 
     // ── Услуга: существующий резолвер + подсчёт кандидатов для статуса
     const serviceRaw = extracted.service?.value
+    // Цитата — дословные слова клиента («маникюр», «массаж», «классический»).
+    // Кандидатов считаем по цитате, а не по расширенному названию: «классический»
+    // соответствует двум услугам, хотя «Маникюр классический» resolve-уникален.
+    const serviceQuote = (extracted.service?.quote ?? '').trim() || null
     if (serviceRaw && typeof serviceRaw === 'string') {
       const [resolvedId, listRes] = await Promise.all([
         resolveServiceId(supabase, serviceRaw, tenantId),
         supabase.from('services').select('name').eq('tenant_id', tenantId).eq('is_active', true),
       ])
-      const candidateCount = countServiceCandidates(((listRes.data ?? []) as { name: string }[]), serviceRaw)
+      const serviceList = (listRes.data ?? []) as { name: string }[]
+      const candidateInput = serviceQuote ?? serviceRaw
+      const candidateCount = countServiceCandidates(serviceList, candidateInput)
       const status = statusFromCount(resolvedId, candidateCount)
       const { source: svcSource, origin: svcOrigin } = computeSourceAndOrigin(extracted.service!, message)
-      const svcMentioned = mentionedInClientText(serviceRaw, message, history, client.lastService)
-      console.warn(`[booking-form-shadow] service resolve: ${status} source=${svcSource} origin=${svcOrigin} candidate_count=${candidateCount} mentioned=${svcMentioned} id=${resolvedId ?? 'null'} raw="${serviceRaw}"`)
+      const svcMentioned = mentionedInClientText(serviceRaw, message, history, client.lastService, serviceQuote)
+      console.warn(`[booking-form-shadow] service resolve: ${status} source=${svcSource} origin=${svcOrigin} candidate_count=${candidateCount} mentioned=${svcMentioned} id=${resolvedId ?? 'null'} raw="${serviceRaw}" quote="${serviceQuote ?? ''}"`)
       if (!svcMentioned) {
         // Модель достроила имя услуги, которого клиент не называл — не пишем
         console.warn(`[booking-form-shadow] service NOT_MENTIONED — skipping patch raw="${serviceRaw}"`)
+      } else if (candidateCount > 1) {
+        // Слово клиента подходит к нескольким услугам — не пишем, SERA должна переспросить
+        console.warn(`[booking-form-shadow] service MULTIPLE_MATCH on quote="${candidateInput}" — skipping, SERA will clarify`)
       } else if (resolvedId && candidateCount === 1) {
         patch.service = {
           id: resolvedId,
@@ -243,26 +263,28 @@ export async function buildShadowForm(opts: {
           resolverStatus: status,
           candidateCount,
         } satisfies ShadowFormEntry
-      } else if (candidateCount > 1) {
-        // Неоднозначный ввод — поле услуги не трогаем: prevForm FACT сохранится через mergeEntry
-        console.warn(`[booking-form-shadow] service MULTIPLE_MATCH — skipping patch to preserve previous FACT`)
       }
     }
 
     // ── Мастер: существующий резолвер + зеркальный подсчёт кандидатов
     const masterRaw = extracted.master?.value
+    const masterQuote = (extracted.master?.quote ?? '').trim() || null
     if (masterRaw && typeof masterRaw === 'string') {
       const [resolvedId, listRes] = await Promise.all([
         resolveMasterId(supabase, masterRaw, tenantId),
         supabase.from('masters').select('name').eq('tenant_id', tenantId).eq('is_active', true),
       ])
-      const candidateCount = countMasterCandidates(((listRes.data ?? []) as { name: string }[]), masterRaw)
+      const masterList = (listRes.data ?? []) as { name: string }[]
+      const masterCandidateInput = masterQuote ?? masterRaw
+      const candidateCount = countMasterCandidates(masterList, masterCandidateInput)
       const status = statusFromCount(resolvedId, candidateCount)
       const { source: mstSource, origin: mstOrigin } = computeSourceAndOrigin(extracted.master!, message)
-      const mstMentioned = mentionedInClientText(masterRaw, message, history, client.preferredMasterName)
-      console.warn(`[booking-form-shadow] master resolve: ${status} source=${mstSource} origin=${mstOrigin} candidate_count=${candidateCount} mentioned=${mstMentioned} id=${resolvedId ?? 'null'} raw="${masterRaw}"`)
+      const mstMentioned = mentionedInClientText(masterRaw, message, history, client.preferredMasterName, masterQuote)
+      console.warn(`[booking-form-shadow] master resolve: ${status} source=${mstSource} origin=${mstOrigin} candidate_count=${candidateCount} mentioned=${mstMentioned} id=${resolvedId ?? 'null'} raw="${masterRaw}" quote="${masterQuote ?? ''}"`)
       if (!mstMentioned) {
         console.warn(`[booking-form-shadow] master NOT_MENTIONED — skipping patch raw="${masterRaw}"`)
+      } else if (candidateCount > 1) {
+        console.warn(`[booking-form-shadow] master MULTIPLE_MATCH on quote="${masterCandidateInput}" — skipping, SERA will clarify`)
       } else if (resolvedId && candidateCount === 1) {
         patch.master = {
           id: resolvedId,
@@ -271,8 +293,6 @@ export async function buildShadowForm(opts: {
           resolverStatus: status,
           candidateCount,
         } satisfies ShadowFormEntry
-      } else if (candidateCount > 1) {
-        console.warn(`[booking-form-shadow] master MULTIPLE_MATCH — skipping patch to preserve previous FACT`)
       }
     }
 
