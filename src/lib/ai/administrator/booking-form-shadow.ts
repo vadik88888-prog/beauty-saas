@@ -208,7 +208,7 @@ export async function buildShadowForm(opts: {
       const status = statusFromCount(resolvedId, candidateCount)
       const { source: svcSource, origin: svcOrigin } = computeSourceAndOrigin(extracted.service!, message)
       console.log(`[booking-form-shadow] service resolve: ${status} source=${svcSource} origin=${svcOrigin} candidate_count=${candidateCount} selected=first id=${resolvedId ?? 'null'} raw="${serviceRaw}"`)
-      if (resolvedId) {
+      if (resolvedId && candidateCount === 1) {
         patch.service = {
           id: resolvedId,
           source: svcSource,
@@ -216,6 +216,9 @@ export async function buildShadowForm(opts: {
           resolverStatus: status,
           candidateCount,
         } satisfies ShadowFormEntry
+      } else if (candidateCount > 1) {
+        // Неоднозначный ввод — поле услуги не трогаем: prevForm FACT сохранится через mergeEntry
+        console.log(`[booking-form-shadow] service MULTIPLE_MATCH — skipping patch to preserve previous FACT`)
       }
     }
 
@@ -230,7 +233,7 @@ export async function buildShadowForm(opts: {
       const status = statusFromCount(resolvedId, candidateCount)
       const { source: mstSource, origin: mstOrigin } = computeSourceAndOrigin(extracted.master!, message)
       console.log(`[booking-form-shadow] master resolve: ${status} source=${mstSource} origin=${mstOrigin} candidate_count=${candidateCount} selected=first id=${resolvedId ?? 'null'} raw="${masterRaw}"`)
-      if (resolvedId) {
+      if (resolvedId && candidateCount === 1) {
         patch.master = {
           id: resolvedId,
           source: mstSource,
@@ -238,6 +241,8 @@ export async function buildShadowForm(opts: {
           resolverStatus: status,
           candidateCount,
         } satisfies ShadowFormEntry
+      } else if (candidateCount > 1) {
+        console.log(`[booking-form-shadow] master MULTIPLE_MATCH — skipping patch to preserve previous FACT`)
       }
     }
 
