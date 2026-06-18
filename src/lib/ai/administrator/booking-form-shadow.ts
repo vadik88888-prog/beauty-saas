@@ -144,6 +144,29 @@ function statusFromCount(resolvedId: string | null, candidateCount: number): Sha
   return candidateCount > 1 ? 'MULTIPLE_MATCH' : 'SINGLE_MATCH'
 }
 
+// Проверяет, что извлечённое значение (имя услуги / мастера) реально присутствует
+// в словах клиента — текущем сообщении или его репликах в истории.
+// Исключение: значение совпадает с обычной услугой/мастером из профиля клиента
+// («как обычно») — в этом случае модель подставляет имя законно, не галлюцинирует.
+function mentionedInClientText(
+  raw: string,
+  message: string,
+  history: LLMMessage[],
+  profileUsual: string | null | undefined
+): boolean {
+  const normValue = normalizeName(raw)
+  if (!normValue) return false
+  // Bypass: значение из профиля клиента
+  if (profileUsual && normalizeName(profileUsual) === normValue) return true
+  // Текущее сообщение клиента
+  if (normalizeName(message).includes(normValue)) return true
+  // Реплики клиента в истории (те же HISTORY_MESSAGES окна, что у экстрактора)
+  return history
+    .filter(m => m.role === 'user' && typeof m.content === 'string')
+    .slice(-HISTORY_MESSAGES)
+    .some(m => normalizeName(m.content as string).includes(normValue))
+}
+
 // Merge двух записей анкеты: FACT не понижается до ASSUMPTION.
 // FACT + ASSUMPTION → оставляем старый FACT.
 // ASSUMPTION + FACT / FACT + FACT / ASSUMPTION + ASSUMPTION → берём новый (свежее).
@@ -207,8 +230,12 @@ export async function buildShadowForm(opts: {
       const candidateCount = countServiceCandidates(((listRes.data ?? []) as { name: string }[]), serviceRaw)
       const status = statusFromCount(resolvedId, candidateCount)
       const { source: svcSource, origin: svcOrigin } = computeSourceAndOrigin(extracted.service!, message)
-      console.log(`[booking-form-shadow] service resolve: ${status} source=${svcSource} origin=${svcOrigin} candidate_count=${candidateCount} selected=first id=${resolvedId ?? 'null'} raw="${serviceRaw}"`)
-      if (resolvedId && candidateCount === 1) {
+      const svcMentioned = mentionedInClientText(serviceRaw, message, history, client.lastService)
+      console.log(`[booking-form-shadow] service resolve: ${status} source=${svcSource} origin=${svcOrigin} candidate_count=${candidateCount} mentioned=${svcMentioned} id=${resolvedId ?? 'null'} raw="${serviceRaw}"`)
+      if (!svcMentioned) {
+        // Модель достроила имя услуги, которого клиент не называл — не пишем
+        console.log(`[booking-form-shadow] service NOT_MENTIONED — skipping patch raw="${serviceRaw}"`)
+      } else if (resolvedId && candidateCount === 1) {
         patch.service = {
           id: resolvedId,
           source: svcSource,
@@ -232,8 +259,11 @@ export async function buildShadowForm(opts: {
       const candidateCount = countMasterCandidates(((listRes.data ?? []) as { name: string }[]), masterRaw)
       const status = statusFromCount(resolvedId, candidateCount)
       const { source: mstSource, origin: mstOrigin } = computeSourceAndOrigin(extracted.master!, message)
-      console.log(`[booking-form-shadow] master resolve: ${status} source=${mstSource} origin=${mstOrigin} candidate_count=${candidateCount} selected=first id=${resolvedId ?? 'null'} raw="${masterRaw}"`)
-      if (resolvedId && candidateCount === 1) {
+      const mstMentioned = mentionedInClientText(masterRaw, message, history, client.preferredMasterName)
+      console.log(`[booking-form-shadow] master resolve: ${status} source=${mstSource} origin=${mstOrigin} candidate_count=${candidateCount} mentioned=${mstMentioned} id=${resolvedId ?? 'null'} raw="${masterRaw}"`)
+      if (!mstMentioned) {
+        console.log(`[booking-form-shadow] master NOT_MENTIONED — skipping patch raw="${masterRaw}"`)
+      } else if (resolvedId && candidateCount === 1) {
         patch.master = {
           id: resolvedId,
           source: mstSource,
