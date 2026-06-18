@@ -208,6 +208,7 @@ export async function runAdministrator(
   let previewReply: string | null = null
   let previewCardShown = false       // STATE D показал карточку «Записываю…»
   let clearAwaitingConfirmation = false  // STATE E: явно сброс флага ожидания «Да»
+  let skipPreviewThisTurn = false    // STATE E→?: client off-topic — не показывать preview повторно в этом же ходу
 
   // NOTE: forceGetServices removed — AI now has full salon snapshot (services/masters/promos)
   // in system prompt, so it knows everything from the start without forced tool call.
@@ -383,12 +384,20 @@ export async function runAdministrator(
     } else if (confirmE === 'no') {
       clearAwaitingConfirmation = true
       console.log('[booking-engine=new] STATE E — client declined')
+    } else {
+      // 'unclear': клиент сменил тему или спросил что-то другое — сбрасываем ожидание.
+      // skipPreviewThisTurn = true чтобы в этом же ходу не показать карточку повторно:
+      // модель отвечает на вопрос клиента. В следующем ходу 8.5b покажет карточку снова,
+      // если форма по-прежнему READY_TO_BOOK.
+      clearAwaitingConfirmation = true
+      skipPreviewThisTurn = true
+      console.log('[booking-engine=new] STATE E — unclear, confirmation reset (off-topic guard)')
     }
-    // 'unclear': оставляем awaitingFinalConfirmation, модель переспросит
   }
 
   // 8.5b STATE D (engine=new): показываем карточку, если форма полная FACT.
-  if (tenantConfig.bookingEngine === 'new' && !previewReply) {
+  // skipPreviewThisTurn=true когда клиент сменил тему прямо на ходу ожидания — отвечаем на вопрос.
+  if (tenantConfig.bookingEngine === 'new' && !previewReply && !skipPreviewThisTurn) {
     const sf = await shadowFormPromise
     const effectiveSf = sf ?? bookingState.shadowForm ?? null
     resolvedSf = effectiveSf
