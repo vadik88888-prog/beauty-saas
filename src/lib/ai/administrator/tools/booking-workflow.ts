@@ -46,7 +46,8 @@ export function formatRussianDate(dateStr: string): string {
 export async function buildBookingPreview(
   shadowForm: ShadowBookingForm,
   tenantConfig: TenantAiConfig,
-  clientId: string
+  clientId: string,
+  isNewClient: boolean
 ): Promise<string> {
   const { snapshot, tenantId } = tenantConfig
 
@@ -63,7 +64,11 @@ export async function buildBookingPreview(
     const supabase = createAdminClient()
     const [offerResult, promo] = await Promise.all([
       resolveOfferPrice({ tenantId, clientId, serviceId: shadowForm.service!.id!, basePrice }),
-      resolveActivePromo(supabase, '', tenantId),
+      resolveActivePromo(supabase, '', tenantId, {
+        serviceId: shadowForm.service!.id,
+        isNewClient,
+        basePrice,
+      }),
     ])
 
     let promoDiscount = 0

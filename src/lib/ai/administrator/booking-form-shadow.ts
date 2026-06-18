@@ -416,11 +416,11 @@ export async function runBookingComparison(opts: {
     const shadowSvcName = svc?.name ?? serviceId
     const oldPrice = (apptRes.data as { price: number | null } | null)?.price ?? null
 
-    // Цена нового движка: персональный оффер (промо не трекается в анкете — пропуск)
+    // Цена нового движка: персональный оффер + акция (без isNewClient — только для логирования)
     const offerResult = await resolveOfferPrice({ tenantId, clientId, serviceId: serviceId!, basePrice })
 
-    // Ищем единственную активную акцию (без привязки к конкретному promo_id из анкеты)
-    const promo = await resolveActivePromo(supabase, '', tenantId)
+    // Ищем лучшую активную акцию для этой услуги (isNewClient не передаём — comparison only)
+    const promo = await resolveActivePromo(supabase, '', tenantId, { serviceId: serviceId ?? null, basePrice })
     let promoDiscount = 0
     if (promo && promo.discount_value && promo.discount_value > 0 && basePrice && basePrice > 0) {
       promoDiscount = promo.discount_type === 'percent'

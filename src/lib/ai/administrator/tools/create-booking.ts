@@ -59,52 +59,89 @@ export type PromoRow = {
   discount_value: number | null
   starts_at: string | null
   ends_at: string | null
+  new_clients_only: boolean
+  service_ids: string[] | null
 }
 
-// Returns active promo if raw is UUID OR matches title fuzzy. Active = is_active AND within date range.
-// Экспортирована для shadow comparison (booking-form-shadow.ts) — логика не менялась.
+// Returns the best active promo for the given service and client.
+// Filters by service_ids (empty/null = all services) and new_clients_only.
+// When raw is empty, picks the promo with the highest discount. When raw is a
+// UUID or name, resolves that specific promo (still applies eligibility filters).
 export async function resolveActivePromo(
   supabase: ReturnType<typeof createAdminClient>,
   raw: string,
-  tenantId: string
+  tenantId: string,
+  opts?: { serviceId?: string | null; isNewClient?: boolean; basePrice?: number | null }
 ): Promise<PromoRow | null> {
   const nowMs = Date.now()
+  const selectFields = 'id, title, discount_type, discount_value, starts_at, ends_at, new_clients_only, service_ids'
+
   const withinRange = (p: PromoRow) => {
     const startOk = !p.starts_at || new Date(p.starts_at).getTime() <= nowMs
     const endOk = !p.ends_at || new Date(p.ends_at).getTime() >= nowMs
     return startOk && endOk
   }
+  const serviceMatches = (p: PromoRow) => {
+    if (!p.service_ids || p.service_ids.length === 0) return true
+    return opts?.serviceId ? p.service_ids.includes(opts.serviceId) : false
+  }
+  const clientEligible = (p: PromoRow) => {
+    if (!p.new_clients_only) return true
+    if (opts?.isNewClient === undefined) return true
+    return opts.isNewClient
+  }
+  const eligible = (p: PromoRow) => withinRange(p) && serviceMatches(p) && clientEligible(p)
+
+  const computeAmount = (p: PromoRow): number => {
+    if (!p.discount_value || p.discount_value <= 0) return 0
+    const base = opts?.basePrice
+    if (base && base > 0) {
+      return p.discount_type === 'percent'
+        ? Math.round(base * p.discount_value / 100 * 100) / 100
+        : Math.min(p.discount_value, base)
+    }
+    return p.discount_value
+  }
 
   if (UUID_RE.test(raw)) {
     const { data } = await supabase
       .from('promotions')
-      .select('id, title, discount_type, discount_value, starts_at, ends_at')
+      .select(selectFields)
       .eq('id', raw)
       .eq('tenant_id', tenantId)
       .eq('is_active', true)
       .maybeSingle()
     const p = data as PromoRow | null
-    return p && withinRange(p) ? p : null
+    return p && eligible(p) ? p : null
   }
 
   const { data } = await supabase
     .from('promotions')
-    .select('id, title, discount_type, discount_value, starts_at, ends_at')
+    .select(selectFields)
     .eq('tenant_id', tenantId)
     .eq('is_active', true)
-  const list = ((data ?? []) as PromoRow[]).filter(withinRange)
+  const list = ((data ?? []) as PromoRow[]).filter(eligible)
   if (list.length === 0) return null
 
-  const needle = normalizeName(raw)
-  const exact = list.find(p => p.title && normalizeName(p.title) === needle)
-  if (exact) return exact
-  const partial = list.find(p => {
-    const t = p.title ? normalizeName(p.title) : ''
-    return t && (t.includes(needle) || needle.includes(t))
-  })
-  if (partial) return partial
-  // Если активная акция одна — AI явно подразумевает её, даже если назвал криво
-  return list.length === 1 ? list[0] : null
+  if (raw !== '') {
+    const needle = normalizeName(raw)
+    const exact = list.find(p => p.title && normalizeName(p.title) === needle)
+    if (exact) return exact
+    const partial = list.find(p => {
+      const t = p.title ? normalizeName(p.title) : ''
+      return t && (t.includes(needle) || needle.includes(t))
+    })
+    return partial ?? null
+  }
+
+  // raw === '' → pick the promo with the highest discount for this service/client
+  let best: PromoRow | null = null
+  let bestAmount = 0
+  for (const p of list) {
+    const amount = computeAmount(p)
+    if (amount > bestAmount) { bestAmount = amount; best = p }
+  }
+  return best
 }
 
 export async function executeCreateBooking(
