@@ -174,6 +174,7 @@ export async function runAdministrator(
   let previewCardShown = false
   let clearAwaitingConfirmation = false
   let skipPreviewThisTurn = false
+  let clearSlotFromForm = false
 
   const isMedicalQuery = detectMedicalQuery(message)
   if (isMedicalQuery) {
@@ -324,14 +325,18 @@ export async function runAdministrator(
       } else {
         previewReply = bookResult.fallbackMessage ?? 'К сожалению, это время уже занято. Давайте выберем другое?'
         clearAwaitingConfirmation = true
+        clearSlotFromForm = true
         console.log('[booking-engine=new] STATE E — booking failed', { error: bookResult.error })
       }
     } else if (confirmE === 'no') {
       clearAwaitingConfirmation = true
+      skipPreviewThisTurn = true
+      clearSlotFromForm = true
       console.log('[booking-engine=new] STATE E — client declined')
     } else {
       clearAwaitingConfirmation = true
       skipPreviewThisTurn = true
+      clearSlotFromForm = true
       console.log('[booking-engine=new] STATE E — unclear, confirmation reset (off-topic guard)')
     }
   }
@@ -556,6 +561,10 @@ export async function runAdministrator(
 
   if (actionType !== 'booking_created' && shadowFormToSave) {
     nextBookingState.shadowForm = shadowFormToSave
+  }
+
+  if (clearSlotFromForm && nextBookingState.shadowForm?.slot) {
+    nextBookingState.shadowForm = { ...nextBookingState.shadowForm, slot: undefined }
   }
 
   const comparePromise = runBookingComparison({
