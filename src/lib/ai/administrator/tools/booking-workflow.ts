@@ -2,6 +2,7 @@ import type { ToolResult, ShadowBookingForm, TenantAiConfig } from '@/lib/ai/adm
 import { executeCreateBooking, resolveActivePromo } from './create-booking'
 import { resolveOfferPrice } from '@/lib/booking/price-calculator'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { salonTime } from '@/lib/utils/date'
 
 // Новый движок записи — блокирует прямое создание через tool call.
 // Под engine=new запись создаётся только через code path (после preview + подтверждения).
@@ -20,14 +21,44 @@ export async function executeBookingWorkflow(
 }
 
 // Все 4 поля заполнены, все — FACT (нет ни одного ASSUMPTION), у каждого есть id/value.
-export function isReadyToBook(shadowForm: ShadowBookingForm | null | undefined): shadowForm is ShadowBookingForm {
+// rescheduleMode: при наличии rescheduleAppointmentId достаточно date+slot=FACT.
+export function isReadyToBook(
+  shadowForm: ShadowBookingForm | null | undefined,
+  opts?: { rescheduleMode?: boolean }
+): shadowForm is ShadowBookingForm {
   if (!shadowForm) return false
+  if (opts?.rescheduleMode) {
+    const { date, slot } = shadowForm
+    if (!date?.value || date.source !== 'FACT') return false
+    if (!slot?.value || slot.source !== 'FACT') return false
+    return true
+  }
   const { service, master, date, slot } = shadowForm
   if (!service?.id   || service.source !== 'FACT') return false
   if (!master?.id    || master.source  !== 'FACT') return false
   if (!date?.value   || date.source    !== 'FACT') return false
   if (!slot?.value   || slot.source    !== 'FACT') return false
   return true
+}
+
+// Карточка «было → стало» для STATE D при переносе.
+export function buildReschedulePreview(opts: {
+  serviceName: string
+  masterName: string
+  oldStartsAt: string  // UTC ISO — из текущей записи
+  newDate: string      // YYYY-MM-DD в timezone салона
+  newSlot: string      // HH:MM в timezone салона
+  timezone: string
+}): string {
+  const { serviceName, masterName, oldStartsAt, newDate, newSlot, timezone } = opts
+  const oldDateLocal = new Date(oldStartsAt).toLocaleDateString('en-CA', { timeZone: timezone })
+  const oldSlot = salonTime(oldStartsAt, timezone)
+  return [
+    `Переносим: ${serviceName} у ${masterName}.`,
+    `Сейчас: ${formatRussianDate(oldDateLocal)} в ${oldSlot}.`,
+    `На: ${formatRussianDate(newDate)} в ${newSlot}.`,
+    `Верно?`,
+  ].join('\n')
 }
 
 const MONTHS_RU = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'] as const

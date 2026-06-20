@@ -8,8 +8,10 @@ import { ConversationStateMachine } from './orchestrator/state-machine'
 import { ResponseValidator } from './validators/response-validator'
 import { HallucinationGuard } from './validators/hallucination-guard'
 import { TOOL_REGISTRY, executeTool } from './tools'
-import { isReadyToBook, buildBookingPreview, formatRussianDate } from './tools/booking-workflow'
+import { isReadyToBook, buildBookingPreview, buildReschedulePreview, formatRussianDate } from './tools/booking-workflow'
 import { executeCreateBooking, resolveActivePromo } from './tools/create-booking'
+import { rescheduleAppointment } from '@/lib/booking/manage-appointment'
+import type { RescheduleIntentData } from './tools/reschedule-booking'
 import { localToUtc } from './booking-form-shadow'
 import { buildLlmSuggestedActions } from './llm-suggested-actions'
 import { describeToolForUser, updateLiveStatus } from './live-status'
@@ -175,6 +177,7 @@ export async function runAdministrator(
   let clearAwaitingConfirmation = false
   let skipPreviewThisTurn = false
   let clearSlotFromForm = false
+  let rescheduleIntent: RescheduleIntentData | null = null
 
   const isMedicalQuery = detectMedicalQuery(message)
   if (isMedicalQuery) {
@@ -252,6 +255,12 @@ export async function runAdministrator(
         actionType = 'handoff'
         await store.markHandedOff(conversationId)
       }
+      if (tcFn.function.name === 'reschedule_appointment' && result.success) {
+        const rd = result.data as Record<string, unknown>
+        if (rd?.action === 'reschedule_intent') {
+          rescheduleIntent = rd as unknown as RescheduleIntentData
+        }
+      }
       if (tcFn.function.name === 'book_appointment' && result.success) {
         actionType = 'booking_created'
         actionData = result.data as Record<string, unknown>
@@ -302,7 +311,36 @@ export async function runAdministrator(
     const confirmE = detectConfirmation(message)
     const frozenForm = bookingState.shadowForm
 
-    if (confirmE === 'yes' && frozenForm?.service?.id && frozenForm.master?.id && frozenForm.date?.value && frozenForm.slot?.value) {
+    if (confirmE === 'yes' && bookingState.rescheduleAppointmentId) {
+      // RESCHEDULE path — UPDATE existing appointment (no INSERT, no new row)
+      if (frozenForm?.date?.value && frozenForm?.slot?.value) {
+        const startsAt = localToUtc(frozenForm.date.value, frozenForm.slot.value, tenantConfig.timezone)
+        const reschedResult = await rescheduleAppointment({
+          appointmentId: bookingState.rescheduleAppointmentId,
+          tenantId,
+          clientId,
+          newStartsAt: startsAt,
+        })
+        if (reschedResult.success) {
+          previewReply = `Перенесла на ${formatRussianDate(frozenForm.date.value)} в ${frozenForm.slot.value} ✓`
+          clearAwaitingConfirmation = true
+          clearSlotFromForm = true
+          console.log('[booking-engine=new] STATE E RESCHEDULE — done', { appointmentId: bookingState.rescheduleAppointmentId, startsAt })
+        } else {
+          previewReply = reschedResult.code === 'slot_taken'
+            ? 'Это время уже занято — давайте выберем другое?'
+            : reschedResult.code === 'too_late'
+              ? 'К сожалению, уже слишком поздно для самостоятельного переноса. Обратитесь к администратору.'
+              : (reschedResult.error ?? 'Не удалось перенести запись.')
+          clearAwaitingConfirmation = true
+          clearSlotFromForm = true
+          console.log('[booking-engine=new] STATE E RESCHEDULE — failed', { code: reschedResult.code })
+        }
+      } else {
+        clearAwaitingConfirmation = true
+        clearSlotFromForm = true
+      }
+    } else if (confirmE === 'yes' && frozenForm?.service?.id && frozenForm.master?.id && frozenForm.date?.value && frozenForm.slot?.value) {
       const startsAt = localToUtc(frozenForm.date.value, frozenForm.slot.value, tenantConfig.timezone)
       const activePromo = await resolveActivePromo(createAdminClient(), '', tenantId, {
         serviceId: frozenForm.service.id,
@@ -375,6 +413,16 @@ export async function runAdministrator(
       slotConfirmed = true
     }
 
+    // Inject date+slot from reschedule intent into shadow form so isReadyToBook passes.
+    if (rescheduleIntent) {
+      resolvedSf = {
+        ...(resolvedSf ?? { updatedAt: new Date().toISOString() }),
+        date: { value: rescheduleIntent.new_date, source: 'FACT', origin: 'EXPLICIT' },
+        slot: { value: rescheduleIntent.new_slot, source: 'FACT', origin: 'EXPLICIT' },
+        updatedAt: new Date().toISOString(),
+      }
+    }
+
     console.warn('[AUTOFACT-DEBUG] 8.5 check', {
       sf: resolvedSf ? {
         svc_src: resolvedSf.service?.source, svc_org: resolvedSf.service?.origin, svc_id: !!resolvedSf.service?.id,
@@ -388,9 +436,21 @@ export async function runAdministrator(
       confirmResult: pendingSlot ? confirmResult : 'no-pending',
     })
 
-    if (isReadyToBook(resolvedSf)) {
-      console.warn('[AUTOFACT-DEBUG] isReadyToBook true — building preview')
-      previewReply = await buildBookingPreview(resolvedSf, tenantConfig, clientId, !clientContext.isReturning)
+    const isRescheduleMode = !!(rescheduleIntent ?? bookingState.rescheduleAppointmentId)
+    if (isReadyToBook(resolvedSf, { rescheduleMode: isRescheduleMode })) {
+      console.warn('[AUTOFACT-DEBUG] isReadyToBook true — building preview', { isRescheduleMode })
+      if (rescheduleIntent) {
+        previewReply = buildReschedulePreview({
+          serviceName: rescheduleIntent.service_name,
+          masterName:  rescheduleIntent.master_name,
+          oldStartsAt: rescheduleIntent.old_starts_at,
+          newDate:     rescheduleIntent.new_date,
+          newSlot:     rescheduleIntent.new_slot,
+          timezone:    tenantConfig.timezone,
+        })
+      } else {
+        previewReply = await buildBookingPreview(resolvedSf, tenantConfig, clientId, !clientContext.isReturning)
+      }
       previewCardShown = true
     } else {
       console.warn('[AUTOFACT-DEBUG] isReadyToBook false — see 8.5 check above for field sources')
@@ -531,6 +591,14 @@ export async function runAdministrator(
     nextBookingState.awaitingFinalConfirmation = clearAwaitingConfirmation
       ? false
       : (previewCardShown ? true : (bookingState.awaitingFinalConfirmation ?? false))
+    // Reschedule intent lifecycle: set on intent, clear when confirmation resets.
+    if (clearAwaitingConfirmation) {
+      nextBookingState.rescheduleAppointmentId = undefined
+    } else if (rescheduleIntent) {
+      nextBookingState.rescheduleAppointmentId = rescheduleIntent.appointment_id
+    } else {
+      nextBookingState.rescheduleAppointmentId = bookingState.rescheduleAppointmentId
+    }
   }
 
   const suggestedActions = await buildLlmSuggestedActions({
@@ -550,13 +618,16 @@ export async function runAdministrator(
   ])
 
   const shadowFormToSave = (() => {
-    if (!masterAutoFacted && !slotConfirmed) return shadowForm
+    if (!masterAutoFacted && !slotConfirmed && !rescheduleIntent) return shadowForm
     const base = shadowForm ?? bookingState.shadowForm
-    if (!base) return null
+    const resolved = base ?? (rescheduleIntent ? { updatedAt: new Date().toISOString() } : null)
+    if (!resolved) return null
     return {
-      ...base,
+      ...resolved,
       ...(masterAutoFacted && resolvedSf?.master ? { master: resolvedSf.master } : {}),
       ...(slotConfirmed    && resolvedSf?.slot   ? { slot:   resolvedSf.slot   } : {}),
+      ...(rescheduleIntent && resolvedSf?.date   ? { date:   resolvedSf.date   } : {}),
+      ...(rescheduleIntent && resolvedSf?.slot   ? { slot:   resolvedSf.slot   } : {}),
     }
   })()
 

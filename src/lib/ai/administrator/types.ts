@@ -147,6 +147,7 @@ export interface BookingFlowState {
   shadowForm?: ShadowBookingForm
   pendingSlot?: string   // HH:MM — ровно один час, предложенный SERA последним ходом
   awaitingFinalConfirmation?: boolean  // engine=new: карточка STATE D показана, ждём «да»
+  rescheduleAppointmentId?: string     // engine=new: id записи которую переносим (STATE E → UPDATE)
 }
 
 export const DEFAULT_BOOKING_STATE: BookingFlowState = {
