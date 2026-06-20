@@ -303,9 +303,13 @@ export async function buildShadowForm(opts: {
       patch.date = { value: dateRaw, source: datSrc, origin: datOrg }
     }
     const slotRaw = extracted.slot?.value
-    if (slotRaw && typeof slotRaw === 'string' && SLOT_RE.test(slotRaw)) {
-      const { source: sltSrc, origin: sltOrg } = computeSourceAndOrigin(extracted.slot!, message)
-      patch.slot = { value: slotRaw, source: sltSrc, origin: sltOrg }
+    if (slotRaw && typeof slotRaw === 'string') {
+      let normalized = slotRaw.replace('.', ':')
+      if (/^\d:[0-5]\d$/.test(normalized)) normalized = '0' + normalized
+      if (SLOT_RE.test(normalized)) {
+        const { source: sltSrc, origin: sltOrg } = computeSourceAndOrigin(extracted.slot!, message)
+        patch.slot = { value: normalized, source: sltSrc, origin: sltOrg }
+      }
     }
 
     // Если экстрактор ничего нового не нашёл в этом сообщении — вернём prevForm (бланк не сбрасываем)

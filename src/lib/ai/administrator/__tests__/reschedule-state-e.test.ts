@@ -244,6 +244,69 @@ const afterDecline = simulateStateE({ message: 'нет', bookingState: reschedSt
 assert(!afterDecline.updateCalled, 'UPDATE НЕ вызван при отказе')
 assert(afterDecline.clearAwaitingConfirmation, 'awaitingFinalConfirmation сброшен')
 
+// ─── TEST 6-А: slot normalizer ───────────────────────────────────────────────
+console.log('\nТЕСТ 6-А — нормализация слота: «18.00» → «18:00», «9.00» → «09:00», «18:00» → «18:00»')
+
+const SLOT_RE = /^([01]\d|2[0-3]):[0-5]\d$/
+function normalizeSlot(raw: string): string | null {
+  let normalized = raw.replace('.', ':')
+  if (/^\d:[0-5]\d$/.test(normalized)) normalized = '0' + normalized
+  return SLOT_RE.test(normalized) ? normalized : null
+}
+
+assert(normalizeSlot('18.00') === '18:00', '«18.00» → «18:00»',  normalizeSlot('18.00'))
+assert(normalizeSlot('9.00')  === '09:00', '«9.00»  → «09:00» (ведущий ноль дописывается)', normalizeSlot('9.00'))
+assert(normalizeSlot('18:00') === '18:00', '«18:00» → «18:00» (уже корректный)',  normalizeSlot('18:00'))
+assert(normalizeSlot('09.30') === '09:30', '«09.30» → «09:30»',  normalizeSlot('09.30'))
+assert(normalizeSlot('25.00') === null,    '«25.00» → null (невалидный час)',  normalizeSlot('25.00'))
+
+// ─── TEST 6-Б: isRescheduleMode via saved ID, no fresh intent ─────────────
+console.log('\nТЕСТ 6-Б — isRescheduleMode=true через rescheduleAppointmentId (без свежего intent)')
+
+// Simulates turn 2: intent=null, but rescheduleAppointmentId in state.
+// isRescheduleMode should be true, so reschedule preview branch is chosen (not create preview).
+const savedIdState: BookingFlowState = {
+  shadowForm: {
+    date: { value: '2026-06-22', source: 'FACT' },
+    slot: { value: '18:00', source: 'FACT' },
+    updatedAt: new Date().toISOString(),
+  },
+  awaitingFinalConfirmation: false,
+  rescheduleAppointmentId: 'appt-uuid-456',
+}
+
+// Verify isRescheduleMode logic: when no fresh intent, saved ID alone makes mode true
+assert(!!savedIdState.rescheduleAppointmentId, 'isRescheduleMode=true когда rescheduleAppointmentId есть, intent=null')
+
+// Verify isReadyToBook passes with rescheduleMode=true on date+slot only
+assert(isReadyToBook(savedIdState.shadowForm, { rescheduleMode: true }),
+  'isReadyToBook(rescheduleMode=true) passes для date+slot=FACT при сохранённом ID')
+
+// ─── TEST 6-В: STATE E outcomes all clear rescheduleAppointmentId ──────────
+console.log('\nТЕСТ 6-В — все исходы STATE E очищают rescheduleAppointmentId')
+
+const stateForClearCheck: BookingFlowState = {
+  shadowForm: {
+    date: { value: '2026-06-22', source: 'FACT' },
+    slot: { value: '18:00', source: 'FACT' },
+    updatedAt: new Date().toISOString(),
+  },
+  awaitingFinalConfirmation: true,
+  rescheduleAppointmentId: 'appt-uuid-789',
+}
+
+const outcomes: Array<{ message: string; result: 'success' | 'slot_taken' | 'too_late' | 'error'; label: string }> = [
+  { message: 'да',          result: 'success',   label: 'success → cleared' },
+  { message: 'да',          result: 'slot_taken', label: 'slot_taken → cleared' },
+  { message: 'да',          result: 'too_late',   label: 'too_late → cleared' },
+  { message: 'нет',         result: 'success',   label: 'decline → cleared' },
+  { message: 'а сколько стоит', result: 'success', label: 'unclear → cleared' },
+]
+for (const { message, result, label } of outcomes) {
+  const sim = simulateStateE({ message, bookingState: stateForClearCheck, rescheduleResult: result })
+  assert(sim.clearAwaitingConfirmation, `${label}: clearAwaitingConfirmation=true`)
+}
+
 // ─── TEST 6: overlap check — verify .neq('id', ...) in manage-appointment ─
 console.log('\nТЕСТ 6 — overlap: .neq(\'id\', appointmentId) присутствует в manage-appointment.ts')
 

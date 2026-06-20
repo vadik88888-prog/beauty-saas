@@ -448,6 +448,27 @@ export async function runAdministrator(
           newSlot:     rescheduleIntent.new_slot,
           timezone:    tenantConfig.timezone,
         })
+      } else if (bookingState.rescheduleAppointmentId) {
+        // Second turn: intent gone but saved ID — SELECT old appointment for reschedule preview
+        const { data: savedApptRow } = await supabase
+          .from('appointments')
+          .select('starts_at, service:services(name), master:masters(name)')
+          .eq('id', bookingState.rescheduleAppointmentId)
+          .eq('tenant_id', tenantId)
+          .single()
+        if (savedApptRow) {
+          const row = savedApptRow as { starts_at: string; service: { name: string } | { name: string }[] | null; master: { name: string } | { name: string }[] | null }
+          const asName = (v: { name: string } | { name: string }[] | null) =>
+            !v ? '' : Array.isArray(v) ? (v[0]?.name ?? '') : v.name
+          previewReply = buildReschedulePreview({
+            serviceName: asName(row.service),
+            masterName:  asName(row.master),
+            oldStartsAt: row.starts_at,
+            newDate:     resolvedSf!.date!.value!,
+            newSlot:     resolvedSf!.slot!.value!,
+            timezone:    tenantConfig.timezone,
+          })
+        }
       } else {
         previewReply = await buildBookingPreview(resolvedSf, tenantConfig, clientId, !clientContext.isReturning)
       }
