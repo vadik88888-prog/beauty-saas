@@ -209,13 +209,13 @@ export async function runAdministrator(
       for (const tc of llmResponse.tool_calls) {
         const tcFn = tc as { id: string; function: { name: string; arguments: string } }
         const args = JSON.parse(tcFn.function.arguments) as Record<string, unknown>
-        const result = await executeTool(tcFn.function.name, args, { tenantId, clientId, conversationId, bookingEngine: tenantConfig.bookingEngine })
+        const result = await executeTool(tcFn.function.name, args, { tenantId, clientId, conversationId, bookingEngine: tenantConfig.bookingEngine, timezone: tenantConfig.timezone })
         toolResults.push(result)
         hallucinationGuard.ingest([result])
         messages.push({ role: 'tool', tool_call_id: tcFn.id, content: JSON.stringify(result) })
       }
       messages.push({
-        role: 'user',
+        role: 'system',
         content: '[SYSTEM CORRECTION] You tried to check availability before the client chose a specific service. Present the services list from the earlier get_services call. Ask: "Какую услугу вы хотите записать?" Do NOT include any time slot info. Wait for the client to reply.',
       } as ChatCompletionMessageParam)
       llmResponse = await adminLLM({ system: systemPrompt, messages, tools: activeTools, model, temperature })
@@ -229,7 +229,7 @@ export async function runAdministrator(
       const tcFn = tc as { id: string; function: { name: string; arguments: string } }
       const args = JSON.parse(tcFn.function.arguments) as Record<string, unknown>
       updateLiveStatus(supabase, conversationId, describeToolForUser(tcFn.function.name, args))
-      const result = await executeTool(tcFn.function.name, args, { tenantId, clientId, conversationId, bookingEngine: tenantConfig.bookingEngine })
+      const result = await executeTool(tcFn.function.name, args, { tenantId, clientId, conversationId, bookingEngine: tenantConfig.bookingEngine, timezone: tenantConfig.timezone })
       toolResults.push(result)
       hallucinationGuard.ingest([result])
 
@@ -266,7 +266,7 @@ export async function runAdministrator(
     if (wantsServices && wantsAvailability) {
       console.warn('[AI] Same-round service-selection guard — AI called get_services + get_available_slots together. Injecting correction.')
       messages.push({
-        role: 'user',
+        role: 'system',
         content: '[SYSTEM CORRECTION] You called get_services and get_available_slots in the same response. Show ONLY the services list. Ask the client which service they want. Do NOT mention any time slots, dates, or availability in this message.',
       } as ChatCompletionMessageParam)
       llmResponse = await adminLLM({ system: systemPrompt, messages, tools: activeTools, model, temperature })
@@ -440,7 +440,7 @@ export async function runAdministrator(
   if (isHallucination && !hadDestructiveSuccess && rounds < MAX_TOOL_ROUNDS && !llmResponse.tool_calls?.length) {
     messages.push(llmResponse.assistantMessage as ChatCompletionMessageParam)
     messages.push({
-      role: 'user',
+      role: 'system',
       content: '[SYSTEM CORRECTION] Your previous response mentioned a master, service, or time slot that was not returned by any tool call. NEVER fabricate data. Call get_services / get_masters / get_available_slots first to fetch real data, then answer using ONLY the data returned. If client has not chosen a service yet, ASK them — do not invent one. If no slots are available, say so honestly. Rewrite your response now.',
     })
 
@@ -465,7 +465,7 @@ export async function runAdministrator(
         const tcFn = tc as { id: string; function: { name: string; arguments: string } }
         const args = JSON.parse(tcFn.function.arguments) as Record<string, unknown>
         updateLiveStatus(supabase, conversationId, describeToolForUser(tcFn.function.name, args))
-        const result = await executeTool(tcFn.function.name, args, { tenantId, clientId, conversationId, bookingEngine: tenantConfig.bookingEngine })
+        const result = await executeTool(tcFn.function.name, args, { tenantId, clientId, conversationId, bookingEngine: tenantConfig.bookingEngine, timezone: tenantConfig.timezone })
         toolResults.push(result)
         hallucinationGuard.ingest([result])
         if (tcFn.function.name === 'book_appointment' && result.success) {

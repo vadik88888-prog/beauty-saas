@@ -147,7 +147,8 @@ export async function resolveActivePromo(
 export async function executeCreateBooking(
   args: { service_id: string; master_id: string; starts_at: string; notes?: string; applied_promo_id?: string },
   tenantId: string,
-  clientId: string
+  clientId: string,
+  timezone = 'Europe/Minsk'
 ): Promise<ToolResult> {
   console.log('[booking] args:', JSON.stringify(args), 'tenant:', tenantId, 'client:', clientId)
   try {
@@ -288,7 +289,7 @@ export async function executeCreateBooking(
         appointment_id: a.id,
         service_name: s.name,
         starts_at: a.starts_at,
-        confirmation_text: `Запись создана: ${s.name} на ${new Date(a.starts_at).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' })}`,
+        confirmation_text: `Запись создана: ${s.name} на ${new Date(a.starts_at).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short', timeZone: timezone })}`,
       },
     }
   } catch (err) {

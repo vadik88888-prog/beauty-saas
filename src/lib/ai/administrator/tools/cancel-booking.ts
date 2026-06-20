@@ -27,7 +27,8 @@ export async function executeCancelBooking(
   args: { appointment_id: string; reason?: string },
   tenantId: string,
   clientId: string,
-  conversationId?: string
+  conversationId?: string,
+  timezone = 'Europe/Minsk'
 ): Promise<ToolResult> {
   console.log('[cancel-booking] args:', JSON.stringify(args), 'tenant:', tenantId, 'client:', clientId)
 
@@ -63,7 +64,7 @@ export async function executeCancelBooking(
     // Это лучше чем заставлять клиента звонить — AI инициирует контакт сам.
     if (result.code === 'too_late') {
       const whenStr = resolvedStartsAt
-        ? new Date(resolvedStartsAt).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' })
+        ? new Date(resolvedStartsAt).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short', timeZone: timezone })
         : ''
       const summary = `Клиент хочет ОТМЕНИТЬ запись${resolvedService ? ` «${resolvedService}»` : ''}${whenStr ? ` на ${whenStr}` : ''}, но до неё уже меньше минимума. Свяжитесь с клиентом и подтвердите отмену.`
       await notifyAdminAboutHandoff({

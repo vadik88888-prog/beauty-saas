@@ -22,7 +22,8 @@ export const getClientHistoryTool: AiTool = {
 export async function executeGetClientHistory(
   args: { status?: 'upcoming' | 'past' | 'all' },
   tenantId: string,
-  clientId: string
+  clientId: string,
+  timezone = 'Europe/Minsk'
 ): Promise<ToolResult> {
   try {
     const supabase = createAdminClient()
@@ -45,7 +46,16 @@ export async function executeGetClientHistory(
     const { data, error } = await query
     if (error) throw error
 
-    return { success: true, data: { appointments: data ?? [] } }
+    const appointments = (data ?? []).map((a) => {
+      const row = a as { starts_at: string; [key: string]: unknown }
+      return {
+        ...row,
+        display_when: new Date(row.starts_at).toLocaleString('ru-RU', {
+          dateStyle: 'medium', timeStyle: 'short', timeZone: timezone,
+        }),
+      }
+    })
+    return { success: true, data: { appointments } }
   } catch (err) {
     return {
       success: false,

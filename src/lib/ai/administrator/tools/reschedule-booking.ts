@@ -27,7 +27,8 @@ export async function executeRescheduleBooking(
   args: { appointment_id: string; new_starts_at: string },
   tenantId: string,
   clientId: string,
-  conversationId?: string
+  conversationId?: string,
+  timezone = 'Europe/Minsk'
 ): Promise<ToolResult> {
   console.log('[reschedule-booking] args:', JSON.stringify(args), 'tenant:', tenantId, 'client:', clientId)
 
@@ -63,10 +64,10 @@ export async function executeRescheduleBooking(
     if (result.code === 'too_late') {
       const newWhen = (() => {
         const d = new Date(args.new_starts_at)
-        return isNaN(d.getTime()) ? args.new_starts_at : d.toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' })
+        return isNaN(d.getTime()) ? args.new_starts_at : d.toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short', timeZone: timezone })
       })()
       const currentWhen = resolvedStartsAt
-        ? new Date(resolvedStartsAt).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' })
+        ? new Date(resolvedStartsAt).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short', timeZone: timezone })
         : ''
       const summary = `Клиент хочет ПЕРЕНЕСТИ запись${serviceName ? ` «${serviceName}»` : ''}${currentWhen ? ` с ${currentWhen}` : ''} на ${newWhen}, но до неё уже меньше минимума. Свяжитесь с клиентом.`
       await notifyAdminAboutHandoff({
@@ -101,7 +102,7 @@ export async function executeRescheduleBooking(
       appointment_id: apptId,
       service_name: serviceName,
       new_starts_at: result.data.starts_at,
-      confirmation_text: `Запись перенесена на ${newDate.toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' })}`,
+      confirmation_text: `Запись перенесена на ${newDate.toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short', timeZone: timezone })}`,
     },
   }
 }
