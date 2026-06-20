@@ -321,6 +321,7 @@ export async function runAdministrator(
         const master = tenantConfig.snapshot.masters.find(m => m.id === frozenForm.master!.id)
         previewReply = `Записала: ${svc?.name ?? bd.service_name} у ${master?.name ?? '—'}, ${formatRussianDate(frozenForm.date.value)} в ${frozenForm.slot.value} ✓`
         clearAwaitingConfirmation = true
+        clearSlotFromForm = true
         console.log('[booking-engine=new] STATE E — booking created', { service: svc?.name, startsAt })
       } else {
         previewReply = bookResult.fallbackMessage ?? 'К сожалению, это время уже занято. Давайте выберем другое?'

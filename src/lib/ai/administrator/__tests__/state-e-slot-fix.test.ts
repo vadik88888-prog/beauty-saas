@@ -71,6 +71,7 @@ function simulateStateE(params: {
     if (bookResultSuccess) {
       previewReply = 'Записала ✓'
       clearAwaitingConfirmation = true
+      clearSlotFromForm = true
     } else {
       previewReply = bookResultFallback ?? 'Время занято.'
       clearAwaitingConfirmation = true
@@ -196,6 +197,23 @@ assert(detectConfirmation('нет') === 'no', 'detectConfirmation("нет") = "n
 assert(afterNo.skipPreviewThisTurn === true, '"нет": skipPreviewThisTurn=true')
 assert(afterNo.nextShadowForm?.slot === undefined, '"нет": slot очищен')
 assert(!isReadyToBook(afterNo.nextShadowForm), '"нет": isReadyToBook = false')
+
+// ─── SCENARIO 3: successful booking → next turn must not re-show card ────
+console.log('\nСЦЕНАРИЙ 3 — успешная запись → следующий ход с любым вводом')
+
+const afterSuccess = simulateStateE({
+  message: 'Да',
+  bookingState: pendingState,
+  bookResultSuccess: true,
+})
+
+assert(afterSuccess.awaitingFinalConfirmation === false, 'awaitingFinalConfirmation сброшен после успешной записи')
+assert(afterSuccess.nextShadowForm?.slot === undefined, 'slot удалён из shadowForm после успешной записи')
+assert(!isReadyToBook(afterSuccess.nextShadowForm), 'isReadyToBook = false (карточка не повторится на следующем ходу)')
+
+// Simulate next turn: client says "покажите мои записи"
+const nextTurnSf = afterSuccess.nextShadowForm
+assert(!isReadyToBook(nextTurnSf), '"покажите мои записи" на следующем ходу: STATE D не перехватит ввод')
 
 // ─── summary ──────────────────────────────────────────────────────────────
 console.log(`\nИТОГО: ${passed} ✓  /  ${failed} ✗\n`)
