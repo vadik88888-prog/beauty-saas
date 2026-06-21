@@ -6,6 +6,8 @@
  * Does NOT import Supabase / Next.js / LLM — only pure logic inlined below.
  */
 
+export {}
+
 // ─── inlined pure functions ────────────────────────────────────────────────
 
 function detectConfirmation(text: string): 'yes' | 'no' | 'unclear' {

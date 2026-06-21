@@ -164,6 +164,9 @@ export async function rescheduleAppointment(opts: {
   if (newStart.getTime() < Date.now() + 30 * 60_000) {
     return { success: false, error: 'Нельзя перенести в прошлое или менее чем за 30 минут', code: 'invalid_date' }
   }
+  if (newStart.getTime() === new Date(appt.starts_at).getTime()) {
+    return { success: false, error: 'Новое время совпадает с текущим — укажите другую дату или время', code: 'invalid_date' }
+  }
 
   // Service params
   const svc = Array.isArray(appt.services) ? appt.services[0] : appt.services
@@ -201,7 +204,7 @@ export async function rescheduleAppointment(opts: {
     ? [appt.notes?.trim(), `↻ Перенос: ${trimmedNote}`].filter(Boolean).join('\n')
     : undefined
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from('appointments')
     .update({
       starts_at: newStart.toISOString(),
@@ -210,12 +213,23 @@ export async function rescheduleAppointment(opts: {
       ...(mergedNotes !== undefined ? { notes: mergedNotes } : {}),
     })
     .eq('id', appointmentId)
+    .select('id, starts_at')
 
   if (error) {
     if (error.code === '23505') {
       return { success: false, error: 'Это время уже занято', code: 'slot_taken' }
     }
     return { success: false, error: 'Не удалось перенести', code: 'server_error' }
+  }
+
+  // Verify that exactly one row was updated and the new time is reflected in the DB.
+  // Supabase returns [] (not an error) when .eq() matches 0 rows — this catches ghost updates.
+  const updatedRow = (updated as { id: string; starts_at: string }[] | null)?.[0]
+  if (!updatedRow) {
+    return { success: false, error: 'Не удалось перенести: запись не найдена в базе', code: 'not_found' }
+  }
+  if (new Date(updatedRow.starts_at).getTime() !== newStart.getTime()) {
+    return { success: false, error: 'Время записи не было обновлено в базе', code: 'server_error' }
   }
 
   return { success: true, data: { starts_at: newStart.toISOString(), ends_at: newEnd.toISOString() } }

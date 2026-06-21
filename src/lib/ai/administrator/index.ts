@@ -508,8 +508,11 @@ export async function runAdministrator(
     v === 'POTENTIAL_HALLUCINATION'
   )
 
+  // reschedule_intent also carries appointment_id but has NO DB write — must be excluded.
+  // Real reschedule success is tracked via STATE E previewReply, not via toolResults.
   const hadDestructiveSuccess = toolResults.some(r => r.success && r.data && (
-    (r.data as Record<string, unknown>).appointment_id !== undefined ||
+    ((r.data as Record<string, unknown>).appointment_id !== undefined &&
+     (r.data as Record<string, unknown>).action !== 'reschedule_intent') ||
     (r.data as Record<string, unknown>).cancelled === true ||
     (r.data as Record<string, unknown>).action === 'handoff'
   ))
