@@ -15,7 +15,8 @@ import type { RescheduleIntentData } from './tools/reschedule-booking'
 import { localToUtc } from './booking-form-shadow'
 import { buildLlmSuggestedActions } from './llm-suggested-actions'
 import { describeToolForUser, updateLiveStatus } from './live-status'
-import { classifyShadow } from './router-shadow'
+import { classifyShadow, verdictToToolChoice } from './router-shadow'
+import type { ShadowVerdict } from './router-shadow'
 import { buildShadowForm, runBookingComparison } from './booking-form-shadow'
 
 const BURST_WINDOW_MIN = 2
@@ -116,14 +117,19 @@ export async function runAdministrator(
 
   const { history, bookingState, conversationState: currentState, summary, summaryUpToCount, totalMessageCount } = convData
 
-  void classifyShadow({
-    tenantId,
-    conversationId,
-    clientId,
-    message,
-    history,
-    hadActiveScenario: !['IDLE', 'BOOKING_CREATED', 'HUMAN_HANDOFF'].includes(bookingState.state),
-  }).catch(err => console.error('[router-shadow] error:', err))
+  const hadActiveScenario = !['IDLE', 'BOOKING_CREATED', 'HUMAN_HANDOFF'].includes(bookingState.state)
+  // Await router only on the FIRST turn of a new intent — when there is no active scenario
+  // and STATE E is not waiting for confirmation. Otherwise fire-and-forget (zero client latency).
+  const isFirstIntentHop = !hadActiveScenario && !bookingState.awaitingFinalConfirmation
+
+  const classifyOpts = { tenantId, conversationId, clientId, message, history, hadActiveScenario }
+  let routerVerdict: ShadowVerdict = null
+
+  if (isFirstIntentHop) {
+    routerVerdict = await classifyShadow(classifyOpts)
+  } else {
+    void classifyShadow(classifyOpts).catch(err => console.error('[router-shadow] error:', err))
+  }
 
   const shadowFormPromise = buildShadowForm({
     tenantId,
@@ -190,9 +196,10 @@ export async function runAdministrator(
     tools: activeTools,
     model,
     temperature,
+    // Medical override takes priority. Otherwise: force RESCHEDULE/CANCEL when router is confident.
     toolChoice: isMedicalQuery
       ? { type: 'function', function: { name: 'request_human_handoff' } }
-      : 'auto',
+      : verdictToToolChoice(routerVerdict),
   })
 
   totalTokens += llmResponse.total_tokens

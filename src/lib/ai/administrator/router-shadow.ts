@@ -11,6 +11,26 @@ import type { LLMMessage } from './types'
 const ROUTES = ['BOOK', 'RESCHEDULE', 'CANCEL', 'FAQ', 'CLARIFY', 'HANDOFF', 'SOCIAL'] as const
 type ShadowRoute = typeof ROUTES[number]
 
+export type ShadowVerdict = { route: ShadowRoute; confidence: number } | null
+
+/**
+ * Pure function: maps a router verdict to toolChoice for the first LLM call.
+ * Forces reschedule_appointment / cancel_appointment only when confidence >= 0.85.
+ * Medical override is handled separately in index.ts (takes priority).
+ */
+export function verdictToToolChoice(
+  verdict: ShadowVerdict
+): 'auto' | { type: 'function'; function: { name: string } } {
+  if (!verdict) return 'auto'
+  if (verdict.route === 'RESCHEDULE' && verdict.confidence >= 0.85) {
+    return { type: 'function', function: { name: 'reschedule_appointment' } }
+  }
+  if (verdict.route === 'CANCEL' && verdict.confidence >= 0.85) {
+    return { type: 'function', function: { name: 'cancel_appointment' } }
+  }
+  return 'auto'
+}
+
 const CLASSIFIER_MODEL = 'gpt-4o-mini'
 const HISTORY_MESSAGES = 6
 const HISTORY_SNIPPET_LEN = 200
@@ -133,7 +153,7 @@ export async function classifyShadow(opts: {
   message: string
   history: LLMMessage[]
   hadActiveScenario: boolean
-}): Promise<void> {
+}): Promise<ShadowVerdict> {
   const { tenantId, conversationId, clientId, message, history, hadActiveScenario } = opts
 
   try {
@@ -156,7 +176,7 @@ export async function classifyShadow(opts: {
     const route = (parsed.route ?? '').toUpperCase() as ShadowRoute
     if (!ROUTES.includes(route)) {
       console.error('[router-shadow] invalid route from model:', raw.slice(0, 120))
-      return
+      return null
     }
     const confidence = Math.min(1, Math.max(0, Number(parsed.confidence) || 0))
 
@@ -185,7 +205,10 @@ export async function classifyShadow(opts: {
     if (error) {
       console.error('[router-shadow] insert failed:', error.message)
     }
+
+    return { route, confidence }
   } catch (err) {
     console.error('[router-shadow] classification failed:', err)
+    return null
   }
 }
