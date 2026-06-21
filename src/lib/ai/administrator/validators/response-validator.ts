@@ -46,11 +46,17 @@ export class ResponseValidator {
       violations.push('COMPETITOR_MENTION')
     }
 
-    // Ghost booking: model asserts a completed booking that didn't happen this turn.
-    // When a real booking exists (hadDestructiveSuccess=true or previewReply set), the
+    // Ghost booking/reschedule/cancel: model asserts a completed action that didn't happen this turn.
+    // When a real action exists (hadDestructiveSuccess=true or previewReply set), the
     // finalReply logic in index.ts bypasses this sanitizedContent entirely — safe to check always.
     if (this.detectsCompletedBookingClaim(response)) {
       violations.push('GHOST_BOOKING_CLAIM')
+    }
+    if (this.detectsCompletedRescheduleClaim(response)) {
+      violations.push('GHOST_RESCHEDULE_CLAIM')
+    }
+    if (this.detectsCompletedCancelClaim(response)) {
+      violations.push('GHOST_CANCEL_CLAIM')
     }
 
     if (context.toolResults && this.containsInventedPrice(response, context.toolResults)) {
@@ -86,6 +92,54 @@ export class ResponseValidator {
   private mentionsCompetitors(text: string): boolean {
     const lower = text.toLowerCase()
     return COMPETITOR_WORDS.some(name => lower.includes(name.toLowerCase()))
+  }
+
+  /**
+   * Detects sentences where the model asserts a completed reschedule without a real DB write.
+   * Fires on past-tense completion verbs; skips questions and conditionals.
+   * When a real reschedule happened, previewReply is set in index.ts and this check is bypassed.
+   */
+  private detectsCompletedRescheduleClaim(text: string): boolean {
+    const segments = text.split(/(?<=[.!?…])\s+|\n+/)
+    for (const seg of segments) {
+      const s = seg.toLowerCase().trim()
+      if (!s) continue
+      if (s.endsWith('?')) continue
+      if (/\bчтобы\b/.test(s) || /\bесли бы\b/.test(s)) continue
+      if (
+        /перенесл[аи]?\s+(вас|вашу|запись)/.test(s) ||
+        /вашу?\s+запись\s+перенес/.test(s) ||
+        /запись\s+(успешно\s+)?перенесена/.test(s) ||
+        /перенос\s+(выполнен|завершён|завершен|сделан|подтверждён|подтвержден)/.test(s)
+      ) {
+        return true
+      }
+    }
+    return false
+  }
+
+  /**
+   * Detects sentences where the model asserts a completed cancellation without a real DB write.
+   * Fires on past-tense completion verbs; skips questions and conditionals.
+   * When a real cancel happened, hadDestructiveSuccess=true in index.ts and this check is bypassed.
+   */
+  private detectsCompletedCancelClaim(text: string): boolean {
+    const segments = text.split(/(?<=[.!?…])\s+|\n+/)
+    for (const seg of segments) {
+      const s = seg.toLowerCase().trim()
+      if (!s) continue
+      if (s.endsWith('?')) continue
+      if (/\bчтобы\b/.test(s) || /\bесли бы\b/.test(s)) continue
+      if (
+        /отменил[аи]?\s+(вашу?\s+)?запись/.test(s) ||
+        /вашу?\s+запись\s+отменил/.test(s) ||
+        /запись\s+(успешно\s+)?отменена/.test(s) ||
+        /отмена\s+(выполнена|завершена|сделана|подтверждена)/.test(s)
+      ) {
+        return true
+      }
+    }
+    return false
   }
 
   private containsInventedPrice(text: string, toolResults: ToolResult[]): boolean {
@@ -202,6 +256,12 @@ export class ResponseValidator {
     }
     if (violations.includes('GHOST_BOOKING_CLAIM')) {
       return 'Чтобы оформить запись, подтвердите детали выше.'
+    }
+    if (violations.includes('GHOST_RESCHEDULE_CLAIM')) {
+      return 'Чтобы перенести запись, подтвердите новое время.'
+    }
+    if (violations.includes('GHOST_CANCEL_CLAIM')) {
+      return 'Чтобы отменить запись, подтвердите действие.'
     }
     if (
       violations.includes('HALLUCINATED_TIME_SLOTS') ||
